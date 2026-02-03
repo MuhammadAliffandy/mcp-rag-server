@@ -99,23 +99,42 @@ class RAGEngine:
         schema_info = f"\nAVAILABLE MEDICAL COLUMNS: {schema_context}" if schema_context else ""
         
         system_msg = f"""
-        You are a Medical Data Orchestrator. Plan a sequence of tasks based on the user's request.{schema_info}
+        You are a Medical Data Orchestrator for PineBioML. Plan a sequence of tasks based on the user's request.{schema_info}
         
-        AVAILABLE TOOLS:
-        - 'plot': For any chart/visualization.
-          * ARGS: 'plot_type' (pca, umap, volcano, heatmap, distribution), 'target_column' (MANDATORY).
-          * NOTE: Use 'distribution' for single markers mentioned by the user (e.g., 'Age', 'Gender').
-        - 'clean': To prepare and prepare data.
-        - 'train': To build ML models. ARGS: 'target_column'.
-        - 'discover': To find biomarkers. ARGS: 'target_column'.
-        - 'report': For comprehensive summary.
-        - 'rag': For general text questions.
+        AVAILABLE TOOLS (PineBioML Suite):
+        - 'plot': Generate valid visualizations.
+           - 'pca' (Default for "plot this"): Dataset overview/clustering.
+           - 'heatmap': Correlation between genes/features.
+           - 'volcano': Compare 2 groups (e.g. Case vs Control).
+           - 'distribution': Analysis of a single variable (e.g. Age).
+           - 'umap': Complex non-linear clustering.
+           - 'plsda': Supervised separation.
+        - 'clean': Impute missing values & remove outliers. (Suggest this before training).
+        - 'train': Train ML models (RandomForest, XGBoost, SVM).
+        - 'discover': Identify top biomarkers/features.
+        - 'predict': Predict outcome for new patient data.
+        - 'report': Generate full PDF/Image report.
+        - 'describe': detailed statistical summary of data (count, missing values, columns).
+        - 'rag': Answer text-based medical questions.
 
         CRITICAL Rules:
-        1. If user mentions a column (e.g. 'Usia'), find the closest match in AVAILABLE MEDICAL COLUMNS and use that EXACT name as 'target_column'.
-        2. NEVER use technical prefixes like 'image', 'data', or 'sp_mayo' in 'target_column' unless it is the EXACT ONLY match.
-        3. If no markers are mentioned, default to 'rag'.
-        4. Respond ONLY in JSON format: {{"tasks": [{{"tool": "...", "args": {{...}}}}, ...]}}
+        1. **Language Mirroring**: DETECT the user's language (English, Indonesian, etc.) and ALWAYS respond in that SAME language.
+        2. **Professional Tone**: You are an expert Medical AI. Use professional, clinical, and encouraging language. Avoid casual slang.
+        3. **Comprehensive Logic**: In your 'answer', explain WHY you are choosing these tools. Be educational (e.g., "I will run PCA to reveal hidden clusters...").
+        4. **Smart Plotting**: If user says "plot" without type, choose 'pca' for whole data, or 'distribution' for single column.
+        5. **Data Summary**: If user asks "What is in the file?", "Describe data", or "Show summary", use the 'describe' tool.
+        6. **Formatting**: When answering about data content (rows/columns), USE MARKDOWN TABLES or BULLET LISTS. Do NOT use long narrative paragraphs.
+        7. **Schema First**: Use "AVAILABLE MEDICAL COLUMNS" to find exact column names for 'target_column'.
+        8. **Chain of Thought**: If user wants to "predict" or "train", recommend "clean" first if data might be dirty.
+        
+        8. TASK STRUCTURE (Strict JSON):
+           The "tasks" list MUST contain objects with EXACTLY this structure:
+           {{"tool": "tool_name", "args": {{"arg1": "value1"}}}}
+           
+           Example: {{"tool": "plot", "args": {{"plot_type": "pca", "target_column": "Diagnosis"}}}}
+        
+        Final JSON Output Format:
+        {{"tasks": [{{"tool": "...", "args": {{...}}}}], "answer": "Markdown formatted explanation (In User's Language)"}}
         """
         
         try:
@@ -129,13 +148,21 @@ class RAGEngine:
             decision = json.loads(decision_str)
             
             tasks = decision.get("tasks", [])
+            direct_answer = decision.get("answer")
+
+            # FIX: If tasks exist, prioritize them! 
+            # (Previously, if 'answer' existed, it ignored tasks and just returned text)
+            if tasks:
+                 return direct_answer if direct_answer else "Executing planned actions...", "multi_task", tasks
             
-            # If no tasks identified or it's just text info, default to RAG
+            # If ONLY a direct answer exists (no tasks), return it as RAG response
+            if direct_answer:
+                return direct_answer, "rag", []
+            
+            # If no tasks and no direct answer, default to RAG search
             if not tasks:
                 answer, sources = self.query(question, patient_id_filter)
                 return answer, "rag", []
-            
-            return "Planning sequence...", "multi_task", tasks
             
         except Exception as e:
             answer, sources = self.query(question, patient_id_filter)
@@ -151,3 +178,32 @@ class RAGEngine:
             
         result = self.qa_chain.invoke({"query": query_enriched})
         return result["result"], result["source_documents"]
+
+    def synthesize_results(self, question: str, tool_outputs: str):
+        """
+        Synthesizes technical tool outputs into a professional clinical explanation.
+        """
+        synth_llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.3)
+        
+        prompt = f"""
+        You are an Expert Medical Consultant.
+        
+        CONTEXT:
+        The user asked: "{question}"
+        The technical tools produced these results:
+        {tool_outputs}
+        
+        TASK:
+        Provide a concise, professional clinical summary that:
+        1. Interprets the tool results for the doctor (e.g. "The PCA plot shows clear separation...").
+        2. Wraps the findings into a cohesive answer.
+        3. Maintains the language of the user's question (Indonesian/English).
+        4. Does NOT repeat technical error logs, just the insights.
+        
+        Professional Response:
+        """
+        
+        try:
+            return synth_llm.invoke(prompt).content
+        except Exception as e:
+            return f"Error synthesizing results: {e}"

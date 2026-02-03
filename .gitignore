@@ -6,7 +6,7 @@ bin/
 lib/
 share/
 include/
-
+architecture_docs/
 # Python
 __pycache__/
 *.py[cod]

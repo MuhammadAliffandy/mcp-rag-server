@@ -1,0 +1,51 @@
+[2026-02-03T15:12:33.065730] Data loaded. Shape: (28, 25)
+[2026-02-03T15:12:33.066490] Numeric DF Shape: (27, 3)
+[2026-02-03T15:12:33.066609] Final Target Column: Sex
+[2026-02-03T15:15:39.816882] Data loaded. Shape: (28, 25)
+[2026-02-03T15:15:39.818008] Numeric DF Shape: (27, 3)
+[2026-02-03T15:15:39.818140] Final Target Column: Sex
+[2026-02-03T15:21:54.013590] Data loaded. Shape: (28, 25)
+[2026-02-03T15:21:54.014561] Numeric DF Shape: (27, 3)
+[2026-02-03T15:21:54.014676] Final Target Column: Age At Cpy
+[2026-02-03T15:33:40.607533] Data loaded. Shape: (28, 25)
+[2026-02-03T15:33:40.609671] Numeric DF Shape: (27, 3)
+[2026-02-03T15:33:40.609748] Target series not found yet. Trying categorical fallback.
+[2026-02-03T15:33:40.611684] Final Target Column: Sex
+[2026-02-03T15:46:53.593462] Data loaded. Shape: (11, 25)
+[2026-02-03T15:46:53.594406] Numeric DF Shape: (11, 3)
+[2026-02-03T15:46:53.594485] Target series not found yet. Trying categorical fallback.
+[2026-02-03T15:46:53.595842] Final Target Column: Patient
+[2026-02-03T15:54:57.593227] Data loaded. Shape: (11, 25)
+[2026-02-03T15:54:57.594030] Numeric DF Shape: (11, 3)
+[2026-02-03T15:54:57.594103] Target series not found yet. Trying categorical fallback.
+[2026-02-03T15:54:57.594909] Final Target Column: Patient
+[2026-02-03T16:08:49.943385] Data loaded. Shape: (11, 25)
+[2026-02-03T16:08:49.944717] Numeric DF Shape: (11, 0)
+[2026-02-03T16:16:34.119760] Data loaded. Shape: (11, 25)
+[2026-02-03T16:16:34.121160] Warning: Filters removed all data. Reverting to RAW numeric data.
+[2026-02-03T16:16:34.121210] Numeric DF Final Shape: (11, 3)
+[2026-02-03T16:16:34.121277] Target series not found yet. Trying categorical fallback.
+[2026-02-03T16:16:34.122000] Final Target Column: Patient
+[2026-02-03T16:22:52.832249] Data loaded. Shape: (11, 25)
+[2026-02-03T16:22:52.833420] Warning: Even Soft Filter has < 2 columns. Aborting plot to avoid showing metadata.
+[2026-02-03T16:22:52.833501] Numeric DF Final Shape: (11, 1)
+[2026-02-03T16:23:25.292264] Data loaded. Shape: (11, 25)
+[2026-02-03T16:23:25.293632] Warning: Even Soft Filter has < 2 columns. Aborting plot to avoid showing metadata.
+[2026-02-03T16:23:25.293691] Numeric DF Final Shape: (11, 1)
+[2026-02-03T16:23:31.890850] Data loaded. Shape: (11, 25)
+[2026-02-03T16:23:31.891810] Warning: Even Soft Filter has < 2 columns. Aborting plot to avoid showing metadata.
+[2026-02-03T16:23:31.891858] Numeric DF Final Shape: (11, 1)
+[2026-02-03T16:26:23.902603] Data loaded. Shape: (11, 25)
+[2026-02-03T16:26:23.903874] Warning: Even Soft Filter has < 2 columns. Aborting plot to avoid showing metadata.
+[2026-02-03T16:26:23.903932] Numeric DF Final Shape: (11, 1)
+[2026-02-03T16:26:23.903975] Auto-switching to Distribution plot for single feature: Sum Pmayo
+[2026-02-03T16:26:23.904080] Final Target Column: Sum Pmayo
+[2026-02-03T16:30:11.229270] Data loaded. Shape: (28, 25)
+[2026-02-03T16:30:11.230383] Numeric DF Shape after Ambiguity Filter: (27, 0)
+[2026-02-03T16:34:02.257385] Data loaded. Shape: (11, 25)
+[2026-02-03T16:34:02.258639] Numeric DF Shape after Ambiguity Filter: (11, 0)
+[2026-02-03T16:37:34.680064] Data loaded. Shape: (11, 25)
+[2026-02-03T16:37:34.681441] Numeric DF Shape after Ambiguity Filter: (11, 1)
+[2026-02-03T16:37:34.681511] Auto-switching to Distribution plot for single feature: Sum Pmayo
+[2026-02-03T16:37:34.681588] Plotting distribution for target: Sum Pmayo
+[2026-02-03T16:37:34.681661] Final Target Column: Sum Pmayo

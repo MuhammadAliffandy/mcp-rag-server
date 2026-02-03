@@ -13,16 +13,38 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# Helper for debug logging (avoids stdout which breaks MCP)
+def debug_log(msg):
+    with open("server_debug.log", "a") as f:
+        import datetime
+        timestamp = datetime.datetime.now().isoformat()
+        f.write(f"[{timestamp}] {msg}\n")
+
+# Initialize FastMCP server
+
 # Initialize FastMCP server
 mcp = FastMCP("Medical-PineBioML-Server")
 
 # Initialize RAG Engine
 rag_engine = RAGEngine()
 
-# State directory for persistence across tool restart (since app.py restarts server per call)
+# State directory for persistence
 STATE_DIR = ".mcp_state"
 TABULAR_DATA_PATH = os.path.join(STATE_DIR, "current_data.json")
+INTERNAL_KNOWLEDGE_PATH = "internal_docs"
 os.makedirs(STATE_DIR, exist_ok=True)
+os.makedirs(INTERNAL_KNOWLEDGE_PATH, exist_ok=True)
+
+# Auto-ingest internal knowledge on startup
+def auto_ingest_internal():
+    if os.path.exists(INTERNAL_KNOWLEDGE_PATH):
+        print(f"🚀 Auto-ingesting internal knowledge from {INTERNAL_KNOWLEDGE_PATH}...")
+        docs = DocumentProcessor.load_directory(INTERNAL_KNOWLEDGE_PATH, doc_type="internal_record")
+        if docs:
+            rag_engine.ingest_documents(docs)
+            print(f"✅ Ingested {len(docs)} internal documents.")
+
+auto_ingest_internal()
 
 def aggressive_clean(c):
     orig = c
@@ -154,7 +176,10 @@ def generate_medical_plot(plot_type: str, patient_ids: Optional[str] = None, tar
             df_json = f.read()
         df = pd.read_json(io.StringIO(df_json))
     except Exception as e:
+        debug_log(f"Error loading data: {e}")
         return f"Error loading data: {e}"
+    
+    debug_log(f"Data loaded. Shape: {df.shape}")
     
     # Filter by IDs
     if patient_ids:
@@ -170,10 +195,37 @@ def generate_medical_plot(plot_type: str, patient_ids: Optional[str] = None, tar
     original_cols = df.columns.tolist()
     df.columns = [aggressive_clean(c) for c in original_cols]
     
-    numeric_df = df.select_dtypes(include=['number']).dropna(axis=1, how='all').dropna()
+    numeric_df_raw = df.select_dtypes(include=['number']).dropna(axis=1, how='all').dropna()
     
-    if numeric_df.empty or numeric_df.shape[1] < 2:
-        return f"Error: Insufficient numeric data for {plot_type}. Found {len(numeric_df)} samples and {len(numeric_df.columns)} numeric markers."
+    # AMBIGUITY FILTER: Strict Data Sanitization
+    # We explicitly BAN these terms because they are technical artifacts, metadata, or ambiguous indices.
+    # The user request is: "Visualisasi akan dibaca oleh manusia" -> Clean Medical Features ONLY.
+    # REVISED: 'sum pmayo' is likely a valid score, just poorly named. We unban it and will RENAME it later.
+    STRICT_EXCLUDE = ['id', 'date', 'time', 'image', 'path', 'file', 'index', 'unnamed']
+    
+    # Apply Strict Filter
+    numeric_df = numeric_df_raw[[c for c in numeric_df_raw.columns if not any(k in c.lower() for k in STRICT_EXCLUDE)]]
+    
+    debug_log(f"Numeric DF Shape after Ambiguity Filter: {numeric_df.shape}")
+
+    # AUTO-SWITCH (Single Feature Case):
+    if numeric_df.shape[1] == 1:
+        single_col = numeric_df.columns[0]
+        debug_log(f"Auto-switching to Distribution plot for single feature: {single_col}")
+        plot_type = 'distribution'
+        target_column = single_col 
+    
+    # ERROR HANDLING (Insufficient Data):
+    elif numeric_df.empty or numeric_df.shape[1] < 2:
+        # Generate a helpful error message explaining the Ambiguity Filter's action
+        removed_cols = [c for c in numeric_df_raw.columns if c not in numeric_df.columns]
+        return (f"Error: Insufficient VALID Medical Data.\n\n"
+                f"I applied the **Ambiguity Filter** to ensure human-readable results.\n"
+                f"- **Found Raw Columns**: {list(numeric_df_raw.columns)}\n"
+                f"- **Removed Ambiguous/Metadata**: {removed_cols}\n"
+                f"- **Remaining Valid Features**: {list(numeric_df.columns)}\n\n"
+                f"We need at least 2 valid medical features for a heatmap. Please check your data source.")
+
 
     import time
     timestamp = int(time.time())
@@ -182,6 +234,31 @@ def generate_medical_plot(plot_type: str, patient_ids: Optional[str] = None, tar
     
     plt.close('all')
     interpretation = ""
+    
+    def format_for_display(text: str) -> str:
+        if not text: return "General Analysis"
+        
+        # SMART ALIASING: Rename technical columns to human-readable medical labels
+        aliases = {
+            "sum pmayo": "P-Mayo Total Score",
+            "pmayo": "P-Mayo Score",
+            "avg_intensity": "Average Intensity",
+            "diagnosis_code": "Diagnosis Category"
+        }
+        
+        lower_text = text.lower()
+        # Direct match check
+        if lower_text in aliases:
+            return aliases[lower_text]
+        # Partial match check (slower but covers variations)
+        for key, val in aliases.items():
+            if key in lower_text:
+                return val
+                
+        return text.replace('_', ' ').replace('.', ' ').title()
+
+    debug_log(f"Plotting {plot_type} for target: {target_column}")
+    display_target = format_for_display(target_column) # Safe formatted string for titles
     
     try:
         # 1. Target Column discovery
@@ -204,13 +281,20 @@ def generate_medical_plot(plot_type: str, patient_ids: Optional[str] = None, tar
                         target_series = df[target_column]
 
         if target_series is None:
+            debug_log("Target series not found yet. Trying categorical fallback.")
             # Fallback: categorical search
             potential = [c for c in df.columns if df[c].nunique() <= 5 and not pd.api.types.is_numeric_dtype(df[c])]
             if potential:
                 target_column = potential[0]
                 target_series = df[target_column]
             else:
+                debug_log("Attributes: No categorical found. Creating General Sample.")
                 target_column = "General Sample"
+                df["General Sample"] = "Sample" # Create the column so it exists!
+                target_series = df["General Sample"]
+        
+        debug_log(f"Final Target Column: {target_column}")
+        display_target = format_for_display(target_column) # Update display label with final resolved target
 
         import seaborn as sns
         # 2. Plot Generation
@@ -305,7 +389,7 @@ def generate_medical_plot(plot_type: str, patient_ids: Optional[str] = None, tar
             
             if is_numeric:
                 sns.histplot(df[target_column].dropna(), kde=True, color='teal')
-                plt.title(f"Distribution of {target_column}\n(N={len(df[target_column].dropna())} samples)")
+                plt.title(f"Distribution Analysis: {display_target}")
                 plt.xlabel(target_column)
                 plt.ylabel("Frequency / Count")
                 interpretation = f"### Distribution Analysis: {target_column}\nThis histogram shows the spread of **{target_column}**. The curve (KDE) represents the estimated density."
@@ -315,7 +399,10 @@ def generate_medical_plot(plot_type: str, patient_ids: Optional[str] = None, tar
                 plt.title(f"Breakdown of {target_column}\n(Frequency count of categorical groups)")
                 plt.xlabel(target_column)
                 plt.ylabel("Total Count")
-                interpretation = f"### Categorical Breakdown: {target_column}\nThis bar chart shows the frequency of each group in **{target_column}**."
+                
+                # Statistical Summary
+                stats = "\n".join([f"- **{k}**: {v}" for k, v in counts.head(5).items()])
+                interpretation = f"### Stats: {target_column}\n{stats}"
             
             plt.savefig(plot_path, bbox_inches='tight')
 
@@ -324,9 +411,39 @@ def generate_medical_plot(plot_type: str, patient_ids: Optional[str] = None, tar
             corr = numeric_df.corr()
             plt.figure(figsize=(12, 10))
             sns.heatmap(corr, annot=True, cmap='coolwarm', fmt=".2f", center=0)
-            plt.title(f"Correlation Heatmap: Relationship between Markers\nFocus Analysis: {target_column}")
+            plt.title(f"Correlation Map: Relationship between Markers\nFocus: {display_target}")
             plt.savefig(plot_path, bbox_inches='tight')
-            interpretation = "### Correlation Heatmap\nIdentifies markers that move together. Values near **1.0** (Red) mean strong positive link, **-1.0** (Blue) mean inverse link."
+            
+            # Find unique strongest correlations (Upper Triangle only to avoid A-B / B-A duplicates)
+            import numpy as np
+            # Create mask for upper triangle (excluding diagonal k=1)
+            mask = np.triu(np.ones_like(corr, dtype=bool), k=1)
+            
+            # Apply mask to keep only upper triangle values
+            corr_upper = corr.where(mask)
+            
+            # Stack and sort by absolute correlation
+            s = corr_upper.unstack().dropna()
+            
+            # Sort by strength (absolute value) but keep sign
+            # We want to see the strongest relationships (positive or negative)
+            so = s.iloc[s.abs().argsort()[::-1]]
+            
+            # User request: "Can I see ALL data?"
+            # Strategy: If it's a reasonable size (<= 100 pairs), show EVERYTHING.
+            # If it's huge, show Top 50 to prevent LLM overload.
+            total_pairs = len(so)
+            limit = 100 if total_pairs <= 100 else 50
+            
+            top_corr = so.head(limit)
+            
+            stats = "\n".join([f"- **{i[1]} vs {i[0]}**: {v:.2f}" for i, v in top_corr.items()])
+            interpretation = f"### Correlation Analysis (Unique Pairs)\n{stats}"
+            
+            if total_pairs > limit:
+                interpretation += f"\n\n*(Displaying top {limit} of {total_pairs} pairs to avoid text overflow)*"
+            else:
+                interpretation += f"\n\n*(Showing ALL {total_pairs} unique correlations)*"
 
         plt.close('all')
         return f"{plot_path}|||{interpretation}"
@@ -335,6 +452,9 @@ def generate_medical_plot(plot_type: str, patient_ids: Optional[str] = None, tar
         return f"{plot_path}|||{interpretation}"
     except Exception as e:
         plt.close('all')
+        debug_log(f"Plotting CRASH: {e}")
+        import traceback
+        debug_log(traceback.format_exc())
         return f"Plotting failed: {str(e)}"
 
 @mcp.tool()
@@ -468,6 +588,13 @@ def discover_markers(target_column: Optional[str] = None) -> str:
         return res
     except Exception as e:
         return f"Discovery failed: {e}"
+
+@mcp.tool()
+def synthesize_medical_results(question: str, results: str) -> str:
+    """
+    Synthesizes multiple tool outputs into a final clinical summary.
+    """
+    return rag_engine.synthesize_results(question, results)
 
 @mcp.tool()
 def generate_medical_report(target_column: str = None) -> str:
