@@ -24,3 +24,6 @@ shap
 catboost
 statsmodels
 unstructured[all-docs]
+xgboost
+lightgbm
+mcp

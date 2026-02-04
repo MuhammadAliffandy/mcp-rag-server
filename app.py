@@ -234,7 +234,8 @@ if st.session_state.ingested:
                 # Call the Smart Brain via MCP Tool
                 dispatch_res = asyncio.run(call_mcp_tool("smart_intent_dispatch", {
                     "question": prompt,
-                    "patient_id_filter": patient_filter
+                    "patient_id_filter": patient_filter,
+                    "chat_history": st.session_state.messages
                 }))
                 
                 # ERROR HANDLING: Check if response is valid
@@ -275,15 +276,15 @@ if st.session_state.ingested:
                         
                         st.write(f"**Step {i+1}: {t_name.title()}**")
                         
-                        if t_name == "clean":
+                        if t_name in ["clean", "clean_medical_data"]:
                             with st.spinner("Cleaning medical data..."):
                                 m_res = asyncio.run(call_mcp_tool("clean_medical_data", t_args))
                                 st.success(m_res)
                                 res += f"\n- {m_res}"
                                 tool_outputs.append(f"Clean Data: {m_res}")
                         
-                        elif t_name == "plot":
-                            with st.spinner(f"Generating {t_args.get('plot_type', 'plot')}..."):
+                        elif t_name in ["plot", "generate_medical_plot"]:
+                            with st.spinner(f"Generating plot..."):
                                 p_args = {
                                     "plot_type": t_args.get("plot_type", "pca"),
                                     "patient_ids": patient_filter,
@@ -295,25 +296,63 @@ if st.session_state.ingested:
                                     st.image(path)
                                     st.markdown(interp)
                                     res += f"\n- {interp}"
-                                    tool_outputs.append(f"Plot ({p_args['plot_type']}) Findings: {interp}")
+                                    tool_outputs.append(f"Plot Findings: {interp}")
                                 else:
                                     st.error(m_res)
+
+                        elif t_name == "run_pls_analysis":
+                            with st.spinner("Running PLS-DA..."):
+                                m_res = asyncio.run(call_mcp_tool("run_pls_analysis", {}))
+                                if "|||" in m_res:
+                                    path, txt = m_res.split("|||")
+                                    st.image(path)
+                                    st.markdown(txt)
+                                    res += f"\n- PLS-DA Analysis complete."
+                                    tool_outputs.append(f"PLS-DA Findings: {txt}")
+
+                        elif t_name == "run_umap_analysis":
+                            with st.spinner("Running UMAP..."):
+                                m_res = asyncio.run(call_mcp_tool("run_umap_analysis", {}))
+                                if "|||" in m_res:
+                                    path, txt = m_res.split("|||")
+                                    st.image(path)
+                                    st.markdown(txt)
+                                    res += f"\n- UMAP Analysis complete."
+                                    tool_outputs.append(f"UMAP Findings: {txt}")
+
+                        elif t_name == "run_correlation_heatmap":
+                            with st.spinner("Generating Heatmap..."):
+                                m_res = asyncio.run(call_mcp_tool("run_correlation_heatmap", {}))
+                                if "|||" in m_res:
+                                    path, txt = m_res.split("|||")
+                                    st.image(path)
+                                    st.markdown(txt)
+                                    res += f"\n- Heatmap complete."
+                                    tool_outputs.append(f"Heatmap Findings: {txt}")
                         
-                        elif t_name == "train":
+                        elif t_name in ["train", "train_medical_model"]:
                             with st.spinner("Training model..."):
                                 m_res = asyncio.run(call_mcp_tool("train_medical_model", t_args))
                                 st.markdown(m_res)
                                 res += f"\n- Training complete."
                                 tool_outputs.append(f"Training Results: {m_res}")
                         
-                        elif t_name == "discover":
+                        elif t_name == "inspect_knowledge_base":
+                            with st.spinner("Inspecting knowledge base..."):
+                                m_res = asyncio.run(call_mcp_tool("inspect_knowledge_base", {}))
+                                st.info("Knowledge Base Inventory")
+                                st.markdown(m_res)
+                                res += f"\n- Knowledge inspection complete."
+                                tool_outputs.append(f"Knowledge Inventory: {m_res}")
+
+                        elif t_name in ["discover", "discover_markers"]:
                             with st.spinner("Discovering biomarkers..."):
                                 m_res = asyncio.run(call_mcp_tool("discover_markers", t_args))
                                 st.markdown(m_res)
                                 res += f"\n- Biomarkers identified."
                                 tool_outputs.append(f"Discovery Results: {m_res}")
                         
-                        elif t_name == "report":
+                        elif t_name in ["report", "generate_medical_report"]:
                             with st.spinner("Generating report..."):
                                 m_res = asyncio.run(call_mcp_tool("generate_medical_report", {}))
                                 if "|||" in m_res:
@@ -323,13 +362,13 @@ if st.session_state.ingested:
                                     res += f"\n- Report generated."
                                     tool_outputs.append(f"Report Summary: {txt}")
                         
-                        elif t_name == "rag":
+                        elif t_name in ["rag", "query_medical_rag"]:
                             m_res = asyncio.run(call_mcp_tool("query_medical_rag", {"question": prompt}))
                             st.markdown(m_res)
                             res += f"\n- {m_res}"
                             tool_outputs.append(f"RAG Knowledge: {m_res}")
 
-                        elif t_name == "describe":
+                        elif t_name in ["describe", "get_data_context"]:
                             with st.spinner("Analyzing data summary..."):
                                 m_res = asyncio.run(call_mcp_tool("get_data_context", {}))
                                 st.markdown(m_res)

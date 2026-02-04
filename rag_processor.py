@@ -9,8 +9,11 @@ from langchain_core.documents import Document as LangChainDocument
 
 # Helper log agar tidak crash
 def log_safe(msg):
-    sys.stderr.write(f"[Processor] {msg}\n")
-    sys.stderr.flush()
+    try:
+        with open("server_debug.log", "a") as f:
+            f.write(f"[Processor] {msg}\n")
+    except:
+        pass
 
 class DocumentProcessor:
     PATIENT_ID_PATTERN = re.compile(r'(?:ID|Patient)\s*[:#]?\s*(\d+)', re.IGNORECASE)
@@ -21,17 +24,12 @@ class DocumentProcessor:
             reader = PdfReader(file_path)
             documents = []
             
-            # Summary
-            summary_text = f"Document Summary for {os.path.basename(file_path)}:\nType: PDF\nPages: {len(reader.pages)}\n"
-            documents.append(LangChainDocument(
-                page_content=summary_text,
-                metadata={"source": file_path, "type": "pdf_summary", "doc_type": doc_type}
-            ))
-            
-            # Pages
+            # Deep Summary Generation
+            all_text = ""
             for i, page in enumerate(reader.pages):
                 text = page.extract_text()
                 if text:
+                    all_text += text + "\n"
                     patient_ids = DocumentProcessor.PATIENT_ID_PATTERN.findall(text)
                     documents.append(LangChainDocument(
                         page_content=f"Source: {os.path.basename(file_path)} (Page {i+1})\n\n{text}",
@@ -43,6 +41,21 @@ class DocumentProcessor:
                             "doc_type": doc_type
                         }
                     ))
+            
+            # Structured File Summary
+            summary_content = f"""
+[DEEP SUMMARY] File: {os.path.basename(file_path)}
+Format: PDF
+Pages: {len(reader.pages)}
+Preview: {all_text[:500]}...
+Medical Context: This is a document-based medical record or guideline.
+            """.strip()
+            
+            documents.append(LangChainDocument(
+                page_content=summary_content,
+                metadata={"source": file_path, "type": "file_summary", "doc_type": doc_type}
+            ))
+            
             return documents
         except Exception as e:
             log_safe(f"Error processing PDF {file_path}: {e}")
@@ -55,10 +68,19 @@ class DocumentProcessor:
             paragraphs = [para.text for para in doc.paragraphs if para.text.strip()]
             documents = []
             
-            summary_text = f"Document Summary for {os.path.basename(file_path)}:\nType: DOCX\nParas: {len(paragraphs)}\n"
+            full_text = "\n".join(paragraphs)
+            
+            # Structured File Summary
+            summary_content = f"""
+[DEEP SUMMARY] File: {os.path.basename(file_path)}
+Format: DOCX
+Paragraphs: {len(paragraphs)}
+Preview: {full_text[:500]}...
+            """.strip()
+            
             documents.append(LangChainDocument(
-                page_content=summary_text,
-                metadata={"source": file_path, "type": "docx_summary", "doc_type": doc_type}
+                page_content=summary_content,
+                metadata={"source": file_path, "type": "file_summary", "doc_type": doc_type}
             ))
             
             current_chunk = []
@@ -98,22 +120,40 @@ class DocumentProcessor:
             patient_id_cols = [col for col in df.columns if 'id' in col.lower() or 'patient' in col.lower()]
             documents = []
             
-            # Summary dengan df_json (PENTING untuk server)
-            summary_text = f"Data Summary for {os.path.basename(file_path)}:\nRows: {len(df)}, Columns: {', '.join(df.columns)}\n"
+            # Deep Tabular Analysis for RAG
+            cols_info = []
+            for col in df.columns:
+                dtype = str(df[col].dtype)
+                nulls = df[col].isnull().sum()
+                sample = str(df[col].iloc[0]) if not df.empty else "N/A"
+                cols_info.append(f"- {col} ({dtype}): {nulls} missing, example: {sample}")
+            
+            cols_summary = "\n".join(cols_info)
+            summary_content = f"""
+[DEEP SUMMARY] File: {os.path.basename(file_path)}
+Format: Tabular (Excel/CSV)
+Rows: {len(df)}, Columns: {len(df.columns)}
+Columns Overview:
+{cols_summary}
+
+Statistical Highlights:
+{df.describe().to_string() if not df.select_dtypes('number').empty else "No numeric columns."}
+            """.strip()
+            
             documents.append(LangChainDocument(
-                page_content=summary_text,
+                page_content=summary_content,
                 metadata={
                     "source": file_path,
-                    "type": "tabular_summary",
+                    "type": "file_summary",
                     "doc_type": doc_type,
-                    "df_json": df.to_json() 
+                    "df_json": df.to_json() # Keep for server data sync
                 }
             ))
             
-            max_rows = 200 
+            max_rows = 50 
             for i, row in df.head(max_rows).iterrows():
                 row_content = [f"{col}: {val}" for col, val in row.items() if pd.notnull(val)]
-                row_text = f"Data Record (Row {i+1}): " + ", ".join(row_content)
+                row_text = f"Data Record (Row {i+1}): {', '.join(row_content)}"
                 p_id = str(row[patient_id_cols[0]]) if patient_id_cols else ""
 
                 documents.append(LangChainDocument(
@@ -186,15 +226,21 @@ class DocumentProcessor:
                 text = f.read()
             
             patient_ids = DocumentProcessor.PATIENT_ID_PATTERN.findall(text)
-            return [LangChainDocument(
-                page_content=f"Source: {os.path.basename(file_path)}\n\n{text}",
-                metadata={
-                    "source": file_path,
-                    "patient_ids": ",".join(list(set(patient_ids))),
-                    "type": "text_file",
-                    "doc_type": doc_type
-                }
-            )]
+            
+            summary_content = f"[DEEP SUMMARY] File: {os.path.basename(file_path)}\nFormat: Text\nPreview: {text[:500]}..."
+            
+            return [
+                LangChainDocument(page_content=summary_content, metadata={"source": file_path, "type": "file_summary", "doc_type": doc_type}),
+                LangChainDocument(
+                    page_content=f"Source: {os.path.basename(file_path)}\n\n{text}",
+                    metadata={
+                        "source": file_path,
+                        "patient_ids": ",".join(list(set(patient_ids))),
+                        "type": "text_file",
+                        "doc_type": doc_type
+                    }
+                )
+            ]
         except Exception as e:
             log_safe(f"Error processing TXT {file_path}: {e}")
             return []
