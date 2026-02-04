@@ -19,4 +19,8 @@ pillow
 openpyxl
 pytesseract
 opencv-python
+optuna
+shap
+catboost
+statsmodels
 unstructured[all-docs]

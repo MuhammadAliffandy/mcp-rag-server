@@ -20,6 +20,36 @@ def debug_log(msg):
         timestamp = datetime.datetime.now().isoformat()
         f.write(f"[{timestamp}] {msg}\n")
 
+import sys
+import contextlib
+import warnings
+
+@contextlib.contextmanager
+def suppress_output():
+    """
+    Redirects stdout and stderr to server_debug.log to prevent 
+    library logs from breaking MCP JSON-RPC protocol.
+    Also suppresses Python warnings.
+    """
+    with open("server_debug.log", "a") as logfile:
+        original_stdout = sys.stdout
+        original_stderr = sys.stderr
+        original_showwarning = warnings.showwarning
+        
+        # Redirect output
+        sys.stdout = logfile
+        sys.stderr = logfile
+        
+        # Suppress warnings
+        warnings.filterwarnings('ignore')
+        
+        try:
+            yield
+        finally:
+            sys.stdout = original_stdout
+            sys.stderr = original_stderr
+            warnings.showwarning = original_showwarning
+
 # Initialize FastMCP server
 
 # Initialize FastMCP server
@@ -89,17 +119,38 @@ def ingest_medical_files(directory_path: str, doc_type: str = "internal_patient"
     if not os.path.exists(directory_path):
         return f"Error: Directory {directory_path} not found."
     
-    all_docs = DocumentProcessor.load_directory(directory_path, doc_type=doc_type)
-    
-    # Store the first detected tabular data for plotting tools (Persistence to Disk)
-    for doc in all_docs:
-        if "df_json" in doc.metadata:
-            with open(TABULAR_DATA_PATH, "w") as f:
-                f.write(doc.metadata["df_json"])
-            break
+    try:
+        with suppress_output():
+            debug_log(f"Starting ingestion from {directory_path} ({doc_type})")
             
-    rag_engine.ingest_documents(all_docs)
-    return f"Successfully ingested {len(all_docs)} segments into {doc_type}."
+            all_docs = DocumentProcessor.load_directory(directory_path, doc_type=doc_type)
+            
+            if not all_docs:
+                return "No valid documents found in the directory."
+            
+            # Store the first detected tabular data for plotting tools (Persistence to Disk)
+            tabular_found = False
+            for doc in all_docs:
+                if "df_json" in doc.metadata:
+                    with open(TABULAR_DATA_PATH, "w") as f:
+                        f.write(doc.metadata["df_json"])
+                    tabular_found = True
+                    debug_log("Tabular data found and cached.")
+                    break
+                    
+            rag_engine.ingest_documents(all_docs)
+            
+            summary = f"Successfully ingested {len(all_docs)} segments into {doc_type}."
+            if tabular_found:
+                summary += "\n(Tabular data cached for analysis)"
+            
+            return summary
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        debug_log(f"Ingestion CRASH: {error_detail}")
+        return f"Ingestion failed: {str(e)}\n\nCheck server logs for details."
 
 @mcp.tool()
 def get_data_context() -> str:
@@ -131,32 +182,53 @@ def smart_intent_dispatch(question: str, patient_id_filter: str = None) -> str:
     """
     Decides the user's intent (plot, clean, train, etc.) and returns a JSON list of tasks.
     """
-    schema = ""
-    if os.path.exists(TABULAR_DATA_PATH):
-        try:
-            with open(TABULAR_DATA_PATH, "r") as f:
-                df_temp = pd.read_json(io.StringIO(f.read()))
-                schema = ", ".join([aggressive_clean(c) for c in df_temp.columns])
-        except:
-            pass
+    try:
+        schema = ""
+        if os.path.exists(TABULAR_DATA_PATH):
+            try:
+                with open(TABULAR_DATA_PATH, "r") as f:
+                    df_temp = pd.read_json(io.StringIO(f.read()))
+                    schema = ", ".join([aggressive_clean(c) for c in df_temp.columns])
+            except Exception as schema_err:
+                debug_log(f"Schema extraction error: {schema_err}")
+                pass
 
-    answer, tool, tasks = rag_engine.smart_query(question, patient_id_filter, schema_context=schema)
-    return json.dumps({
-        "answer": answer,
-        "tool": tool,
-        "tasks": tasks
-    })
+        debug_log(f"smart_intent_dispatch called: question='{question}', patient_filter='{patient_id_filter}'")
+        
+        answer, tool, tasks = rag_engine.smart_query(question, patient_id_filter, schema_context=schema)
+        
+        result = json.dumps({
+            "answer": answer,
+            "tool": tool,
+            "tasks": tasks
+        })
+        
+        debug_log(f"smart_intent_dispatch returning: {result[:200]}...")
+        return result
+        
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        debug_log(f"CRITICAL ERROR in smart_intent_dispatch:\n{error_trace}")
+        
+        # Return error as JSON so app.py doesn't crash
+        return json.dumps({
+            "answer": f"❌ Internal error: {str(e)}. Please check server logs.",
+            "tool": "rag",
+            "tasks": []
+        })
 
 @mcp.tool()
 def query_medical_rag(question: str, patient_id_filter: str = None) -> str:
     """
     Queries the medical RAG system for patient info or medical guidelines.
     """
-    answer, sources = rag_engine.query(question, patient_id_filter=patient_id_filter)
-    source_info = "\n\nSources explored:\n"
-    for s_set in set([os.path.basename(doc.metadata.get('source', 'unknown')) for doc in sources]):
-        source_info += f"- {s_set}\n"
-    return f"{answer}{source_info}"
+    with suppress_output():
+        answer, sources = rag_engine.query(question, patient_id_filter=patient_id_filter)
+        source_info = "\n\nSources explored:\n"
+        for s_set in set([os.path.basename(doc.metadata.get('source', 'unknown')) for doc in sources]):
+            source_info += f"- {s_set}\n"
+        return f"{answer}{source_info}"
 
 @mcp.tool()
 def generate_medical_plot(plot_type: str, patient_ids: Optional[str] = None, target_column: Optional[str] = None) -> str:
@@ -209,11 +281,16 @@ def generate_medical_plot(plot_type: str, patient_ids: Optional[str] = None, tar
     debug_log(f"Numeric DF Shape after Ambiguity Filter: {numeric_df.shape}")
 
     # AUTO-SWITCH (Single Feature Case):
-    if numeric_df.shape[1] == 1:
+    # ONLY auto-switch if user didn't explicitly specify a target_column
+    if numeric_df.shape[1] == 1 and not target_column:
         single_col = numeric_df.columns[0]
         debug_log(f"Auto-switching to Distribution plot for single feature: {single_col}")
         plot_type = 'distribution'
         target_column = single_col 
+    elif numeric_df.shape[1] == 1 and target_column:
+        # User specified a column - just switch to distribution plot type, keep their column
+        debug_log(f"User requested column '{target_column}', switching to distribution plot")
+        plot_type = 'distribution'
     
     # ERROR HANDLING (Insufficient Data):
     elif numeric_df.empty or numeric_df.shape[1] < 2:
@@ -228,34 +305,105 @@ def generate_medical_plot(plot_type: str, patient_ids: Optional[str] = None, tar
 
 
     import time
-    timestamp = int(time.time())
-    plot_path = f"plots/{plot_type}_{timestamp}.png"
+    import uuid
+    # Use unique ID to prevent overwrites in quick succession
+    unique_id = f"{int(time.time())}_{uuid.uuid4().hex[:6]}"
+    # Include column name in filename for debugging
+    col_suffix = target_column.replace(' ', '_')[:20] if target_column else 'default'
+    plot_path = f"plots/{plot_type}_{col_suffix}_{unique_id}.png"
     os.makedirs("plots", exist_ok=True)
     
     plt.close('all')
     interpretation = ""
     
     def format_for_display(text: str) -> str:
-        if not text: return "General Analysis"
+        """
+        Convert technical column names to human-readable labels.
+        This is for VISUALIZATION LABELS, not for filtering data.
         
-        # SMART ALIASING: Rename technical columns to human-readable medical labels
-        aliases = {
-            "sum pmayo": "P-Mayo Total Score",
+        Examples:
+        - 'age_years' -> 'Usia (Tahun)' or 'Age (Years)'
+        - 'sp_mayo' -> 'Skor P-Mayo'
+        - 'bmi_calc' -> 'Indeks Massa Tubuh (BMI)'
+        """
+        if not text: 
+            return "General Analysis"
+        
+        # Comprehensive medical terminology mapping
+        # Format: technical_name -> Human-Readable Label
+        medical_terms = {
+            # Mayo Score variations
+            "sum pmayo": "Skor Total P-Mayo",
+            "sum_pmayo": "Skor Total P-Mayo",
+            "sp mayo": "Skor P-Mayo",
+            "sp_mayo": "Skor P-Mayo", 
             "pmayo": "P-Mayo Score",
-            "avg_intensity": "Average Intensity",
-            "diagnosis_code": "Diagnosis Category"
+            "mayo score": "Mayo Score",
+            "mayo_score": "Mayo Score",
+            
+            # Demographics
+            "age": "Usia",
+            "age_years": "Usia (Tahun)",
+            "age years": "Usia (Tahun)",
+            "patient age": "Usia Pasien",
+            "gender": "Jenis Kelamin",
+            "sex": "Jenis Kelamin",
+            
+            # Body measurements
+            "bmi": "Indeks Massa Tubuh (BMI)",
+            "bmi_calc": "Indeks Massa Tubuh",
+            "weight": "Berat Badan (kg)",
+            "height": "Tinggi Badan (cm)",
+            "body weight": "Berat Badan",
+            "body_weight": "Berat Badan",
+            
+            # Lab values
+            "glucose": "Glukosa Darah",
+            "blood glucose": "Glukosa Darah",
+            "blood_glucose": "Glukosa Darah",
+            "hba1c": "HbA1c",
+            "cholesterol": "Kolesterol",
+            "hdl": "HDL",
+            "ldl": "LDL",
+            "triglycerides": "Trigliserida",
+            
+            # Clinical measurements
+            "blood pressure": "Tekanan Darah",
+            "blood_pressure": "Tekanan Darah",
+            "bp": "Tekanan Darah",
+            "heart rate": "Detak Jantung",
+            "heart_rate": "Detak Jantung",
+            "hr": "Detak Jantung (HR)",
+            
+            # Diagnosis
+            "diagnosis": "Diagnosis",
+            "diagnosis_code": "Kode Diagnosis",
+            "disease": "Penyakit",
+            "condition": "Kondisi",
+            
+            # Generic technical terms
+            "avg_intensity": "Intensitas Rata-rata",
+            "mean_value": "Nilai Rata-rata",
+            "std_dev": "Deviasi Standar",
+            "count": "Jumlah",
+            "frequency": "Frekuensi",
         }
         
-        lower_text = text.lower()
-        # Direct match check
-        if lower_text in aliases:
-            return aliases[lower_text]
-        # Partial match check (slower but covers variations)
-        for key, val in aliases.items():
-            if key in lower_text:
-                return val
-                
-        return text.replace('_', ' ').replace('.', ' ').title()
+        # Normalize text for matching
+        text_lower = text.lower().strip()
+        
+        # Try exact match first
+        if text_lower in medical_terms:
+            return medical_terms[text_lower]
+        
+        # Try partial match
+        for key, readable_label in medical_terms.items():
+            if key in text_lower:
+                return readable_label
+        
+        # If no match, clean up underscores and title case
+        cleaned = text.replace('_', ' ').replace('.', ' ').title()
+        return cleaned
 
     debug_log(f"Plotting {plot_type} for target: {target_column}")
     display_target = format_for_display(target_column) # Safe formatted string for titles
@@ -295,13 +443,35 @@ def generate_medical_plot(plot_type: str, patient_ids: Optional[str] = None, tar
         
         debug_log(f"Final Target Column: {target_column}")
         display_target = format_for_display(target_column) # Update display label with final resolved target
+        
+        # VALIDATION: Ensure the resolved target exists in the dataframe
+        # This prevents errors in plot generation and provides clear guidance
+        if target_column and target_column != "General Sample":
+            if target_column not in df.columns:
+                # Column doesn't exist - provide fuzzy suggestions
+                from difflib import get_close_matches
+                suggestions = get_close_matches(target_column, df.columns.tolist(), n=3, cutoff=0.6)
+                
+                suggestion_text = ""
+                if suggestions:
+                    suggestion_text = f"**Did you mean**: {', '.join(suggestions)}\n\n"
+                
+                return (f"❌ Column '{target_column}' not found in dataset.\n\n"
+                        f"{suggestion_text}"
+                        f"**Available columns** (first 10): {', '.join(df.columns[:10].tolist())}\n\n"
+                        f"**Tip**: Check spelling or try one of the suggested columns.")
 
         import seaborn as sns
         # 2. Plot Generation
         if plot_type.lower() == 'pca':
             from PineBioML.report.utils import pca_plot
             if numeric_df.shape[1] < 2 or numeric_df.shape[0] < 2:
-                return "Error: PCA requires at least 2 markers and 2 samples."
+                available_features = [format_for_display(c) for c in numeric_df.columns]
+                return (f"⚠️ Data Tidak Cukup untuk PCA\n\n"
+                        f"**Status**: {numeric_df.shape[0]} sampel, {numeric_df.shape[1]} fitur medis\n"
+                        f"**Perlu**: Minimal 2 sampel dan 2 fitur\n"
+                        f"**Fitur tersedia**: {', '.join(available_features) if available_features else 'Tidak ada'}\n\n"
+                        f"**Saran**: Upload file dengan lebih banyak data medis (contoh: Usia, BMI, Glukosa)")
             
             pp = pca_plot(n_pc=2, show_fig=False, save_fig=False)
             pp.draw(numeric_df, y=target_series)
@@ -314,7 +484,9 @@ def generate_medical_plot(plot_type: str, patient_ids: Optional[str] = None, tar
             from sklearn.preprocessing import StandardScaler
             scaled = StandardScaler().fit_transform(numeric_df)
             sk_pca = SkPCA(n_components=2).fit(scaled)
-            top_markers = pd.Series(abs(sk_pca.components_[0]), index=numeric_df.columns).sort_values(ascending=False).head(3).index.tolist()
+            top_markers_raw = pd.Series(abs(sk_pca.components_[0]), index=numeric_df.columns).sort_values(ascending=False).head(3).index.tolist()
+            # Convert to readable labels
+            top_markers = [format_for_display(m) for m in top_markers_raw]
             interpretation = f"### PCA (Principal Component Analysis)\n- **Variance**: PC1 ({sk_pca.explained_variance_ratio_[0]:.1%}), PC2 ({sk_pca.explained_variance_ratio_[1]:.1%})\n- **Top Contributors**: {', '.join(top_markers)}\n\n*This plot shows how patients cluster based on their overall medical profile.*"
             plt.gcf().savefig(plot_path, bbox_inches='tight')
 
@@ -381,28 +553,94 @@ def generate_medical_plot(plot_type: str, patient_ids: Optional[str] = None, tar
             interpretation = f"### PLS-DA\nFocuses on the markers that best separate the labels in '{target_column}'."
 
         elif plot_type.lower() == 'distribution':
-            if not target_column or target_column not in df.columns:
+            # CRITICAL VALIDATION: Ensure target_column survived the ambiguity filter
+            if not target_column:
                 return "Error: Distribution plot requires a valid target_column (e.g., 'Age')."
             
-            plt.figure(figsize=(10, 6))
-            is_numeric = pd.api.types.is_numeric_dtype(df[target_column])
+            debug_log(f"=== DISTRIBUTION PLOT DEBUG ===")
+            debug_log(f"Requested target_column: '{target_column}'")
+            debug_log(f"Available columns: {list(df.columns)}")
             
-            if is_numeric:
-                sns.histplot(df[target_column].dropna(), kde=True, color='teal')
-                plt.title(f"Distribution Analysis: {display_target}")
-                plt.xlabel(target_column)
-                plt.ylabel("Frequency / Count")
-                interpretation = f"### Distribution Analysis: {target_column}\nThis histogram shows the spread of **{target_column}**. The curve (KDE) represents the estimated density."
-            else:
-                counts = df[target_column].value_counts()
-                sns.barplot(x=counts.index, y=counts.values, palette='viridis')
-                plt.title(f"Breakdown of {target_column}\n(Frequency count of categorical groups)")
-                plt.xlabel(target_column)
-                plt.ylabel("Total Count")
+            # CASE-INSENSITIVE COLUMN MATCHING
+            # rag_engine may return 'age_at_cpy' but df has 'Age At Cpy' after cleaning
+            actual_column = None
+            target_lower = target_column.lower().replace('_', ' ').replace('-', ' ')
+            
+            for col in df.columns:
+                col_normalized = col.lower().replace('_', ' ').replace('-', ' ')
+                if target_lower == col_normalized or target_lower in col_normalized or col_normalized in target_lower:
+                    actual_column = col
+                    debug_log(f"Matched '{target_column}' -> '{col}'")
+                    break
+            
+            if not actual_column:
+                return f"❌ Column '{target_column}' not found.\n\n**Available**: {list(df.columns[:10])}"
+            
+            # IMPORTANT: Clear any existing figure to prevent caching
+            plt.clf()
+            plt.figure(figsize=(10, 6))
+            
+            # Get series and try to convert to numeric (handles mixed types)
+            series = df[actual_column].dropna()
+            series_numeric = pd.to_numeric(series, errors='coerce')
+            
+            # Use numeric version if possible, otherwise original
+            if series_numeric.notna().sum() > 0:
+                series = series_numeric.dropna()
+            
+            # Update display_target for titles
+            display_target = format_for_display(actual_column)
+            
+            # Safe range logging
+            try:
+                range_info = f"range: {series.min()} to {series.max()}"
+            except:
+                range_info = f"range: ({series.nunique()} unique values)"
+            
+            debug_log(f"Plotting column '{actual_column}' (display: '{display_target}') with {len(series)} values, {range_info}")
+            
+            # SMART CATEGORICAL DETECTION:
+            # Even if numeric type, if < 10 unique values, treat as categorical
+            n_unique = series.nunique()
+            is_categorical = (not pd.api.types.is_numeric_dtype(series)) or (n_unique < 10)
+            
+            debug_log(f"Distribution plot for '{actual_column}': {n_unique} unique values, categorical={is_categorical}")
+            
+            if is_categorical:
+                # BAR CHART for categorical data
+                counts = series.value_counts().sort_index()
                 
-                # Statistical Summary
-                stats = "\n".join([f"- **{k}**: {v}" for k, v in counts.head(5).items()])
-                interpretation = f"### Stats: {target_column}\n{stats}"
+                # Convert numeric categories to readable labels if applicable
+                if pd.api.types.is_numeric_dtype(series):
+                    # For Sex (0/1), Age groups, etc.
+                    labels = counts.index.astype(str)
+                else:
+                    labels = counts.index
+                
+                plt.bar(range(len(counts)), counts.values, color='skyblue', edgecolor='navy')
+                plt.xticks(range(len(counts)), labels, rotation=45 if len(labels) > 5 else 0)
+                plt.title(f"Frequency Distribution: {display_target}")
+                plt.xlabel(display_target)
+                plt.ylabel("Count")
+                
+                # Add value labels on bars
+                for i, v in enumerate(counts.values):
+                    plt.text(i, v, str(v), ha='center', va='bottom', fontweight='bold')
+                
+                # Interpretation
+                most_common = counts.idxmax()
+                interpretation = f"### Distribution: {display_target}\n"
+                interpretation += f"- **Most Common**: {most_common} ({counts.max()} pasien)\n"
+                interpretation += f"- **Categories**: {n_unique}\n"
+                interpretation += f"- **Total**: {len(series)} pasien"
+                
+            else:
+                # HISTOGRAM for continuous numeric data
+                sns.histplot(series, kde=True, color='teal', bins=20)
+                plt.title(f"Distribution Analysis: {display_target}")
+                plt.xlabel(display_target)
+                plt.ylabel("Frequency / Count")
+                interpretation = f"### Distribution Analysis: {display_target}\n- **Mean**: {series.mean():.2f}\n- **Median**: {series.median():.2f}\n- **Range**: {series.min():.1f} - {series.max():.1f}"
             
             plt.savefig(plot_path, bbox_inches='tight')
 
@@ -505,57 +743,130 @@ def predict_patient_outcome(input_data_json: str) -> str:
 @mcp.tool()
 def train_medical_model(target_column: Optional[str] = None, model_type: str = "random_forest") -> str:
     """
-    Automatically detects task (Classification or Regression) and trains a PineBioML pipeline.
+    Trains ML model (RandomForest, XGBoost, SVM) with hyperparameter tuning.
+    Auto-detects task type (Classification vs Regression).
+    Auto-installs missing dependencies if needed.
     """
     if not os.path.exists(TABULAR_DATA_PATH):
-        return "Error: No data ingested."
+        return "Error: No data ingested. Please upload data first."
+    
+    # AUTO-DEPENDENCY INSTALLER
+    def auto_install(package_name):
+        """Auto-install missing package"""
+        try:
+            import subprocess
+            import sys
+            debug_log(f"Auto-installing {package_name}...")
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", package_name],
+                capture_output=True, text=True, timeout=120
+            )
+            if result.returncode == 0:
+                debug_log(f"✅ Successfully installed {package_name}")
+                return True
+            else:
+                debug_log(f"❌ Failed to install {package_name}: {result.stderr}")
+                return False
+        except Exception as e:
+            debug_log(f"Installation error: {e}")
+            return False
+    
+    # Check and install required packages
+    required_packages = ['statsmodels', 'shap', 'catboost', 'optuna']
+    for pkg in required_packages:
+        try:
+            __import__(pkg)
+        except ImportError:
+            debug_log(f"Missing package: {pkg}. Auto-installing...")
+            if not auto_install(pkg):
+                return (f"⚠️ Auto-installation failed for '{pkg}'.\n\n"
+                        f"Please manually install: `pip install {pkg}`\n\n"
+                        f"Then try training again.")
     
     try:
+        # Load data
+        debug_log("Loading data for training...")
         with open(TABULAR_DATA_PATH, "r") as f:
             df = pd.read_json(io.StringIO(f.read()))
             
+        # Target column discovery
         if not target_column or target_column not in df.columns:
-            # Fallback to Diagnosis or any categorical-looking column
             categorical = [c for c in df.columns if df[c].nunique() <= 5 and not pd.api.types.is_numeric_dtype(df[c])]
-            if categorical:
-                target_column = categorical[0]
-            else:
-                return f"Error: target_column '{target_column}' not found and no categorical fallback available."
+            target_column = categorical[0] if categorical else df.columns[-1]
+            debug_log(f"Auto-selected target: {target_column}")
             
-        from PineBioML.model.utils import Pine
+        # Prepare data: separate X and y
         y = df[target_column].dropna()
-        x = df.loc[y.index].select_dtypes(include=['number']).drop(columns=[target_column], errors='ignore').dropna()
+        x = df.loc[y.index].select_dtypes(include=['number']).drop(columns=[target_column], errors='ignore')
+        
+        # Remove rows with NaN in features
+        x = x.dropna()
         y = y.loc[x.index]
+        
+        if len(x) < 10:
+            return f"❌ Error: Insufficient data after cleaning.\n\nOnly {len(x)} samples available. Need at least 10 for training.\n\n**Suggestion**: Upload more data or check for missing values."
 
-        # Auto Detect Task
+        # Auto Detect Task Type
         is_regression = pd.api.types.is_numeric_dtype(y) and y.nunique() > 10
+        task_name = "Regression" if is_regression else "Classification"
         
+        debug_log(f"Task: {task_name}, Samples: {len(x)}, Features: {len(x.columns)}")
+        
+        # Initialize tuner based on task and model type
         if is_regression:
-            from PineBioML.model.supervised.Regression import RandomForest_tuner as RFR, XGBoost_tuner as XGBR, SVM_tuner as SVR
-            if model_type == "xgboost": tuner = XGBR(n_try=10)
-            elif model_type == "svm": tuner = SVR(n_try=10)
-            else: tuner = RFR(n_try=10)
+            from PineBioML.model.supervised.Regression import RandomForest_tuner as RFR, XGBoost_tuner as XGBR
+            if model_type.lower() == "xgboost": 
+                tuner = XGBR(n_try=15, n_cv=3, target="r2")
+            else: 
+                tuner = RFR(n_try=15, n_cv=3, target="r2")
         else:
-            from PineBioML.model.supervised.Classification import RandomForest_tuner, XGBoost_tuner, SVM_tuner
-            if model_type == "xgboost": tuner = XGBoost_tuner(n_try=10)
-            elif model_type == "svm": tuner = SVM_tuner(n_try=10)
-            else: tuner = RandomForest_tuner(n_try=10)
-            
-        experiment = [('tune', {'best': tuner})]
-        pine = Pine(experiment=experiment, cv_result=True)
-        results = pine.do_experiment(x, y)
+            from PineBioML.model.supervised.Classification import RandomForest_tuner, XGBoost_tuner
+            if model_type.lower() == "xgboost": 
+                tuner = XGBoost_tuner(n_try=15, n_cv=3, target="mcc")
+            else: 
+                tuner = RandomForest_tuner(n_try=15, n_cv=3, target="mcc")
         
+        # Direct training (no Pine wrapper needed)
+        debug_log(f"Starting {model_type} training with Optuna...")
+        tuner.fit(x, y)
+        debug_log("Training complete!")
+        
+        # Save the fitted tuner
         best_model_path = os.path.join(STATE_DIR, "best_model.joblib")
         import joblib
         joblib.dump(tuner, best_model_path)
+        debug_log(f"Model saved to {best_model_path}")
         
-        task_name = "Regression" if is_regression else "Classification"
-        metrics = results.iloc[0].to_dict()
-        metric_str = "\n".join([f"- **{k}**: {v:.4f}" if isinstance(v, float) else f"- **{k}**: {v}" for k, v in metrics.items() if "train_" in k or "cv_" in k])
+        # Get metrics from tuner's Optuna study
+        best_score = tuner.study.best_value
+        n_trials = len(tuner.study.trials)
         
-        return f"### {task_name} Training Results ({model_type})\n{metric_str}\n\nModel saved successfully."
+        # Get best parameters
+        best_params = tuner.study.best_params
+        params_str = "\n".join([f"  - {k}: {v}" for k, v in list(best_params.items())[:5]])
+        
+        return (f"### ✅ {task_name} Training Complete\n\n"
+                f"**Model**: {model_type.replace('_', ' ').title()}\n"
+                f"**Target Variable**: {target_column}\n"
+                f"**Dataset**:\n"
+                f"  - Samples: {len(x)}\n"
+                f"  - Features: {len(x.columns)}\n\n"
+                f"**Optimization Results**:\n"
+                f"  - Best Score: {best_score:.4f}\n"
+                f"  - Trials Completed: {n_trials}\n\n"
+                f"**Top Parameters**:\n{params_str}\n\n"
+                f"Model saved successfully. Use `predict_patient_outcome` for predictions!")
+                
     except Exception as e:
-        return f"Training failed: {e}"
+        import traceback
+        error_detail = traceback.format_exc()
+        debug_log(f"Training Error:\n{error_detail}")
+        return (f"❌ Training failed: {str(e)}\n\n"
+                f"**Common causes**:\n"
+                f"1. Insufficient data (need >= 10 samples)\n"
+                f"2. Missing `optuna` package (run: pip install optuna)\n"
+                f"3. Invalid target column\n\n"
+                f"Check server logs for details.")
 
 @mcp.tool()
 def discover_markers(target_column: Optional[str] = None) -> str:

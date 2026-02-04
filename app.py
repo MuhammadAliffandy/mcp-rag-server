@@ -14,11 +14,135 @@ server_params = StdioServerParameters(
     args=["mcp_server.py"],
 )
 
-# Custom CSS
-st.markdown("""
+# Initialize dark mode state
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = True
+
+# Custom CSS - Clean Modern Medical Theme
+dark_bg = "#0f1419" if st.session_state.dark_mode else "#ffffff"
+dark_surface = "#1a1f2e" if st.session_state.dark_mode else "#f8f9fa"
+dark_text = "#e4e6eb" if st.session_state.dark_mode else "#1a1a1a"
+accent_color = "#3b82f6"
+
+st.markdown(f"""
 <style>
-    .stChatFloatingInputContainer { background-color: #f8f9fa; }
-    .header-style { color: #2e7d32; font-family: 'Inter', sans-serif; }
+    /* Clean Modern Theme */
+    .stApp {{
+        background: {dark_bg};
+        color: {dark_text};
+    }}
+    
+    /* Sidebar - Minimal */
+    [data-testid="stSidebar"] {{
+        background: {dark_surface};
+        border-right: 1px solid {'#2d3748' if st.session_state.dark_mode else '#e2e8f0'};
+    }}
+    
+    /* Chat Messages - Clean Cards */
+    [data-testid="stChatMessage"] {{
+        background: {dark_surface} !important;
+        border: 1px solid {'#2d3748' if st.session_state.dark_mode else '#e2e8f0'};
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        box-shadow: none;
+    }}
+    
+    /* Assistant messages - subtle accent */
+    [data-testid="stChatMessage"][data-testid*="assistant"] {{
+        border-left: 3px solid {accent_color};
+    }}
+    
+    /* User messages - subtle differentiation */
+    [data-testid="stChatMessage"][data-testid*="user"] {{
+        border-left: 3px solid #6b7280;
+    }}
+    
+    /* Buttons - Clean Minimal */
+    .stButton>button {{
+        background: {accent_color};
+        color: white;
+        border: none;
+        border-radius: 6px;
+        padding: 0.5rem 1.5rem;
+        font-weight: 500;
+        transition: all 0.2s;
+    }}
+    
+    .stButton>button:hover {{
+        background: #2563eb;
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+    }}
+    
+    /* File Uploader - Minimal */
+    [data-testid="stFileUploader"] {{
+        border: 1px dashed {'#4b5563' if st.session_state.dark_mode else '#d1d5db'};
+        border-radius: 6px;
+        padding: 1rem;
+        background: transparent;
+    }}
+    
+    /* Input - Clean */
+    .stTextInput>div>div>input, .stTextArea textarea {{
+        background: {dark_surface};
+        color: {dark_text};
+        border: 1px solid {'#374151' if st.session_state.dark_mode else '#d1d5db'};
+        border-radius: 6px;
+    }}
+    
+    /* Headers - Clean Typography */
+    h1, h2, h3 {{
+        color: {dark_text};
+        font-weight: 600;
+        letter-spacing: -0.02em;
+    }}
+    
+    h1 {{ font-size: 1.875rem; }}
+    h2 {{ font-size: 1.5rem; }}
+    h3 {{ font-size: 1.25rem; }}
+    
+    /* Info/Alert Boxes - Subtle */
+    .stAlert {{
+        background: {dark_surface};
+        border: 1px solid {'#374151' if st.session_state.dark_mode else '#e2e8f0'};
+        border-radius: 6px;
+        border-left-width: 3px;
+    }}
+    
+    /* Code blocks */
+    code {{
+        background: {'#374151' if st.session_state.dark_mode else '#f3f4f6'};
+        color: {accent_color};
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.875rem;
+    }}
+    
+    /* Remove all box shadows and gradients */
+    * {{
+        box-shadow: none !important;
+    }}
+    
+    /* Chat input */
+    .stChatFloatingInputContainer {{
+        background: {dark_surface};
+        border-top: 1px solid {'#2d3748' if st.session_state.dark_mode else '#e2e8f0'};
+    }}
+    
+    /* Spinner */
+    .stSpinner>div {{
+        border-top-color: {accent_color} !important;
+    }}
+    
+    /* Links */
+    a {{
+        color: {accent_color};
+        text-decoration: none;
+    }}
+    
+    a:hover {{
+        text-decoration: underline;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -35,7 +159,14 @@ if "ingested" not in st.session_state: st.session_state.ingested = False
 
 # --- SIDEBAR (Cleaned Up) ---
 with st.sidebar:
-    st.title("🌲 PineBioML Config")
+    # Dark mode toggle
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.title("🌲 PineBioML")
+    with col2:
+        if st.button("🌓" if st.session_state.dark_mode else "☀️", key="theme_toggle"):
+            st.session_state.dark_mode = not st.session_state.dark_mode
+            st.rerun()
     
     # 1. Bagian Upload Data Pasien (Internal otomatis diload di server)
     st.markdown("---")
@@ -106,8 +237,20 @@ if st.session_state.ingested:
                     "patient_id_filter": patient_filter
                 }))
                 
+                # ERROR HANDLING: Check if response is valid
+                if not dispatch_res or dispatch_res.strip() == "":
+                    st.error("❌ Error: No response from AI engine. Please try again or check server logs.")
+                    st.stop()
+                
                 import json
-                decision = json.loads(dispatch_res)
+                try:
+                    decision = json.loads(dispatch_res)
+                except json.JSONDecodeError as e:
+                    st.error(f"❌ Error parsing AI response: {e}")
+                    st.write("**Raw response:**")
+                    st.code(dispatch_res)
+                    st.stop()
+                
                 answer = decision.get("answer")
                 tool = decision.get("tool")
                 tasks = decision.get("tasks", [])

@@ -49,3 +49,432 @@
 [2026-02-03T16:37:34.681511] Auto-switching to Distribution plot for single feature: Sum Pmayo
 [2026-02-03T16:37:34.681588] Plotting distribution for target: Sum Pmayo
 [2026-02-03T16:37:34.681661] Final Target Column: Sum Pmayo
+[2026-02-03T18:22:53.802153] Loading data for training...
+[2026-02-03T18:22:53.810386] Auto-selected target: patient
+[2026-02-03T18:22:53.811374] Task: Classification, Samples: 10, Features: 3
+[2026-02-03T18:22:53.839800] Training Error:
+Traceback (most recent call last):
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/mcp_server.py", line 589, in train_medical_model
+    from PineBioML.model.supervised.Classification import RandomForest_tuner, XGBoost_tuner
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/PineBioML/model/supervised/__init__.py", line 13, in <module>
+    from shap import Explainer
+ModuleNotFoundError: No module named 'shap'
+
+[2026-02-03T18:32:21.723462] Loading data for training...
+[2026-02-03T18:32:21.731459] Auto-selected target: patient
+[2026-02-03T18:32:21.732601] Task: Classification, Samples: 10, Features: 3
+[2026-02-03T18:32:30.545837] Training Error:
+Traceback (most recent call last):
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/mcp_server.py", line 589, in train_medical_model
+    from PineBioML.model.supervised.Classification import RandomForest_tuner, XGBoost_tuner
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/PineBioML/model/supervised/Classification.py", line 10, in <module>
+    from statsmodels.discrete.discrete_model import Logit
+ModuleNotFoundError: No module named 'statsmodels'
+
+[2026-02-03T18:39:09.215489] Loading data for training...
+[2026-02-03T18:39:09.222544] Auto-selected target: patient
+[2026-02-03T18:40:15.262778] Data loaded. Shape: (3, 25)
+[2026-02-03T18:40:15.264097] Numeric DF Shape after Ambiguity Filter: (1, 15)
+[2026-02-03T18:40:15.264203] Plotting pca for target: Patient
+[2026-02-03T18:40:15.264286] Final Target Column: Patient
+[2026-02-03T18:42:05.655654] Data loaded. Shape: (3, 25)
+[2026-02-03T18:42:05.657181] Numeric DF Shape after Ambiguity Filter: (1, 15)
+[2026-02-03T18:42:05.657269] Plotting pca for target: None
+[2026-02-03T18:42:05.657307] Target series not found yet. Trying categorical fallback.
+[2026-02-03T18:42:05.658170] Final Target Column: Patient
+[2026-02-03T18:56:27.706131] Data loaded. Shape: (28, 25)
+[2026-02-03T18:56:27.709958] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-03T18:56:27.710024] Auto-switching to Distribution plot for single feature: Sum Pmayo
+[2026-02-03T18:56:27.710097] Plotting distribution for target: Sum Pmayo
+[2026-02-03T18:56:27.710175] Final Target Column: Sum Pmayo
+[2026-02-04T08:40:57.385559] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T08:40:57.542584] Tabular data found and cached.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m[02/04/26 08:40:58][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=393722;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=478257;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store persisted successfully.
+[2026-02-04T08:43:36.055029] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T08:43:36.204204] Tabular data found and cached.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=484346;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=929413;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store saved successfully.
+[2026-02-04T08:45:32.117350] Data loaded. Shape: (28, 25)
+[2026-02-04T08:45:32.118870] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T08:45:32.118955] Auto-switching to Distribution plot for single feature: Sum Pmayo
+[2026-02-04T08:45:32.119081] Plotting distribution for target: Sum Pmayo
+[2026-02-04T08:45:32.119192] Final Target Column: Sum Pmayo
+[2026-02-04T08:51:49.020258] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T08:51:49.195863] Tabular data found and cached.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=86424;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=45178;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store saved successfully.
+[2026-02-04T08:54:41.457290] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T08:54:41.610978] Tabular data found and cached.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m[02/04/26 08:54:42][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=665687;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=965425;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store saved successfully.
+[2026-02-04T08:59:33.464933] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T08:59:33.613497] Tabular data found and cached.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m[02/04/26 08:59:34][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=379705;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=956020;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store saved successfully.
+[2026-02-04T09:22:49.623747] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T09:22:49.778724] Tabular data found and cached.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m[02/04/26 09:22:50][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=703065;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=382896;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store saved successfully.
+[2026-02-04T09:29:27.791407] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T09:29:27.940483] Tabular data found and cached.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m[02/04/26 09:29:28][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=169833;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=989006;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store saved successfully.
+[2026-02-04T09:33:15.231726] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T09:33:15.389995] Tabular data found and cached.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m[02/04/26 09:33:16][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=346351;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=467569;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store saved successfully.
+[2026-02-04T09:35:44.983174] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T09:35:45.137058] Tabular data found and cached.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m[02/04/26 09:35:45][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=939359;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=798685;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store saved successfully.
+[2026-02-04T09:54:38.024964] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T09:54:38.189335] Tabular data found and cached.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m[02/04/26 09:54:39][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=206817;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=73088;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store saved successfully.
+[2026-02-04T09:54:50.301412] smart_intent_dispatch called: question='Buat bar chart untuk ID 1-5', patient_filter=''
+[2026-02-04T09:54:50.301673] smart_intent_dispatch returning: {"answer": "Alright! I'll create a visualization for patient ID 1-5. Let me show the **Sum Pmayo** distribution.", "tool": "multi_task", "tasks": [{"tool": "plot", "args": {"plot_type": "distribution"...
+[2026-02-04T09:54:55.767149] Data loaded. Shape: (28, 25)
+[2026-02-04T09:54:55.776242] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T09:54:55.776303] Auto-switching to Distribution plot for single feature: Sum Pmayo
+[2026-02-04T09:54:55.776377] Plotting distribution for target: Sum Pmayo
+[2026-02-04T09:54:55.776457] Final Target Column: Sum Pmayo
+[2026-02-04T09:54:55.915800] Distribution plot for 'Sum Pmayo': 6 unique values, categorical=True
+[2026-02-04T09:55:40.438084] smart_intent_dispatch called: question='coba cek isi file lagi ', patient_filter=''
+[2026-02-04T09:55:52.831909] smart_intent_dispatch returning: {"answer": "Dokumen yang Anda berikan tampaknya merupakan data medis yang berisi catatan pasien dengan ID yang sama (ID 1) dan mencakup beberapa parameter klinis yang diukur pada dua tanggal yang berb...
+[2026-02-04T09:57:22.662068] smart_intent_dispatch called: question='își semua data bisa kamu jelaskan setiap kolomnya ', patient_filter=''
+[2026-02-04T09:57:52.877410] smart_intent_dispatch returning: {"answer": "Tentu! Berikut adalah penjelasan untuk setiap kolom dalam data rekaman yang diberikan:\n\n1. **sex**: Menunjukkan jenis kelamin pasien, di mana 'female' diwakili dengan 0 dan 'male' dengan...
+[2026-02-04T10:02:48.011540] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T10:02:48.165353] Tabular data found and cached.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=363726;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=322179;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store saved successfully.
+[2026-02-04T10:03:06.508053] smart_intent_dispatch called: question='Bar chart ID 1-5', patient_filter=''
+[2026-02-04T10:03:06.508275] smart_intent_dispatch returning: {"answer": "Alright! I'll create a visualization for patient ID 1-5. Let me show the **Sum Pmayo** distribution.", "tool": "multi_task", "tasks": [{"tool": "plot", "args": {"plot_type": "distribution"...
+[2026-02-04T10:03:12.930747] Data loaded. Shape: (28, 25)
+[2026-02-04T10:03:12.931763] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T10:03:12.931846] Auto-switching to Distribution plot for single feature: Sum Pmayo
+[2026-02-04T10:03:12.931921] Plotting distribution for target: Sum Pmayo
+[2026-02-04T10:03:12.932011] Final Target Column: Sum Pmayo
+[2026-02-04T10:03:13.059945] Distribution plot for 'Sum Pmayo': 6 unique values, categorical=True
+[2026-02-04T10:03:44.670170] smart_intent_dispatch called: question='cek isi file nya', patient_filter=''
+[2026-02-04T10:03:44.670395] smart_intent_dispatch returning: {"answer": "Baik! Saya akan tampilkan **ringkasan statistik** dari data tabular Anda, termasuk jumlah pasien, kolom yang tersedia, dan nilai-nilai penting.", "tool": "multi_task", "tasks": [{"tool": "...
+[2026-02-04T10:04:21.830859] smart_intent_dispatch called: question='coba plot data age ', patient_filter=''
+[2026-02-04T10:04:21.831341] smart_intent_dispatch returning: {"answer": "Baik! Saya akan buat visualisasi untuk pasien dalam dataset. Saya akan tampilkan distribusi **Sum Pmayo**.", "tool": "multi_task", "tasks": [{"tool": "plot", "args": {"plot_type": "distrib...
+[2026-02-04T10:04:27.184341] Data loaded. Shape: (28, 25)
+[2026-02-04T10:04:27.185563] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T10:04:27.185634] Auto-switching to Distribution plot for single feature: Sum Pmayo
+[2026-02-04T10:04:27.185715] Plotting distribution for target: Sum Pmayo
+[2026-02-04T10:04:27.185790] Final Target Column: Sum Pmayo
+[2026-02-04T10:04:27.314030] Distribution plot for 'Sum Pmayo': 6 unique values, categorical=True
+[2026-02-04T10:27:59.142801] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T10:27:59.302857] Tabular data found and cached.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m[02/04/26 10:28:00][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=673070;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=417736;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store saved successfully.
+[2026-02-04T10:28:19.815829] smart_intent_dispatch called: question='apa isi file ini ', patient_filter=''
+[2026-02-04T10:28:19.816069] smart_intent_dispatch returning: {"answer": "Baik! Saya akan tampilkan **ringkasan statistik** dari data tabular Anda.\n\n\ud83d\udccb Ini akan mencakup: jumlah pasien, kolom yang tersedia, nilai rata-rata, missing values, dan inform...
+[2026-02-04T10:29:18.377678] smart_intent_dispatch called: question='bisa kamu plot age untuk pasien ', patient_filter=''
+[2026-02-04T10:29:18.378300] smart_intent_dispatch returning: {"answer": "Baik! Saya akan buat visualisasi distribusi **Image**.\n\n\ud83d\udcca Grafik ini akan menunjukkan sebaran nilai Image dalam dataset Anda, sehingga Anda bisa melihat pola dan outlier yang ...
+[2026-02-04T10:29:24.163705] Data loaded. Shape: (28, 25)
+[2026-02-04T10:29:24.166831] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T10:29:24.166888] Auto-switching to Distribution plot for single feature: Sum Pmayo
+[2026-02-04T10:29:24.166977] Plotting distribution for target: Sum Pmayo
+[2026-02-04T10:29:24.167117] Final Target Column: Sum Pmayo
+[2026-02-04T10:29:24.310114] Distribution plot for 'Sum Pmayo': 6 unique values, categorical=True
+[2026-02-04T10:30:16.497658] smart_intent_dispatch called: question='buat grafikusia', patient_filter=''
+[2026-02-04T10:30:16.498069] smart_intent_dispatch returning: {"answer": "Baik! Saya akan buat visualisasi distribusi **Patient**.\n\n\ud83d\udcca Grafik ini akan menunjukkan sebaran nilai Patient dalam dataset Anda, sehingga Anda bisa melihat pola dan outlier y...
+[2026-02-04T10:30:22.053884] Data loaded. Shape: (28, 25)
+[2026-02-04T10:30:22.054891] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T10:30:22.054958] Auto-switching to Distribution plot for single feature: Sum Pmayo
+[2026-02-04T10:30:22.055062] Plotting distribution for target: Sum Pmayo
+[2026-02-04T10:30:22.055176] Final Target Column: Sum Pmayo
+[2026-02-04T10:30:22.184912] Distribution plot for 'Sum Pmayo': 6 unique values, categorical=True
+[2026-02-04T10:54:09.875054] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T10:54:10.058128] Tabular data found and cached.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m[02/04/26 10:54:10][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=503095;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=710690;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store saved successfully.
+[2026-02-04T10:56:46.621260] smart_intent_dispatch called: question='buatkan plot age', patient_filter=''
+[2026-02-04T10:56:46.621968] smart_intent_dispatch returning: {"answer": "Baik! Saya akan buat visualisasi distribusi **Age At Cpy**.\n\n\ud83d\udcca Grafik ini akan menunjukkan sebaran nilai Age At Cpy dalam dataset Anda, sehingga Anda bisa melihat pola dan out...
+[2026-02-04T10:56:52.029299] Data loaded. Shape: (28, 25)
+[2026-02-04T10:56:52.032046] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T10:56:52.032104] Auto-switching to Distribution plot for single feature: Sum Pmayo
+[2026-02-04T10:56:52.032185] Plotting distribution for target: Sum Pmayo
+[2026-02-04T10:56:52.032267] Final Target Column: Sum Pmayo
+[2026-02-04T10:56:52.032316] === DISTRIBUTION PLOT DEBUG ===
+[2026-02-04T10:56:52.032355] Requested target_column: 'Sum Pmayo'
+[2026-02-04T10:56:52.032401] Available columns: ['Patient', 'Sex', 'Date', 'Image', 'Age At Cpy', 'Dz Duration', 'Dz Location Active Only', 'Dz Location Scars Include', 'Pmayo, 0 3 Each', 'Unnamed: 9', 'Unnamed: 10', 'Sum Pmayo', 'Hb', 'Crp', 'Fc', '5Asa Po', '5Asa Topical', 'Imm', 'Steroid Systemic', 'Steroid Topical', 'Biologics', 'Unnamed: 21', 'Small Molecule', 'Unnamed: 23', 'Note']
+[2026-02-04T10:56:52.183159] Plotting column 'Sum Pmayo' with 27 values, range: 0.0 to 6.0
+[2026-02-04T10:56:52.184069] Distribution plot for 'Sum Pmayo': 6 unique values, categorical=True
+[2026-02-04T11:11:47.881054] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T11:11:48.039550] Tabular data found and cached.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m[02/04/26 11:11:49][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=32934;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=661186;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store saved successfully.
+[2026-02-04T11:12:45.322686] smart_intent_dispatch called: question='buatkan plot age', patient_filter=''
+[2026-02-04T11:12:45.323305] smart_intent_dispatch returning: {"answer": "Baik! Saya akan buat visualisasi distribusi **Age At Cpy**.\n\n\ud83d\udcca Grafik ini akan menunjukkan sebaran nilai Age At Cpy dalam dataset Anda, sehingga Anda bisa melihat pola dan out...
+[2026-02-04T11:12:52.875845] Data loaded. Shape: (28, 25)
+[2026-02-04T11:12:52.879719] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T11:12:52.879774] Auto-switching to Distribution plot for single feature: Sum Pmayo
+[2026-02-04T11:12:52.879843] Plotting distribution for target: Sum Pmayo
+[2026-02-04T11:12:52.879912] Final Target Column: Sum Pmayo
+[2026-02-04T11:12:52.879952] === DISTRIBUTION PLOT DEBUG ===
+[2026-02-04T11:12:52.879983] Requested target_column: 'Sum Pmayo'
+[2026-02-04T11:12:52.880019] Available columns: ['Patient', 'Sex', 'Date', 'Image', 'Age At Cpy', 'Dz Duration', 'Dz Location Active Only', 'Dz Location Scars Include', 'Pmayo, 0 3 Each', 'Unnamed: 9', 'Unnamed: 10', 'Sum Pmayo', 'Hb', 'Crp', 'Fc', '5Asa Po', '5Asa Topical', 'Imm', 'Steroid Systemic', 'Steroid Topical', 'Biologics', 'Unnamed: 21', 'Small Molecule', 'Unnamed: 23', 'Note']
+[2026-02-04T11:12:52.880055] Matched 'Sum Pmayo' -> 'Sum Pmayo'
+[2026-02-04T11:12:53.034332] Plotting column 'Sum Pmayo' (display: 'Skor Total P-Mayo') with 27 values, range: 0.0 to 6.0
+[2026-02-04T11:12:53.034954] Distribution plot for 'Sum Pmayo': 6 unique values, categorical=True
+[2026-02-04T11:13:25.706386] smart_intent_dispatch called: question='buatkan grafik hb ', patient_filter=''
+[2026-02-04T11:13:25.706855] smart_intent_dispatch returning: {"answer": "Baik! Saya akan buat visualisasi distribusi **Hb**.\n\n\ud83d\udcca Grafik ini akan menunjukkan sebaran nilai Hb dalam dataset Anda, sehingga Anda bisa melihat pola dan outlier yang ada.",...
+[2026-02-04T11:13:31.314909] Data loaded. Shape: (28, 25)
+[2026-02-04T11:13:31.316301] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T11:13:31.316368] Auto-switching to Distribution plot for single feature: Sum Pmayo
+[2026-02-04T11:13:31.316450] Plotting distribution for target: Sum Pmayo
+[2026-02-04T11:13:31.316532] Final Target Column: Sum Pmayo
+[2026-02-04T11:13:31.316575] === DISTRIBUTION PLOT DEBUG ===
+[2026-02-04T11:13:31.316613] Requested target_column: 'Sum Pmayo'
+[2026-02-04T11:13:31.316662] Available columns: ['Patient', 'Sex', 'Date', 'Image', 'Age At Cpy', 'Dz Duration', 'Dz Location Active Only', 'Dz Location Scars Include', 'Pmayo, 0 3 Each', 'Unnamed: 9', 'Unnamed: 10', 'Sum Pmayo', 'Hb', 'Crp', 'Fc', '5Asa Po', '5Asa Topical', 'Imm', 'Steroid Systemic', 'Steroid Topical', 'Biologics', 'Unnamed: 21', 'Small Molecule', 'Unnamed: 23', 'Note']
+[2026-02-04T11:13:31.316709] Matched 'Sum Pmayo' -> 'Sum Pmayo'
+[2026-02-04T11:13:31.458199] Plotting column 'Sum Pmayo' (display: 'Skor Total P-Mayo') with 27 values, range: 0.0 to 6.0
+[2026-02-04T11:13:31.458372] Distribution plot for 'Sum Pmayo': 6 unique values, categorical=True
+[2026-02-04T11:15:53.704155] Data loaded. Shape: (28, 25)
+[2026-02-04T11:15:53.705603] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T11:15:53.705684] User requested column 'age_at_cpy', switching to distribution plot
+[2026-02-04T11:15:53.705779] Plotting distribution for target: age_at_cpy
+[2026-02-04T11:15:53.705880] Final Target Column: Age At Cpy
+[2026-02-04T11:15:53.705925] === DISTRIBUTION PLOT DEBUG ===
+[2026-02-04T11:15:53.705973] Requested target_column: 'Age At Cpy'
+[2026-02-04T11:15:53.706048] Available columns: ['Patient', 'Sex', 'Date', 'Image', 'Age At Cpy', 'Dz Duration', 'Dz Location Active Only', 'Dz Location Scars Include', 'Pmayo, 0 3 Each', 'Unnamed: 9', 'Unnamed: 10', 'Sum Pmayo', 'Hb', 'Crp', 'Fc', '5Asa Po', '5Asa Topical', 'Imm', 'Steroid Systemic', 'Steroid Topical', 'Biologics', 'Unnamed: 21', 'Small Molecule', 'Unnamed: 23', 'Note']
+[2026-02-04T11:15:53.706119] Matched 'Age At Cpy' -> 'Age At Cpy'
+[2026-02-04T11:15:53.882413] Plotting CRASH: '<=' not supported between instances of 'str' and 'int'
+[2026-02-04T11:15:53.887040] Traceback (most recent call last):
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/./mcp_server.py", line 583, in generate_medical_plot
+    debug_log(f"Plotting column '{actual_column}' (display: '{display_target}') with {len(series)} values, range: {series.min()} to {series.max()}")
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/pandas/core/series.py", line 6528, in min
+    return NDFrame.min(self, axis, skipna, numeric_only, **kwargs)
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/pandas/core/generic.py", line 12453, in min
+    return self._stat_function(
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/pandas/core/generic.py", line 12442, in _stat_function
+    return self._reduce(
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/pandas/core/series.py", line 6478, in _reduce
+    return op(delegate, skipna=skipna, **kwds)
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/pandas/core/nanops.py", line 147, in f
+    result = alt(values, axis=axis, skipna=skipna, **kwds)
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/pandas/core/nanops.py", line 404, in new_func
+    result = func(values, axis=axis, skipna=skipna, mask=mask, **kwargs)
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/pandas/core/nanops.py", line 1098, in reduction
+    result = getattr(values, meth)(axis)
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/numpy/_core/_methods.py", line 48, in _amin
+    return umr_minimum(a, axis, None, out, keepdims, initial, where)
+TypeError: '<=' not supported between instances of 'str' and 'int'
+
+[2026-02-04T11:15:53.891013] Data loaded. Shape: (28, 25)
+[2026-02-04T11:15:53.892020] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T11:15:53.892076] User requested column 'hb', switching to distribution plot
+[2026-02-04T11:15:53.892149] Plotting distribution for target: hb
+[2026-02-04T11:15:53.892289] Final Target Column: Hb
+[2026-02-04T11:15:53.892375] === DISTRIBUTION PLOT DEBUG ===
+[2026-02-04T11:15:53.892426] Requested target_column: 'Hb'
+[2026-02-04T11:15:53.892471] Available columns: ['Patient', 'Sex', 'Date', 'Image', 'Age At Cpy', 'Dz Duration', 'Dz Location Active Only', 'Dz Location Scars Include', 'Pmayo, 0 3 Each', 'Unnamed: 9', 'Unnamed: 10', 'Sum Pmayo', 'Hb', 'Crp', 'Fc', '5Asa Po', '5Asa Topical', 'Imm', 'Steroid Systemic', 'Steroid Topical', 'Biologics', 'Unnamed: 21', 'Small Molecule', 'Unnamed: 23', 'Note']
+[2026-02-04T11:15:53.892605] Matched 'Hb' -> 'Hb'
+[2026-02-04T11:15:53.924746] Plotting CRASH: '<=' not supported between instances of 'str' and 'float'
+[2026-02-04T11:15:53.924941] Traceback (most recent call last):
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/./mcp_server.py", line 583, in generate_medical_plot
+    debug_log(f"Plotting column '{actual_column}' (display: '{display_target}') with {len(series)} values, range: {series.min()} to {series.max()}")
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/pandas/core/series.py", line 6528, in min
+    return NDFrame.min(self, axis, skipna, numeric_only, **kwargs)
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/pandas/core/generic.py", line 12453, in min
+    return self._stat_function(
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/pandas/core/generic.py", line 12442, in _stat_function
+    return self._reduce(
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/pandas/core/series.py", line 6478, in _reduce
+    return op(delegate, skipna=skipna, **kwds)
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/pandas/core/nanops.py", line 147, in f
+    result = alt(values, axis=axis, skipna=skipna, **kwds)
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/pandas/core/nanops.py", line 404, in new_func
+    result = func(values, axis=axis, skipna=skipna, mask=mask, **kwargs)
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/pandas/core/nanops.py", line 1098, in reduction
+    result = getattr(values, meth)(axis)
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/numpy/_core/_methods.py", line 48, in _amin
+    return umr_minimum(a, axis, None, out, keepdims, initial, where)
+TypeError: '<=' not supported between instances of 'str' and 'float'
+
+[2026-02-04T11:15:53.928629] Data loaded. Shape: (28, 25)
+[2026-02-04T11:15:53.929488] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T11:15:53.929542] User requested column 'sum_pmayo', switching to distribution plot
+[2026-02-04T11:15:53.929596] Plotting distribution for target: sum_pmayo
+[2026-02-04T11:15:53.929671] Final Target Column: Sum Pmayo
+[2026-02-04T11:15:53.929707] === DISTRIBUTION PLOT DEBUG ===
+[2026-02-04T11:15:53.929734] Requested target_column: 'Sum Pmayo'
+[2026-02-04T11:15:53.929767] Available columns: ['Patient', 'Sex', 'Date', 'Image', 'Age At Cpy', 'Dz Duration', 'Dz Location Active Only', 'Dz Location Scars Include', 'Pmayo, 0 3 Each', 'Unnamed: 9', 'Unnamed: 10', 'Sum Pmayo', 'Hb', 'Crp', 'Fc', '5Asa Po', '5Asa Topical', 'Imm', 'Steroid Systemic', 'Steroid Topical', 'Biologics', 'Unnamed: 21', 'Small Molecule', 'Unnamed: 23', 'Note']
+[2026-02-04T11:15:53.929797] Matched 'Sum Pmayo' -> 'Sum Pmayo'
+[2026-02-04T11:15:53.960999] Plotting column 'Sum Pmayo' (display: 'Skor Total P-Mayo') with 27 values, range: 0.0 to 6.0
+[2026-02-04T11:15:53.961190] Distribution plot for 'Sum Pmayo': 6 unique values, categorical=True
+[2026-02-04T11:16:37.271278] Data loaded. Shape: (28, 25)
+[2026-02-04T11:16:37.272385] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T11:16:37.272467] User requested column 'age_at_cpy', switching to distribution plot
+[2026-02-04T11:16:37.272550] Plotting distribution for target: age_at_cpy
+[2026-02-04T11:16:37.272650] Final Target Column: Age At Cpy
+[2026-02-04T11:16:37.272694] === DISTRIBUTION PLOT DEBUG ===
+[2026-02-04T11:16:37.272727] Requested target_column: 'Age At Cpy'
+[2026-02-04T11:16:37.272813] Available columns: ['Patient', 'Sex', 'Date', 'Image', 'Age At Cpy', 'Dz Duration', 'Dz Location Active Only', 'Dz Location Scars Include', 'Pmayo, 0 3 Each', 'Unnamed: 9', 'Unnamed: 10', 'Sum Pmayo', 'Hb', 'Crp', 'Fc', '5Asa Po', '5Asa Topical', 'Imm', 'Steroid Systemic', 'Steroid Topical', 'Biologics', 'Unnamed: 21', 'Small Molecule', 'Unnamed: 23', 'Note']
+[2026-02-04T11:16:37.272911] Matched 'Age At Cpy' -> 'Age At Cpy'
+[2026-02-04T11:16:37.425576] Plotting column 'Age At Cpy' (display: 'Usia') with 27 values, range: 49.0 to 74.0
+[2026-02-04T11:16:37.425784] Distribution plot for 'Age At Cpy': 17 unique values, categorical=False
+[2026-02-04T11:16:37.510483] Data loaded. Shape: (28, 25)
+[2026-02-04T11:16:37.511267] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T11:16:37.511321] User requested column 'hb', switching to distribution plot
+[2026-02-04T11:16:37.511367] Plotting distribution for target: hb
+[2026-02-04T11:16:37.511436] Final Target Column: Hb
+[2026-02-04T11:16:37.511471] === DISTRIBUTION PLOT DEBUG ===
+[2026-02-04T11:16:37.511500] Requested target_column: 'Hb'
+[2026-02-04T11:16:37.511534] Available columns: ['Patient', 'Sex', 'Date', 'Image', 'Age At Cpy', 'Dz Duration', 'Dz Location Active Only', 'Dz Location Scars Include', 'Pmayo, 0 3 Each', 'Unnamed: 9', 'Unnamed: 10', 'Sum Pmayo', 'Hb', 'Crp', 'Fc', '5Asa Po', '5Asa Topical', 'Imm', 'Steroid Systemic', 'Steroid Topical', 'Biologics', 'Unnamed: 21', 'Small Molecule', 'Unnamed: 23', 'Note']
+[2026-02-04T11:16:37.511567] Matched 'Hb' -> 'Hb'
+[2026-02-04T11:16:37.533530] Plotting column 'Hb' (display: 'Hb') with 25 values, range: 11.2 to 16.3
+[2026-02-04T11:16:37.533668] Distribution plot for 'Hb': 21 unique values, categorical=False
+[2026-02-04T11:16:37.593102] Data loaded. Shape: (28, 25)
+[2026-02-04T11:16:37.593972] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T11:16:37.594026] User requested column 'sum_pmayo', switching to distribution plot
+[2026-02-04T11:16:37.594081] Plotting distribution for target: sum_pmayo
+[2026-02-04T11:16:37.594167] Final Target Column: Sum Pmayo
+[2026-02-04T11:16:37.594207] === DISTRIBUTION PLOT DEBUG ===
+[2026-02-04T11:16:37.594252] Requested target_column: 'Sum Pmayo'
+[2026-02-04T11:16:37.594317] Available columns: ['Patient', 'Sex', 'Date', 'Image', 'Age At Cpy', 'Dz Duration', 'Dz Location Active Only', 'Dz Location Scars Include', 'Pmayo, 0 3 Each', 'Unnamed: 9', 'Unnamed: 10', 'Sum Pmayo', 'Hb', 'Crp', 'Fc', '5Asa Po', '5Asa Topical', 'Imm', 'Steroid Systemic', 'Steroid Topical', 'Biologics', 'Unnamed: 21', 'Small Molecule', 'Unnamed: 23', 'Note']
+[2026-02-04T11:16:37.594360] Matched 'Sum Pmayo' -> 'Sum Pmayo'
+[2026-02-04T11:16:37.622468] Plotting column 'Sum Pmayo' (display: 'Skor Total P-Mayo') with 27 values, range: 0.0 to 6.0
+[2026-02-04T11:16:37.622622] Distribution plot for 'Sum Pmayo': 6 unique values, categorical=True
+[2026-02-04T11:17:30.040391] Data loaded. Shape: (28, 25)
+[2026-02-04T11:17:30.041572] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T11:17:30.041632] User requested column 'age_at_cpy', switching to distribution plot
+[2026-02-04T11:17:30.041726] Plotting distribution for target: age_at_cpy
+[2026-02-04T11:17:30.041808] Final Target Column: Age At Cpy
+[2026-02-04T11:17:30.041845] === DISTRIBUTION PLOT DEBUG ===
+[2026-02-04T11:17:30.041874] Requested target_column: 'Age At Cpy'
+[2026-02-04T11:17:30.041910] Available columns: ['Patient', 'Sex', 'Date', 'Image', 'Age At Cpy', 'Dz Duration', 'Dz Location Active Only', 'Dz Location Scars Include', 'Pmayo, 0 3 Each', 'Unnamed: 9', 'Unnamed: 10', 'Sum Pmayo', 'Hb', 'Crp', 'Fc', '5Asa Po', '5Asa Topical', 'Imm', 'Steroid Systemic', 'Steroid Topical', 'Biologics', 'Unnamed: 21', 'Small Molecule', 'Unnamed: 23', 'Note']
+[2026-02-04T11:17:30.041947] Matched 'Age At Cpy' -> 'Age At Cpy'
+[2026-02-04T11:17:30.180443] Plotting column 'Age At Cpy' (display: 'Usia') with 27 values, range: 49.0 to 74.0
+[2026-02-04T11:17:30.180591] Distribution plot for 'Age At Cpy': 17 unique values, categorical=False
+[2026-02-04T11:17:30.254305] Data loaded. Shape: (28, 25)
+[2026-02-04T11:17:30.255086] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T11:17:30.255131] User requested column 'hb', switching to distribution plot
+[2026-02-04T11:17:30.255195] Plotting distribution for target: hb
+[2026-02-04T11:17:30.255262] Final Target Column: Hb
+[2026-02-04T11:17:30.255332] === DISTRIBUTION PLOT DEBUG ===
+[2026-02-04T11:17:30.255365] Requested target_column: 'Hb'
+[2026-02-04T11:17:30.255402] Available columns: ['Patient', 'Sex', 'Date', 'Image', 'Age At Cpy', 'Dz Duration', 'Dz Location Active Only', 'Dz Location Scars Include', 'Pmayo, 0 3 Each', 'Unnamed: 9', 'Unnamed: 10', 'Sum Pmayo', 'Hb', 'Crp', 'Fc', '5Asa Po', '5Asa Topical', 'Imm', 'Steroid Systemic', 'Steroid Topical', 'Biologics', 'Unnamed: 21', 'Small Molecule', 'Unnamed: 23', 'Note']
+[2026-02-04T11:17:30.255438] Matched 'Hb' -> 'Hb'
+[2026-02-04T11:17:30.279245] Plotting column 'Hb' (display: 'Hb') with 25 values, range: 11.2 to 16.3
+[2026-02-04T11:17:30.279376] Distribution plot for 'Hb': 21 unique values, categorical=False
+[2026-02-04T11:17:30.338082] Data loaded. Shape: (28, 25)
+[2026-02-04T11:17:30.338982] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T11:17:30.339033] User requested column 'sum_pmayo', switching to distribution plot
+[2026-02-04T11:17:30.339102] Plotting distribution for target: sum_pmayo
+[2026-02-04T11:17:30.339179] Final Target Column: Sum Pmayo
+[2026-02-04T11:17:30.339215] === DISTRIBUTION PLOT DEBUG ===
+[2026-02-04T11:17:30.339246] Requested target_column: 'Sum Pmayo'
+[2026-02-04T11:17:30.339282] Available columns: ['Patient', 'Sex', 'Date', 'Image', 'Age At Cpy', 'Dz Duration', 'Dz Location Active Only', 'Dz Location Scars Include', 'Pmayo, 0 3 Each', 'Unnamed: 9', 'Unnamed: 10', 'Sum Pmayo', 'Hb', 'Crp', 'Fc', '5Asa Po', '5Asa Topical', 'Imm', 'Steroid Systemic', 'Steroid Topical', 'Biologics', 'Unnamed: 21', 'Small Molecule', 'Unnamed: 23', 'Note']
+[2026-02-04T11:17:30.339316] Matched 'Sum Pmayo' -> 'Sum Pmayo'
+[2026-02-04T11:17:30.362693] Plotting column 'Sum Pmayo' (display: 'Skor Total P-Mayo') with 27 values, range: 0.0 to 6.0
+[2026-02-04T11:17:30.362841] Distribution plot for 'Sum Pmayo': 6 unique values, categorical=True
+[2026-02-04T11:28:19.772190] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T11:28:19.773509] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T11:28:19.965440] Tabular data found and cached.
+[2026-02-04T11:28:19.965545] Tabular data found and cached.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m[02/04/26 11:28:20][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=922936;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=741607;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store saved successfully.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m[02/04/26 11:28:20][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=375208;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=580460;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store saved successfully.
+[2026-02-04T11:28:46.512058] smart_intent_dispatch called: question='plot kan data age ', patient_filter=''
+[2026-02-04T11:28:46.512676] smart_intent_dispatch returning: {"answer": "Baik! Saya akan buat visualisasi distribusi **Age At Cpy**.\n\n\ud83d\udcca Grafik ini akan menunjukkan sebaran nilai Age At Cpy dalam dataset Anda, sehingga Anda bisa melihat pola dan out...
+[2026-02-04T11:28:52.464301] Data loaded. Shape: (28, 25)
+[2026-02-04T11:28:52.468591] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T11:28:52.468675] User requested column 'Age At Cpy', switching to distribution plot
+[2026-02-04T11:28:52.468777] Plotting distribution for target: Age At Cpy
+[2026-02-04T11:28:52.468874] Final Target Column: Age At Cpy
+[2026-02-04T11:28:52.468920] === DISTRIBUTION PLOT DEBUG ===
+[2026-02-04T11:28:52.468954] Requested target_column: 'Age At Cpy'
+[2026-02-04T11:28:52.468996] Available columns: ['Patient', 'Sex', 'Date', 'Image', 'Age At Cpy', 'Dz Duration', 'Dz Location Active Only', 'Dz Location Scars Include', 'Pmayo, 0 3 Each', 'Unnamed: 9', 'Unnamed: 10', 'Sum Pmayo', 'Hb', 'Crp', 'Fc', '5Asa Po', '5Asa Topical', 'Imm', 'Steroid Systemic', 'Steroid Topical', 'Biologics', 'Unnamed: 21', 'Small Molecule', 'Unnamed: 23', 'Note']
+[2026-02-04T11:28:52.469032] Matched 'Age At Cpy' -> 'Age At Cpy'
+[2026-02-04T11:28:52.639028] Plotting column 'Age At Cpy' (display: 'Usia') with 27 values, range: 49.0 to 74.0
+[2026-02-04T11:28:52.640057] Distribution plot for 'Age At Cpy': 17 unique values, categorical=False
+[2026-02-04T11:32:55.958835] smart_intent_dispatch called: question='bisa plot kan data sterorid', patient_filter=''
+[2026-02-04T11:32:55.959472] smart_intent_dispatch returning: {"answer": "Baik! Saya akan buat visualisasi distribusi **Sex**.\n\n\ud83d\udcca Grafik ini akan menunjukkan sebaran nilai Sex dalam dataset Anda, sehingga Anda bisa melihat pola dan outlier yang ada....
+[2026-02-04T11:33:01.657537] Data loaded. Shape: (28, 25)
+[2026-02-04T11:33:01.661147] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T11:33:01.661197] User requested column 'Sex', switching to distribution plot
+[2026-02-04T11:33:01.661284] Plotting distribution for target: Sex
+[2026-02-04T11:33:01.661352] Final Target Column: Sex
+[2026-02-04T11:33:01.661393] === DISTRIBUTION PLOT DEBUG ===
+[2026-02-04T11:33:01.661424] Requested target_column: 'Sex'
+[2026-02-04T11:33:01.661461] Available columns: ['Patient', 'Sex', 'Date', 'Image', 'Age At Cpy', 'Dz Duration', 'Dz Location Active Only', 'Dz Location Scars Include', 'Pmayo, 0 3 Each', 'Unnamed: 9', 'Unnamed: 10', 'Sum Pmayo', 'Hb', 'Crp', 'Fc', '5Asa Po', '5Asa Topical', 'Imm', 'Steroid Systemic', 'Steroid Topical', 'Biologics', 'Unnamed: 21', 'Small Molecule', 'Unnamed: 23', 'Note']
+[2026-02-04T11:33:01.661495] Matched 'Sex' -> 'Sex'
+[2026-02-04T11:33:01.818703] Plotting column 'Sex' (display: 'Jenis Kelamin') with 10 values, range: 0.0 to 1.0
+[2026-02-04T11:33:01.819317] Distribution plot for 'Sex': 2 unique values, categorical=True
+[2026-02-04T11:34:01.664914] smart_intent_dispatch called: question='kalo data steroid_topical', patient_filter=''
+[2026-02-04T11:34:01.665290] CRITICAL ERROR in smart_intent_dispatch:
+Traceback (most recent call last):
+  File "/Users/muhammadaliffandy/Documents/my-project/PineBioML/mcp_server.py", line 198, in smart_intent_dispatch
+    answer, tool, tasks = rag_engine.smart_query(question, patient_id_filter, schema_context=schema)
+TypeError: cannot unpack non-iterable NoneType object
+
+[2026-02-04T11:39:40.388998] smart_intent_dispatch called: question='coba plot kan data steroid_topical', patient_filter=''
+[2026-02-04T11:39:40.389643] smart_intent_dispatch returning: {"answer": "Baik! Saya akan buat visualisasi distribusi **Sex**.\n\n\ud83d\udcca Grafik ini akan menunjukkan sebaran nilai Sex dalam dataset Anda, sehingga Anda bisa melihat pola dan outlier yang ada....
+[2026-02-04T11:39:46.664924] Data loaded. Shape: (28, 25)
+[2026-02-04T11:39:46.668631] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T11:39:46.668703] User requested column 'Sex', switching to distribution plot
+[2026-02-04T11:39:46.668804] Plotting distribution for target: Sex
+[2026-02-04T11:39:46.668895] Final Target Column: Sex
+[2026-02-04T11:39:46.668941] === DISTRIBUTION PLOT DEBUG ===
+[2026-02-04T11:39:46.668977] Requested target_column: 'Sex'
+[2026-02-04T11:39:46.669019] Available columns: ['Patient', 'Sex', 'Date', 'Image', 'Age At Cpy', 'Dz Duration', 'Dz Location Active Only', 'Dz Location Scars Include', 'Pmayo, 0 3 Each', 'Unnamed: 9', 'Unnamed: 10', 'Sum Pmayo', 'Hb', 'Crp', 'Fc', '5Asa Po', '5Asa Topical', 'Imm', 'Steroid Systemic', 'Steroid Topical', 'Biologics', 'Unnamed: 21', 'Small Molecule', 'Unnamed: 23', 'Note']
+[2026-02-04T11:39:46.669084] Matched 'Sex' -> 'Sex'
+[2026-02-04T11:39:46.823855] Plotting column 'Sex' (display: 'Jenis Kelamin') with 10 values, range: 0.0 to 1.0
+[2026-02-04T11:39:46.824727] Distribution plot for 'Sex': 2 unique values, categorical=True
+[2026-02-04T11:46:39.615003] Starting ingestion from /Users/muhammadaliffandy/Documents/my-project/PineBioML/temp_uploads (internal_patient)
+[2026-02-04T11:46:39.776380] Tabular data found and cached.
+📥 Starting ingestion of 29 document segments...
+✂️  Split into 29 chunks. Filtering metadata...
+[2;36m[02/04/26 11:46:40][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m [4;94mhttps://api.openai.com/v1/embeddings[0m [32m"HTTP/1.1 200 OK"[0m                                                           ]8;id=770741;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=489456;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+💾 Vector store saved successfully.
+[2026-02-04T11:47:06.435611] smart_intent_dispatch called: question='coba plot kan data steroid_topical', patient_filter=''
+[2026-02-04T11:47:06.436530] smart_intent_dispatch returning: {"answer": "Baik! Saya akan buat visualisasi distribusi **5Asa Topical**.\n\n\ud83d\udcca Grafik ini akan menunjukkan sebaran nilai 5Asa Topical dalam dataset Anda, sehingga Anda bisa melihat pola dan...
+[2026-02-04T11:47:14.620557] Data loaded. Shape: (28, 25)
+[2026-02-04T11:47:14.624541] Numeric DF Shape after Ambiguity Filter: (27, 1)
+[2026-02-04T11:47:14.624589] User requested column '5Asa Topical', switching to distribution plot
+[2026-02-04T11:47:14.624671] Plotting distribution for target: 5Asa Topical
+[2026-02-04T11:47:14.624745] Final Target Column: 5Asa Topical
+[2026-02-04T11:47:14.624783] === DISTRIBUTION PLOT DEBUG ===
+[2026-02-04T11:47:14.624812] Requested target_column: '5Asa Topical'
+[2026-02-04T11:47:14.624847] Available columns: ['Patient', 'Sex', 'Date', 'Image', 'Age At Cpy', 'Dz Duration', 'Dz Location Active Only', 'Dz Location Scars Include', 'Pmayo, 0 3 Each', 'Unnamed: 9', 'Unnamed: 10', 'Sum Pmayo', 'Hb', 'Crp', 'Fc', '5Asa Po', '5Asa Topical', 'Imm', 'Steroid Systemic', 'Steroid Topical', 'Biologics', 'Unnamed: 21', 'Small Molecule', 'Unnamed: 23', 'Note']
+[2026-02-04T11:47:14.624878] Matched '5Asa Topical' -> '5Asa Topical'
+[2026-02-04T11:47:14.778679] Plotting column '5Asa Topical' (display: '5Asa Topical') with 27 values, range: 0.0 to 1.0
+[2026-02-04T11:47:14.779532] Distribution plot for '5Asa Topical': 2 unique values, categorical=True
