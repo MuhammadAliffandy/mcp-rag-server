@@ -11,7 +11,8 @@ st.set_page_config(page_title="Medical MCP RAG & PineBioML", page_icon="🌲", l
 # MCP Server Parameters
 server_params = StdioServerParameters(
     command="./venv/bin/python", # Pastikan path python benar
-    args=["mcp_server.py"],
+    args=["src/api/mcp_server.py"],
+    env={**os.environ, "PYTHONPATH": "."}
 )
 
 # Initialize dark mode state

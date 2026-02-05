@@ -1,7 +1,7 @@
 
 import os
 import sys
-from rag_engine import RAGEngine
+from src.hub.rag_engine import RAGEngine
 from langchain_core.documents import Document
 
 def test_exact_search_logic():

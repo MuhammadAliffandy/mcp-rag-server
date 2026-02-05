@@ -16,7 +16,9 @@ load_dotenv()
 
 def pine_logger(msg):
     try:
-        with open("server_debug.log", "a") as f:
+        log_dir = "logs"
+        os.makedirs(log_dir, exist_ok=True)
+        with open(os.path.join(log_dir, "server_debug.log"), "a") as f:
             timestamp = datetime.datetime.now().isoformat()
             f.write(f"[{timestamp}] [RAG] {msg}\n")
     except:

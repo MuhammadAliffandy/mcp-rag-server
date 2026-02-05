@@ -1,7 +1,7 @@
 import os
 import pandas as pd
-from rag_processor import DocumentProcessor
-from rag_engine import RAGEngine
+from src.hub.rag_processor import DocumentProcessor
+from src.hub.rag_engine import RAGEngine
 import matplotlib.pyplot as plt
 
 def verify_system():
@@ -21,7 +21,7 @@ def verify_system():
     
     # 2. Test Document Processor
     print("🔍 Testing Document Processor...")
-    docs = DocumentProcessor.process_tabular(csv_path)
+    docs = DocumentProcessor.process_tabular(csv_path, doc_type="test_data")
     assert len(docs) > 0, "Document processor failed to load tabular data."
     assert "patient_ids" in docs[0].metadata, "Metadata missing patient_ids."
     print(f"✅ Document Processor extracted: {docs[0].metadata['patient_ids']}")

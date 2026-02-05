@@ -1,4 +1,11 @@
 import os
+import sys
+
+# Ensure project root is in path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 import json
 import io
 import re
@@ -10,8 +17,8 @@ import warnings
 import datetime
 import traceback
 from mcp.server.fastmcp import FastMCP
-from rag_processor import DocumentProcessor
-from rag_engine import RAGEngine
+from src.hub.rag_processor import DocumentProcessor
+from src.hub.rag_engine import RAGEngine
 from dotenv import load_dotenv
 
 # PineBioML Core Imports
@@ -24,7 +31,9 @@ load_dotenv()
 
 def pine_log(msg):
     try:
-        with open("server_debug.log", "a") as f:
+        log_dir = "logs"
+        os.makedirs(log_dir, exist_ok=True)
+        with open(os.path.join(log_dir, "server_debug.log"), "a") as f:
             timestamp = datetime.datetime.now().isoformat()
             f.write(f"[{timestamp}] [Server] {msg}\n")
     except:
@@ -32,7 +41,9 @@ def pine_log(msg):
 
 @contextlib.contextmanager
 def suppress_output():
-    with open("server_debug.log", "a") as logfile:
+    log_dir = "logs"
+    os.makedirs(log_dir, exist_ok=True)
+    with open(os.path.join(log_dir, "server_debug.log"), "a") as logfile:
         stdout_fd = sys.stdout.fileno()
         stderr_fd = sys.stderr.fileno()
         orig_stdout_fd = os.dup(stdout_fd)
