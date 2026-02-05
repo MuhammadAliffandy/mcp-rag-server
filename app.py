@@ -4,6 +4,12 @@ import asyncio
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from dotenv import load_dotenv
+import base64
+
+def get_img_base64(file_path):
+    with open(file_path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
 
 load_dotenv()
 st.set_page_config(page_title="Medical MCP RAG & PineBioML", page_icon="🌲", layout="wide")
@@ -19,133 +25,289 @@ server_params = StdioServerParameters(
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
 
-# Custom CSS - Clean Modern Medical Theme
-dark_bg = "#0f1419" if st.session_state.dark_mode else "#ffffff"
-dark_surface = "#1a1f2e" if st.session_state.dark_mode else "#f8f9fa"
-dark_text = "#e4e6eb" if st.session_state.dark_mode else "#1a1a1a"
-accent_color = "#3b82f6"
+# Theme Colors
+if st.session_state.dark_mode:
+    bg_color = "#000000"
+    sidebar_bg = "#0A0A0A"
+    card_bg = "#111111"
+    text_color = "#FFFFFF"
+    subtext_color = "#666666"
+    border_color = "#1A1A1A"
+    bubble_bg = "#1E1E1E"
+else:
+    bg_color = "#FFFFFF"
+    sidebar_bg = "#F8F9FA"
+    card_bg = "#F0F2F6"
+    text_color = "#000000"
+    subtext_color = "#555555"
+    border_color = "#E0E0E0"
+    bubble_bg = "#F0F2F6"
 
+# Custom CSS - Premium Monochrome Aesthetic (Dynamic)
 st.markdown(f"""
 <style>
-    /* Clean Modern Theme */
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&family=Poppins:wght@300;400;500&display=swap');
+
+    /* Global Typography & Colors */
+    html, body, [data-testid="stAppViewContainer"] {{
+        background-color: {bg_color} !important;
+        font-family: 'Poppins', sans-serif !important;
+        color: {text_color} !important;
+    }}
+    
     .stApp {{
-        background: {dark_bg};
-        color: {dark_text};
+        background: {bg_color};
     }}
-    
-    /* Sidebar - Minimal */
+
+    h1, h2, h3, .header-style {{
+        font-family: 'Montserrat', sans-serif !important;
+        font-weight: 700 !important;
+        color: {text_color} !important;
+        letter-spacing: -0.02em;
+    }}
+
+    /* Sidebar Styling - Enhanced Dashboard Look */
     [data-testid="stSidebar"] {{
-        background: {dark_surface};
-        border-right: 1px solid {'#2d3748' if st.session_state.dark_mode else '#e2e8f0'};
+        background-color: {sidebar_bg} !important;
+        border-right: 1px solid {border_color};
+        padding-top: 20px;
     }}
     
-    /* Chat Messages - Clean Cards */
-    [data-testid="stChatMessage"] {{
-        background: {dark_surface} !important;
-        border: 1px solid {'#2d3748' if st.session_state.dark_mode else '#e2e8f0'};
+    .brand-header {{
+        background: {sidebar_bg};
+        border: 1px solid {border_color};
+        border-radius: 12px;
+        padding: 12px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }}
+    
+    .brand-icon {{
+        background: {border_color};
+        color: {text_color};
+        width: 32px;
+        height: 32px;
         border-radius: 8px;
-        padding: 1rem;
-        margin: 0.5rem 0;
-        box-shadow: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
     }}
     
-    /* Assistant messages - subtle accent */
-    [data-testid="stChatMessage"][data-testid*="assistant"] {{
-        border-left: 3px solid {accent_color};
+    .nav-label {{
+        font-size: 0.75rem;
+        color: {subtext_color};
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin: 20px 0 10px 10px;
+        font-weight: 600;
     }}
     
-    /* User messages - subtle differentiation */
-    [data-testid="stChatMessage"][data-testid*="user"] {{
-        border-left: 3px solid #6b7280;
+    .nav-item {{
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        color: {subtext_color};
+        cursor: pointer;
+        transition: all 0.2s;
+        text-decoration: none;
+        margin-bottom: 4px;
     }}
     
-    /* Buttons - Clean Minimal */
+    .nav-item:hover {{
+        background: {card_bg};
+        color: {text_color};
+    }}
+    
+    /* Input Styling - Search Type */
+    .stTextInput input {{
+        background-color: {bg_color} !important;
+        border: 1px solid {border_color} !important;
+        border-radius: 8px !important;
+        color: {text_color} !important;
+    }}
+
+    /* Chat Elements - New Flexbox System */
+    .user-container {{
+        display: flex !important;
+        flex-direction: row-reverse !important;
+        align-items: flex-start !important;
+        justify-content: flex-start !important; /* Starts from right in row-reverse */
+        width: 100% !important;
+        margin: 1.5rem 0 !important;
+        gap: 12px !important;
+    }}
+
+    .user-bubble {{
+        background-color: {bubble_bg} !important;
+        border: 1px solid {border_color} !important;
+        color: {text_color} !important;
+        padding: 12px 18px !important;
+        border-radius: 20px 20px 4px 20px !important;
+        max-width: 75% !important;
+        font-size: 1.1rem !important; /* Increased font size */
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
+    }}
+
+    .assistant-container {{
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: flex-start !important;
+        width: 100% !important;
+        margin: 1.5rem 0 !important;
+        gap: 12px !important;
+    }}
+
+    .assistant-content {{
+        color: {text_color} !important;
+        max-width: 85% !important;
+        font-size: 1.1rem !important; /* Increased font size */
+        line-height: 1.6 !important;
+        margin-top: 4px !important;
+    }}
+
+    .msg-avatar {{
+        width: 32px !important;
+        height: 32px !important;
+        border-radius: 50% !important; /* Circle avatars */
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex-shrink: 0 !important;
+        background: {card_bg}; /* Blends with cards */
+        border: 1px solid {border_color};
+    }}
+
+    .user-avatar {{ 
+        /* Specific override if needed, but shared style is good for blending */
+    }}
+    
+    .assistant-avatar {{ 
+        /* Specific override if needed */
+    }}
+    
+    .avatar-icon {{
+        width: 18px;
+        height: 18px;
+        fill: {subtext_color}; /* Subtle icon color */
+    }}
+    
+    .user-avatar .avatar-icon {{
+        fill: {text_color}; /* White/Text Color for User as requested */
+    }}
+    
+    .assistant-avatar .avatar-icon {{
+        fill: #10B981; /* Muted Emerald for AI (PineBio) */
+    }}
+
+    /* Disable default Streamlit chat padding/backgrounds */
+    [data-testid="stChatMessage"] {{
+        padding: 0 !important;
+        background: transparent !important;
+    }}
+    
+    [data-testid="stChatMessage"] > div:first-child {{
+        display: none !important; /* Hide original avatar */
+    }}
+    
+    [data-testid="stChatMessageContent"] {{
+        padding: 0 !important;
+        background: transparent !important;
+    }}
+    
+    /* Input Area - Seamless Integration */
+    [data-testid="stChatInput"] {{
+        background-color: {bg_color} !important;
+        border: 1px solid {border_color} !important;
+        border-radius: 14px !important;
+        padding: 0.3rem !important;
+    }}
+    
+    /* Force pure black for the bottom container */
+    .stChatFloatingInputContainer, [data-testid="stBottomBlockContainer"] {{
+        background-color: {bg_color} !important;
+        border-top: none !important;
+    }}
+    
+    /* Ensure no background bleed from sidebar or main view */
+    [data-testid="stAppViewBlockContainer"] {{
+        background-color: {bg_color} !important;
+    }}
+    
+    /* Prompt Cards (Empty State) */
+    .prompt-card {{
+        background: {sidebar_bg};
+        border: 1px solid {border_color};
+        border-radius: 16px;
+        padding: 20px;
+        text-align: center;
+        transition: all 0.2s ease;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        color: {subtext_color};
+        font-size: 0.85rem;
+        cursor: pointer;
+    }}
+    
+    .prompt-card:hover {{
+        border-color: {subtext_color};
+        background: {card_bg};
+        color: {text_color};
+    }}
+    
+    .prompt-icon {{
+        font-size: 1.5rem;
+        margin-bottom: 10px;
+        color: {text_color};
+        opacity: 0.6;
+    }}
+
+    /* Buttons - Refined Minimal */
     .stButton>button {{
-        background: {accent_color};
-        color: white;
-        border: none;
-        border-radius: 6px;
-        padding: 0.5rem 1.5rem;
-        font-weight: 500;
+        background-color: {card_bg} !important;
+        color: {text_color} !important;
+        font-weight: 500 !important;
+        border-radius: 10px !important;
+        border: 1px solid {border_color} !important;
+        padding: 0.5rem 1.5rem !important;
         transition: all 0.2s;
     }}
     
     .stButton>button:hover {{
-        background: #2563eb;
-        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+        background-color: {sidebar_bg} !important;
+        border-color: {subtext_color} !important;
     }}
     
-    /* File Uploader - Minimal */
+    /* File Uploader */
     [data-testid="stFileUploader"] {{
-        border: 1px dashed {'#4b5563' if st.session_state.dark_mode else '#d1d5db'};
-        border-radius: 6px;
-        padding: 1rem;
-        background: transparent;
+        background: {sidebar_bg};
+        border: 1px dashed {border_color};
+        border-radius: 10px;
     }}
+
+    /* Hide standard Streamlit elements for "Pure" look */
+    #MainMenu {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
+    [data-testid="stHeader"] {{background: rgba(0,0,0,0);}}
     
-    /* Input - Clean */
-    .stTextInput>div>div>input, .stTextArea textarea {{
-        background: {dark_surface};
-        color: {dark_text};
-        border: 1px solid {'#374151' if st.session_state.dark_mode else '#d1d5db'};
-        border-radius: 6px;
-    }}
-    
-    /* Headers - Clean Typography */
-    h1, h2, h3 {{
-        color: {dark_text};
-        font-weight: 600;
-        letter-spacing: -0.02em;
-    }}
-    
-    h1 {{ font-size: 1.875rem; }}
-    h2 {{ font-size: 1.5rem; }}
-    h3 {{ font-size: 1.25rem; }}
-    
-    /* Info/Alert Boxes - Subtle */
-    .stAlert {{
-        background: {dark_surface};
-        border: 1px solid {'#374151' if st.session_state.dark_mode else '#e2e8f0'};
-        border-radius: 6px;
-        border-left-width: 3px;
-    }}
-    
-    /* Code blocks */
-    code {{
-        background: {'#374151' if st.session_state.dark_mode else '#f3f4f6'};
-        color: {accent_color};
-        padding: 0.2rem 0.4rem;
-        border-radius: 4px;
-        font-size: 0.875rem;
-    }}
-    
-    /* Remove all box shadows and gradients */
-    * {{
-        box-shadow: none !important;
-    }}
-    
-    /* Chat input */
-    .stChatFloatingInputContainer {{
-        background: {dark_surface};
-        border-top: 1px solid {'#2d3748' if st.session_state.dark_mode else '#e2e8f0'};
-    }}
-    
-    /* Spinner */
-    .stSpinner>div {{
-        border-top-color: {accent_color} !important;
-    }}
-    
-    /* Links */
-    a {{
-        color: {accent_color};
-        text-decoration: none;
-    }}
-    
-    a:hover {{
-        text-decoration: underline;
-    }}
+    /* Scrollbar */
+    ::-webkit-scrollbar {{ width: 5px; }}
+    ::-webkit-scrollbar-track {{ background: {bg_color}; }}
+    ::-webkit-scrollbar-thumb {{ background: {border_color}; border-radius: 10px; }}
+    ::-webkit-scrollbar-thumb:hover {{ background: {subtext_color}; }}
 </style>
 """, unsafe_allow_html=True)
+
+# SVG Icons
+icon_user = """<svg class="avatar-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 21C20 19.6044 20 18.9067 19.8278 18.3389C19.44 17.0605 18.4395 16.06 17.1611 15.6722C16.5933 15.5 15.8956 15.5 14.5 15.5H9.5C8.10444 15.5 7.40665 15.5 6.83886 15.6722C5.56045 16.06 4.56004 17.0605 4.17224 18.3389C4 18.9067 4 19.6044 4 21M16.5 7.5C16.5 9.98528 14.4853 12 12 12C9.51472 12 7.5 9.98528 7.5 7.5C7.5 5.01472 9.51472 3 12 3C14.4853 3 16.5 5.01472 16.5 7.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
+
+icon_ai = """<svg class="avatar-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.813 15.904L9 18.75L8.187 15.904C7.79 14.512 6.696 13.418 5.304 13.021L2.25 12.25L5.304 11.479C6.696 11.082 7.79 9.988 8.187 8.596L9 5.75L9.813 8.596C10.21 9.988 11.304 11.082 12.696 11.479L15.75 12.25L12.696 13.021C11.304 13.418 10.21 14.512 9.813 15.904Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16.89 19.782L16.5 21.125L16.11 19.782C15.922 19.125 15.405 18.608 14.748 18.42L13.25 18.062L14.748 17.705C15.405 18.517 15.922 18.032 16.11 17.375L16.5 16.032L16.89 17.375C17.078 18.032 17.595 18.517 18.252 18.705L19.75 19.062L18.252 19.42C17.595 19.608 17.078 20.125 16.89 19.782Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.488 7.379L19.25 8.25L19.012 7.379C18.887 6.942 18.543 6.598 18.106 6.473L17.25 6.25L18.106 6.027C18.543 5.902 18.887 5.558 19.012 5.121L19.25 4.25L19.488 5.121C19.613 5.558 19.957 5.902 20.394 6.027L21.25 6.25L20.394 6.473C19.957 6.598 19.613 6.942 19.488 7.379Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
 
 # Helper for MCP tool calls
 async def call_mcp_tool(tool_name, arguments):
@@ -158,27 +320,43 @@ async def call_mcp_tool(tool_name, arguments):
 if "messages" not in st.session_state: st.session_state.messages = []
 if "ingested" not in st.session_state: st.session_state.ingested = False
 
-# --- SIDEBAR (Cleaned Up) ---
+# --- SIDEBAR (Premium Dashboard) ---
 with st.sidebar:
-    # Dark mode toggle
-    col1, col2 = st.columns([3, 1])
+    # 1. Brand Header (ChatGPT Style)
+    col1, col2 = st.columns([4, 1])
     with col1:
-        st.title("🌲 PineBioML")
+        st.markdown("""
+        <div class="brand-header">
+            <div class="brand-icon">P</div>
+            <div>
+                <div style="font-weight:600; font-size:1rem; color:#FFFFFF;">PineBioML-4</div>
+                <div style="font-size:0.75rem; color:#666;">Medical Intelligence Core</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     with col2:
         if st.button("🌓" if st.session_state.dark_mode else "☀️", key="theme_toggle"):
             st.session_state.dark_mode = not st.session_state.dark_mode
             st.rerun()
     
-    # 1. Bagian Upload Data Pasien (Internal otomatis diload di server)
-    st.markdown("---")
-    st.header("📂 Upload Patient Data")
-    st.info("Upload records specifically for the **current patient(s)** analysis.")
+    # 2. Search / Filter (Minimal)
+    patient_filter = st.text_input("Search ID...", "", placeholder="Patient ID (e.g. 001)", label_visibility="collapsed")
     
-    uploaded_files = st.file_uploader("Drop PDF/CSV/Excel here", accept_multiple_files=True)
+    # 3. Navigation Section
+    st.markdown('<div class="nav-label">Main</div>', unsafe_allow_html=True)
+    st.markdown('<div class="nav-item">🏠 Home</div>', unsafe_allow_html=True)
+    st.markdown('<div class="nav-item" style="background:#111; color:#fff;">✨ Chat</div>', unsafe_allow_html=True)
     
-    if st.button("🚀 Ingest to Patient Context"):
+    # 4. Data / Workspace Section
+    st.markdown('<div class="nav-label">Workspace</div>', unsafe_allow_html=True)
+    st.markdown('<div class="nav-item">📂 Library</div>', unsafe_allow_html=True)
+    
+    # Data Management
+    uploaded_files = st.file_uploader("Upload Medical Records", accept_multiple_files=True, label_visibility="collapsed")
+    
+    if st.button("🚀 Ingest Records", use_container_width=True):
         if uploaded_files:
-            with st.spinner("Processing patient data..."):
+            with st.spinner("Processing..."):
                 import shutil
                 temp_dir = "temp_uploads"
                 if os.path.exists(temp_dir): shutil.rmtree(temp_dir)
@@ -188,217 +366,283 @@ with st.sidebar:
                     with open(os.path.join(temp_dir, f.name), "wb") as out:
                         out.write(f.getbuffer())
                 
-                # REVISI: Hardcode doc_type jadi 'internal_patient' 
-                # karena SOP/Knowledge sudah dihandle otomatis server.
                 res = asyncio.run(call_mcp_tool("ingest_medical_files", {
                     "directory_path": os.path.abspath(temp_dir),
-                    "doc_type": "internal_patient"
+                    "doc_type": "session_upload"
                 }))
                 st.session_state.ingested = True
-                st.success(res)
+                st.success("Context loaded.")
         else:
-            st.warning("Please upload files first.")
+            st.warning("Upload first.")
 
-    st.markdown("---")
-    st.header("🆔 Patient ID Filter")
-    patient_filter = st.text_input("Active Patient ID (e.g., 001)", "")
-    
-    if st.button("🗑️ Reset All Data"):
-        # Reset Logic
-        pass # (Gunakan logic reset tombol lama Anda)
+    # 5. Settings / Control
+    st.markdown('<div class="nav-label">Control</div>', unsafe_allow_html=True)
+    if st.button("🗑️ Reset Session", use_container_width=True):
+        st.session_state.messages = []
+        st.rerun()
 
 # --- MAIN PAGE ---
-st.markdown('<h1 class="header-style">🌲 PineBioML RAG Assistant</h1>', unsafe_allow_html=True)
-st.markdown("**System Status:** Internal SOPs & Medical Guidelines are loaded.")
 
-# Report Display
-if st.session_state.get("show_report") and "last_plot" in st.session_state:
-    st.image(st.session_state.last_plot, caption="Generated PineBioML PCA Plot")
-    if "last_interpretation" in st.session_state:
-        st.markdown(st.session_state.last_interpretation)
-    if st.button("Close Report"):
-        st.session_state.show_report = False
+# 1. Capture Input First (Execution Order Fix)
+# 1. Capture Input First (Execution Order Fix)
+prompt = st.chat_input("Ask about SOPs or patient data (e.g., 'What is in the guidelines?')")
 
-# Chat Interface
-if st.session_state.ingested:
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+if prompt:
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.session_state.processing_pending = True
+    st.rerun()
 
-    if prompt := st.chat_input("Ask DoctorGPT (e.g., 'Summary for ID 8')"):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        with st.chat_message("assistant"):
-            with st.spinner("Medical AI is planning and executing..."):
-                # Call the Smart Brain via MCP Tool
-                dispatch_res = asyncio.run(call_mcp_tool("smart_intent_dispatch", {
-                    "question": prompt,
-                    "patient_id_filter": patient_filter,
-                    "chat_history": st.session_state.messages
-                }))
-                
-                # ERROR HANDLING: Check if response is valid
-                if not dispatch_res or dispatch_res.strip() == "":
-                    st.error("❌ Error: No response from AI engine. Please try again or check server logs.")
-                    st.stop()
-                
-                import json
-                try:
-                    decision = json.loads(dispatch_res)
-                except json.JSONDecodeError as e:
-                    st.error(f"❌ Error parsing AI response: {e}")
-                    st.write("**Raw response:**")
-                    st.code(dispatch_res)
-                    st.stop()
-                
-                answer = decision.get("answer")
-                tool = decision.get("tool")
-                tasks = decision.get("tasks", [])
-
-                if tool == "rag":
-                    st.markdown(answer)
-                    res = answer
-                elif tool == "multi_task":
-                    # Display the AI's explanation/plan first
-                    if answer:
-                        st.markdown(answer)
-                    
-                    res = f"{answer}\n\n" if answer else ""
-                    
-                    tool_outputs = [] # Collect results for synthesis
-
-                    for i, task in enumerate(tasks):
-                        t_name = task.get("tool")
-                        if not t_name:
-                            t_name = "unknown_task"
-                        t_args = task.get("args", {})
-                        
-                        st.write(f"**Step {i+1}: {t_name.title()}**")
-                        
-                        if t_name in ["clean", "clean_medical_data"]:
-                            with st.spinner("Cleaning medical data..."):
-                                m_res = asyncio.run(call_mcp_tool("clean_medical_data", t_args))
-                                st.success(m_res)
-                                res += f"\n- {m_res}"
-                                tool_outputs.append(f"Clean Data: {m_res}")
-                        
-                        elif t_name in ["plot", "generate_medical_plot"]:
-                            with st.spinner(f"Generating plot..."):
-                                p_args = {
-                                    "plot_type": t_args.get("plot_type", "pca"),
-                                    "patient_ids": patient_filter,
-                                    "target_column": t_args.get("target_column")
-                                }
-                                m_res = asyncio.run(call_mcp_tool("generate_medical_plot", p_args))
-                                if "|||" in m_res:
-                                    path, interp = m_res.split("|||")
-                                    st.image(path)
-                                    st.markdown(interp)
-                                    res += f"\n- {interp}"
-                                    tool_outputs.append(f"Plot Findings: {interp}")
-                                else:
-                                    st.error(m_res)
-
-                        elif t_name == "run_pls_analysis":
-                            with st.spinner("Running PLS-DA..."):
-                                m_res = asyncio.run(call_mcp_tool("run_pls_analysis", {}))
-                                if "|||" in m_res:
-                                    path, txt = m_res.split("|||")
-                                    st.image(path)
-                                    st.markdown(txt)
-                                    res += f"\n- PLS-DA Analysis complete."
-                                    tool_outputs.append(f"PLS-DA Findings: {txt}")
-
-                        elif t_name == "run_umap_analysis":
-                            with st.spinner("Running UMAP..."):
-                                m_res = asyncio.run(call_mcp_tool("run_umap_analysis", {}))
-                                if "|||" in m_res:
-                                    path, txt = m_res.split("|||")
-                                    st.image(path)
-                                    st.markdown(txt)
-                                    res += f"\n- UMAP Analysis complete."
-                                    tool_outputs.append(f"UMAP Findings: {txt}")
-
-                        elif t_name == "run_correlation_heatmap":
-                            with st.spinner("Generating Heatmap..."):
-                                m_res = asyncio.run(call_mcp_tool("run_correlation_heatmap", {}))
-                                if "|||" in m_res:
-                                    path, txt = m_res.split("|||")
-                                    st.image(path)
-                                    st.markdown(txt)
-                                    res += f"\n- Heatmap complete."
-                                    tool_outputs.append(f"Heatmap Findings: {txt}")
-                        
-                        elif t_name in ["train", "train_medical_model"]:
-                            with st.spinner("Training model..."):
-                                m_res = asyncio.run(call_mcp_tool("train_medical_model", t_args))
-                                st.markdown(m_res)
-                                res += f"\n- Training complete."
-                                tool_outputs.append(f"Training Results: {m_res}")
-                        
-                        elif t_name == "inspect_knowledge_base":
-                            with st.spinner("Inspecting knowledge base..."):
-                                m_res = asyncio.run(call_mcp_tool("inspect_knowledge_base", {}))
-                                st.info("Knowledge Base Inventory")
-                                st.markdown(m_res)
-                                res += f"\n- Knowledge inspection complete."
-                                tool_outputs.append(f"Knowledge Inventory: {m_res}")
-
-                        elif t_name in ["discover", "discover_markers"]:
-                            with st.spinner("Discovering biomarkers..."):
-                                m_res = asyncio.run(call_mcp_tool("discover_markers", t_args))
-                                st.markdown(m_res)
-                                res += f"\n- Biomarkers identified."
-                                tool_outputs.append(f"Discovery Results: {m_res}")
-                        
-                        elif t_name in ["report", "generate_medical_report"]:
-                            with st.spinner("Generating report..."):
-                                m_res = asyncio.run(call_mcp_tool("generate_medical_report", {}))
-                                if "|||" in m_res:
-                                    path, txt = m_res.split("|||")
-                                    st.image(path)
-                                    st.markdown(txt)
-                                    res += f"\n- Report generated."
-                                    tool_outputs.append(f"Report Summary: {txt}")
-                        
-                        elif t_name in ["rag", "query_medical_rag"]:
-                            m_res = asyncio.run(call_mcp_tool("query_medical_rag", {"question": prompt}))
-                            st.markdown(m_res)
-                            res += f"\n- {m_res}"
-                            tool_outputs.append(f"RAG Knowledge: {m_res}")
-
-                        elif t_name == "exact_identifier_search":
-                            with st.spinner("Finding exact matches..."):
-                                m_res = asyncio.run(call_mcp_tool("exact_identifier_search", {"query": prompt, "patient_id_filter": patient_filter}))
-                                st.markdown("### 🔍 Exact Match Results")
-                                st.markdown(m_res) # This will render the markdown + code blocks
-                                res += f"\n- Exact search completed."
-                                tool_outputs.append(f"Exact Search Results: {m_res}")
-
-                        elif t_name in ["describe", "get_data_context"]:
-                            with st.spinner("Analyzing data summary..."):
-                                m_res = asyncio.run(call_mcp_tool("get_data_context", {}))
-                                st.markdown(m_res)
-                                res += f"\n- Data Summary Loaded."
-                                tool_outputs.append(f"Data Summary: {m_res}")
-
-                    # Final Step: Clinical Synthesis
-                    if tool_outputs:
-                        with st.spinner("Dr. AI is analyzing the results..."):
-                            combined_findings = "\n".join(tool_outputs)
-                            synth_res = asyncio.run(call_mcp_tool("synthesize_medical_results", {
-                                "question": prompt,
-                                "results": combined_findings
-                            }))
-                            st.markdown("### 📝 Clinical Synthesis")
-                            st.info(synth_res)
-                            res += f"\n\n### Clinical Synthesis\n{synth_res}"
-                else:
-                    st.markdown(answer)
-                    res = answer
-                
-        st.session_state.messages.append({"role": "assistant", "content": res})
+# 2. Decide what to render
+if not st.session_state.messages:
+    # Empty State / Landing Page
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+    col_c1, col_c2, col_c3 = st.columns([1, 4, 1])
+    with col_c2:
+        st.markdown(f"""
+        <div style="text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 20px; color:{text_color};">⠿</div>
+            <h1 style="font-size: 3.5rem !important; margin-bottom: 0px; font-weight:700;">Intelligence Core</h1>
+            <p style="color: {subtext_color}; font-size: 1.1rem; margin-top: 10px; font-weight:300; max-width: 600px; margin-left: auto; margin-right: auto;">Advanced RAG orchestration for clinical multi-omics and precision medical data analysis</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        
+        # Prompt Cards Grid
+        p1, p2, p3, p4 = st.columns(4)
+        with p1: 
+            st.markdown('<div class="prompt-card"><div class="prompt-icon">📊</div>Analyze my patient data and tell me the findings</div>', unsafe_allow_html=True)
+        with p2:
+            st.markdown('<div class="prompt-card"><div class="prompt-icon">📜</div>Check medical SOPs for surgery verification</div>', unsafe_allow_html=True)
+        with p3:
+            st.markdown('<div class="prompt-card"><div class="prompt-icon">🔍</div>Find specific accession codes in documents</div>', unsafe_allow_html=True)
+        with p4:
+            st.markdown('<div class="prompt-card"><div class="prompt-icon">💡</div>Discover significant markers in data</div>', unsafe_allow_html=True)
 else:
-    st.info("👈 Ingest medical files via MCP to start.")
+    # Render Chat History
+    for msg in st.session_state.messages:
+        role = msg["role"]
+        content = msg["content"]
+        
+        if role == "user":
+            st.markdown(f"""
+            <div class="user-container">
+                <div class="msg-avatar user-avatar">{icon_user}</div>
+                <div class="user-bubble">{content}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div class="assistant-container">
+                <div class="msg-avatar assistant-avatar">{icon_ai}</div>
+                <div class="assistant-content">{content}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+# 3. Handle AI Response (Triggered by flag)
+if st.session_state.get("processing_pending", False):
+    st.session_state.processing_pending = False # Reset flag
+    
+    # Get the latest user prompt
+    last_user_prompt = st.session_state.messages[-1]["content"]
+
+    # Placeholder for the new assistant message to keep things clean
+    with st.spinner("Medical AI is planning and executing..."):
+        # Call the Smart Brain via MCP Tool
+        dispatch_res = asyncio.run(call_mcp_tool("smart_intent_dispatch", {
+            "question": last_user_prompt,
+            "patient_id_filter": patient_filter,
+            "chat_history": st.session_state.messages[:-1] # History excluding current
+        }))
+
+        # ERROR HANDLING: Check if response is valid
+        if not dispatch_res or dispatch_res.strip() == "":
+            st.error("❌ Error: No response from AI engine. Please try again or check server logs.")
+            st.stop()
+        
+        import json
+        try:
+            decision = json.loads(dispatch_res)
+        except json.JSONDecodeError as e:
+            st.error(f"❌ Error parsing AI response: {e}")
+            st.write("**Raw response:**")
+            st.code(dispatch_res)
+            st.stop()
+        
+        answer = decision.get("answer")
+        tool = decision.get("tool")
+        tasks = decision.get("tasks", [])
+
+        # Wrap assistant output in custom container
+        st.markdown(f'<div class="assistant-container"><div class="msg-avatar assistant-avatar">{icon_ai}</div><div class="assistant-content">', unsafe_allow_html=True)
+        
+        if tool == "rag":
+            st.markdown(answer)
+            res = answer
+        elif tool == "multi_task":
+            # Display the AI's explanation/plan first
+            if answer:
+                st.markdown(answer)
+            
+            res = f"{answer}\n\n" if answer else ""
+            
+            tool_outputs = [] # Collect results for synthesis
+
+            for i, task in enumerate(tasks):
+                t_name = task.get("tool")
+                if not t_name:
+                    t_name = "unknown_task"
+                t_args = task.get("args", {})
+                
+                st.write(f"**Step {i+1}: {t_name.title()}**")
+                
+                if t_name in ["clean", "clean_medical_data"]:
+                    with st.spinner("Cleaning medical data..."):
+                        m_res = asyncio.run(call_mcp_tool("clean_medical_data", t_args))
+                        st.success(m_res)
+                        res += f"\n- {m_res}"
+                        tool_outputs.append(f"Clean Data: {m_res}")
+                
+                elif t_name in ["plot", "generate_medical_plot"]:
+                    with st.spinner(f"Generating plot..."):
+                        p_args = {
+                            "plot_type": t_args.get("plot_type", "pca"),
+                            "patient_ids": patient_filter,
+                            "target_column": t_args.get("target_column")
+                        }
+                        m_res = asyncio.run(call_mcp_tool("generate_medical_plot", p_args))
+                        if "|||" in m_res:
+                            path, interp = m_res.split("|||")
+                            st.image(path)
+                            
+                            # Persist image
+                            img_b64 = get_img_base64(path)
+                            res += f'<br><img src="data:image/png;base64,{img_b64}" width="100%" style="border-radius: 10px; margin: 10px 0;">'
+                            
+                            st.markdown(interp)
+                            res += f"\n- {interp}"
+                            tool_outputs.append(f"Plot Findings: {interp}")
+                        else:
+                            st.error(m_res)
+
+                elif t_name == "run_pls_analysis":
+                    with st.spinner("Running PLS-DA..."):
+                        m_res = asyncio.run(call_mcp_tool("run_pls_analysis", {}))
+                        if "|||" in m_res:
+                            path, txt = m_res.split("|||")
+                            st.image(path)
+                            
+                            # Persist image
+                            img_b64 = get_img_base64(path)
+                            res += f'<br><img src="data:image/png;base64,{img_b64}" width="100%" style="border-radius: 10px; margin: 10px 0;">'
+                            
+                            st.markdown(txt)
+                            res += f"\n- PLS-DA Analysis complete."
+                            tool_outputs.append(f"PLS-DA Findings: {txt}")
+
+                elif t_name == "run_umap_analysis":
+                    with st.spinner("Running UMAP..."):
+                        m_res = asyncio.run(call_mcp_tool("run_umap_analysis", {}))
+                        if "|||" in m_res:
+                            path, txt = m_res.split("|||")
+                            st.image(path)
+                            
+                            # Persist image
+                            img_b64 = get_img_base64(path)
+                            res += f'<br><img src="data:image/png;base64,{img_b64}" width="100%" style="border-radius: 10px; margin: 10px 0;">'
+                            
+                            st.markdown(txt)
+                            res += f"\n- UMAP Analysis complete."
+                            tool_outputs.append(f"UMAP Findings: {txt}")
+
+                elif t_name == "run_correlation_heatmap":
+                    with st.spinner("Generating Heatmap..."):
+                        m_res = asyncio.run(call_mcp_tool("run_correlation_heatmap", {}))
+                        if "|||" in m_res:
+                            path, txt = m_res.split("|||")
+                            st.image(path)
+                            
+                            # Persist image
+                            img_b64 = get_img_base64(path)
+                            res += f'<br><img src="data:image/png;base64,{img_b64}" width="100%" style="border-radius: 10px; margin: 10px 0;">'
+                            
+                            st.markdown(txt)
+                            res += f"\n- Heatmap complete."
+                            tool_outputs.append(f"Heatmap Findings: {txt}")
+                
+                elif t_name in ["train", "train_medical_model"]:
+                    with st.spinner("Training model..."):
+                        m_res = asyncio.run(call_mcp_tool("train_medical_model", t_args))
+                        st.markdown(m_res)
+                        res += f"\n- Training complete."
+                        tool_outputs.append(f"Training Results: {m_res}")
+                
+                elif t_name == "inspect_knowledge_base":
+                    with st.spinner("Inspecting knowledge base..."):
+                        m_res = asyncio.run(call_mcp_tool("inspect_knowledge_base", {}))
+                        st.info("Knowledge Base Inventory")
+                        st.markdown(m_res)
+                        res += f"\n- Knowledge inspection complete."
+                        tool_outputs.append(f"Knowledge Inventory: {m_res}")
+
+                elif t_name in ["discover", "discover_markers"]:
+                    with st.spinner("Discovering biomarkers..."):
+                        m_res = asyncio.run(call_mcp_tool("discover_markers", t_args))
+                        st.markdown(m_res)
+                        res += f"\n- Biomarkers identified."
+                        tool_outputs.append(f"Discovery Results: {m_res}")
+                
+                elif t_name in ["report", "generate_medical_report"]:
+                    with st.spinner("Generating report..."):
+                        m_res = asyncio.run(call_mcp_tool("generate_medical_report", {}))
+                        if "|||" in m_res:
+                            path, txt = m_res.split("|||")
+                            st.image(path)
+                            
+                            # Persist image
+                            img_b64 = get_img_base64(path)
+                            res += f'<br><img src="data:image/png;base64,{img_b64}" width="100%" style="border-radius: 10px; margin: 10px 0;">'
+                            
+                            st.markdown(txt)
+                            res += f"\n- Report generated."
+                            tool_outputs.append(f"Report Summary: {txt}")
+                
+                elif t_name in ["rag", "query_medical_rag"]:
+                    m_res = asyncio.run(call_mcp_tool("query_medical_rag", {"question": last_user_prompt}))
+                    st.markdown(m_res)
+                    res += f"\n- {m_res}"
+                    tool_outputs.append(f"RAG Knowledge: {m_res}")
+
+                elif t_name == "exact_identifier_search":
+                    with st.spinner("Finding exact matches..."):
+                        m_res = asyncio.run(call_mcp_tool("exact_identifier_search", {"query": last_user_prompt, "patient_id_filter": patient_filter}))
+                        st.markdown("### 🔍 Exact Match Results")
+                        st.markdown(m_res) # This will render the markdown + code blocks
+                        res += f"\n- Exact search completed."
+                        tool_outputs.append(f"Exact Search Results: {m_res}")
+
+                elif t_name in ["describe", "get_data_context"]:
+                    with st.spinner("Analyzing data summary..."):
+                        m_res = asyncio.run(call_mcp_tool("get_data_context", {}))
+                        st.markdown(m_res)
+                        res += f"\n- Data Summary Loaded."
+                        tool_outputs.append(f"Data Summary: {m_res}")
+
+            # Final Step: Clinical Synthesis
+            if tool_outputs:
+                with st.spinner("Dr. AI is analyzing the results..."):
+                    combined_findings = "\n".join(tool_outputs)
+                    synth_res = asyncio.run(call_mcp_tool("synthesize_medical_results", {
+                        "question": last_user_prompt,
+                        "results": combined_findings
+                    }))
+                    st.markdown("### 📝 Clinical Synthesis")
+                    st.info(synth_res)
+                    res += f"\n\n### Clinical Synthesis\n{synth_res}"
+        else:
+            st.markdown(answer)
+            res = answer
+        
+        st.markdown('</div></div>', unsafe_allow_html=True)
+        st.session_state.messages.append({"role": "assistant", "content": res})
+        st.rerun()

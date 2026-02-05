@@ -117,7 +117,8 @@ def smart_intent_dispatch(question: str, patient_id_filter: str = None, chat_his
                 for c in df.columns:
                     c_clean = aggressive_clean(c)
                     dtype = "numeric" if pd.api.types.is_numeric_dtype(df[c]) else "categorical"
-                    schema_items.append(f"{c_clean}({dtype})")
+                    # Pass both for better LLM reasoning
+                    schema_items.append(f"{c_clean} [ID: {c}] ({dtype})")
                 schema = ", ".join(schema_items)
         with suppress_output():
             res, tool, tasks = rag_engine.smart_query(question, patient_id_filter, schema, chat_history)
@@ -174,8 +175,10 @@ def generate_medical_plot(plot_type: str, patient_ids: str = None, target_column
         filename = f"plots/{plot_type}_{int(datetime.datetime.now().timestamp())}.png"
         plt.close('all')
         
+        plot_type = plot_type.lower().strip()
+        
         with suppress_output():
-            if plot_type == 'pca':
+            if plot_type in ['pca', 'clustering']:
                 if num_df.empty:
                     return "Error: No numeric data available for PCA analysis. Please ensure data is cleaned or numeric columns exist."
                 from PineBioML.report.utils import pca_plot
@@ -183,11 +186,23 @@ def generate_medical_plot(plot_type: str, patient_ids: str = None, target_column
                 pp.draw(num_df)
                 plt.savefig(filename)
                 return f"{filename}|||PCA Analysis complete. Identified clusters based on {len(num_df.columns)} numeric variables."
-            elif plot_type == 'distribution':
+            elif plot_type in ['distribution', 'bar', 'bar chart', 'histogram', 'count', 'frequency']:
                 if target_column:
                     target_column = str(target_column)
-                    target_column = re.sub(r'\(.*\)', '', target_column).strip() # Remove (numeric)/(categorical)
-                col = target_column if target_column in df.columns else df.columns[0]
+                    target_column = re.sub(r'\(.*\)', '', target_column).strip() 
+                
+                # Fuzzy/Cleaned Matching
+                col = df.columns[0]
+                if target_column:
+                    t_low = target_column.lower()
+                    t_agg = aggressive_clean(target_column).lower()
+                    for c in df.columns:
+                        c_low = c.lower()
+                        if t_low == c_low or t_agg == c_low:
+                            col = c
+                            break
+                
+                pine_log(f"📊 Plotting column: {col} (requested: {target_column})")
                 
                 plt.figure(figsize=(10,6))
                 
