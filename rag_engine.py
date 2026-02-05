@@ -22,6 +22,9 @@ def pine_logger(msg):
     except:
         pass
 
+IDENT_RE = re.compile(r"\b[A-Za-z]{3,}\w*\d{3,}\b")  # Accession codes
+PATIENT_ID_RE = re.compile(r"\b(?:id|patient|idx)\s*[:#]?\s*(\d+)\b", re.IGNORECASE)
+
 class RAGEngine:
     def __init__(self, persist_directory: str = "./chroma_db"):
         self.embeddings = OpenAIEmbeddings()
@@ -163,7 +166,8 @@ Available Tools (PineBioML Core):
 - train_medical_model(target_column): Random Forest tuner.
 - discover_markers(target_column): Volcano plot discovery.
 - inspect_knowledge_base(): List ALL ingested files and their summaries.
-- query_medical_rag(question): Search medical guidelines/SOPs.
+- query_medical_rag(question, patient_id_filter): Search medical guidelines/SOPs.
+- exact_identifier_search(query, patient_id_filter): Perform literal/substring search for specific IDs like 'ACCES6U86680' or Patient IDs. Use this when the user mentions a specific code or wants to 'find' something very specific.
 
 ORCHESTRATION LOGIC:
 1. PILIH tool yang paling spesifik untuk menjawab kebutuhan client.
@@ -172,7 +176,8 @@ ORCHESTRATION LOGIC:
 4. Gunakan 'run_umap_analysis' untuk mencari cluster data yang kompleks.
 6. Gunakan 'run_correlation_heatmap' jika user ingin melihat hubungan antar variabel.
 7. JIKA user bertanya "isi RAG", "knowledge base", "apa yang kamu tahu", "file apa saja", GUNAKAN 'inspect_knowledge_base'.
-8. Response 'answer' MUST be in {lang} and act as a professional medical consultant.
+8. JIKA user mencari kode spesifik atau ID pasien (misal: "temukan ACCES..."), GUNAKAN 'exact_identifier_search'.
+9. Response 'answer' MUST be in {lang} and act as a professional medical consultant.
 
 Return JSON ONLY:
 {{
@@ -192,6 +197,90 @@ Return JSON ONLY:
             
         answer, sources = self.query(question, patient_id_filter)
         return answer, "rag", []
+
+    def normalize_identifier(self, s: str) -> str:
+        s2 = s.lower().strip()
+        s2 = s2.replace("-", " ").replace("_", " ")
+        m = re.search(r"\bpatient\s*(\d+)\b", s2)
+        if m:
+            return f"patient_{int(m.group(1))}"
+        return s2
+
+    def extract_identifier(self, q: str) -> str:
+        # Try complex accession first
+        m = IDENT_RE.search(q)
+        if m: return re.sub(r"[^\w\-]+$", "", m.group(0).strip())
+        
+        # Try simple patient ID
+        m = PATIENT_ID_RE.search(q)
+        if m: return m.group(1) # Return just the number for simple IDs
+        
+        return ""
+
+    def exact_search(self, query: str, patient_id_filter: str = None):
+        """Perform literal substring search across all ingested documents."""
+        if not self.vector_store:
+            return "Knowledge base not initialized.", []
+        
+        # Get all documents from vector store
+        res = self.vector_store.get()
+        docs = res.get("documents", [])
+        metas = res.get("metadatas", [])
+        
+        hits = []
+        ident = self.extract_identifier(query) or query.strip()
+        ident_low = ident.lower()
+        
+        for doc_text, meta in zip(docs, metas):
+            p_ids = str(meta.get("patient_ids", "")).lower()
+            
+            # Smart Patient Filter
+            # If user explicitly filtered in sidebar OR if we extracted a simple patient ID
+            active_filter = patient_id_filter or (ident if ident.isdigit() else None)
+            
+            if active_filter:
+                clean_filter = str(active_filter).lower()
+                # Check if the filter exists in the comma-separated metadata
+                if clean_filter not in p_ids.split(','):
+                    if f"patient_{clean_filter}" not in p_ids:
+                        continue
+
+            # Substring match in text or source
+            source = str(meta.get("source", "")).lower()
+            if ident_low in doc_text.lower() or ident_low in source:
+                # Extract snippets for auditability
+                snippets = []
+                lines = doc_text.splitlines()
+                for i, ln in enumerate(lines):
+                    if ident_low in ln.lower():
+                        start = max(0, i - 1)
+                        end = min(len(lines), i + 2)
+                        snippets.append("\n".join(lines[start:end]).strip())
+                
+                hits.append({
+                    "text": doc_text,
+                    "metadata": meta,
+                    "snippets": snippets[:5] # Limit snippets per hit
+                })
+                
+            if len(hits) >= 50: # Cap results
+                break
+                
+        if not hits:
+            return f"No exact matches found for '{ident}'.", []
+            
+        # Format the result with snippets
+        formatted_res = f"Found {len(hits)} exact matches for '{ident}':\n\n"
+        for h in hits:
+            src = os.path.basename(h['metadata'].get('source', 'Unknown'))
+            formatted_res += f"### Source: {src}\n"
+            if h['snippets']:
+                for s in h['snippets']:
+                    formatted_res += f"```\n{s}\n```\n"
+            else:
+                formatted_res += f"> {h['text'][:200]}...\n"
+                
+        return formatted_res, hits
 
     def query(self, question: str, patient_id_filter: str = None):
         if not self.qa_chain: return "Not ready.", []

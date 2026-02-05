@@ -1459,3 +1459,228 @@ TypeError: no numeric data to plot
 [2;36m[02/04/26 15:47:54][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=947624;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=684151;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
 [2;36m                    [0m         [4;94mhttps://api.openai.com/v1/chat/comp[0m [2m               [0m
 [2;36m                    [0m         [4;94mletions[0m [32m"HTTP/1.1 200 OK"[0m           [2m               [0m
+[2026-02-05T09:24:39.652737] [RAG] 📥 Starting ingestion of 3 segments
+[2026-02-05T09:47:27.657717] [RAG] 🔄 Loading vector store from ./chroma_db
+[2;36m[02/05/26 09:47:27][0m[2;36m [0m[34mINFO    [0m Anonymized telemetry enabled. See     ]8;id=904144;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py\[2mposthog.py[0m]8;;\[2m:[0m]8;id=977463;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py#22\[2m22[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://docs.trychroma.com/telemetry[0m  [2m             [0m
+[2;36m                    [0m         for more information.                 [2m             [0m
+[2026-02-05T09:47:27.967910] [RAG] 📥 Starting ingestion of 2 segments
+[2;36m[02/05/26 09:48:03][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=890133;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=834263;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T09:48:04.085119] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T09:48:04.085745] [Server] Auto-ingested 2 segments on startup.
+[2026-02-05T09:48:04.378726] [RAG] 📥 Starting ingestion of 29 segments
+[2;36m[02/05/26 09:48:06][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=417551;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=400055;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T09:48:07.087359] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T09:48:53.267852] [RAG] 🔄 Loading vector store from ./chroma_db
+[2;36m[02/05/26 09:48:53][0m[2;36m [0m[34mINFO    [0m Anonymized telemetry enabled. See     ]8;id=391138;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py\[2mposthog.py[0m]8;;\[2m:[0m]8;id=96354;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py#22\[2m22[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://docs.trychroma.com/telemetry[0m  [2m             [0m
+[2;36m                    [0m         for more information.                 [2m             [0m
+[2026-02-05T09:48:53.572041] [RAG] 📥 Starting ingestion of 2 segments
+[2;36m[02/05/26 09:48:55][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=642399;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=91363;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T09:48:55.304229] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T09:48:55.304866] [Server] Auto-ingested 2 segments on startup.
+[2;36m[02/05/26 09:48:56][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=992508;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=197198;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2;36m[02/05/26 09:48:57][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=690404;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=773499;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2;36m[02/05/26 09:48:59][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=876754;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=4948;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/chat/comp[0m [2m               [0m
+[2;36m                    [0m         [4;94mletions[0m [32m"HTTP/1.1 200 OK"[0m           [2m               [0m
+[2026-02-05T09:49:04.187007] [RAG] 🔄 Loading vector store from ./chroma_db
+[2;36m[02/05/26 09:49:04][0m[2;36m [0m[34mINFO    [0m Anonymized telemetry enabled. See     ]8;id=960294;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py\[2mposthog.py[0m]8;;\[2m:[0m]8;id=434295;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py#22\[2m22[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://docs.trychroma.com/telemetry[0m  [2m             [0m
+[2;36m                    [0m         for more information.                 [2m             [0m
+[2026-02-05T09:49:04.412753] [RAG] 📥 Starting ingestion of 2 segments
+[2;36m[02/05/26 09:49:05][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=533490;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=806593;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T09:49:05.495598] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T09:49:05.496346] [Server] Auto-ingested 2 segments on startup.
+[2026-02-05T09:49:10.441531] [RAG] 🔄 Loading vector store from ./chroma_db
+[2;36m[02/05/26 09:49:10][0m[2;36m [0m[34mINFO    [0m Anonymized telemetry enabled. See     ]8;id=16884;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py\[2mposthog.py[0m]8;;\[2m:[0m]8;id=135892;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py#22\[2m22[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://docs.trychroma.com/telemetry[0m  [2m             [0m
+[2;36m                    [0m         for more information.                 [2m             [0m
+[2026-02-05T09:49:10.650373] [RAG] 📥 Starting ingestion of 2 segments
+[2;36m[02/05/26 09:49:11][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=72388;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=639813;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T09:49:11.224541] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T09:49:11.225221] [Server] Auto-ingested 2 segments on startup.
+[2;36m[02/05/26 09:49:16][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=112203;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=740730;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/chat/comp[0m [2m               [0m
+[2;36m                    [0m         [4;94mletions[0m [32m"HTTP/1.1 200 OK"[0m           [2m               [0m
+[2026-02-05T09:51:33.382655] [RAG] 📥 Starting ingestion of 3 segments
+[2026-02-05T09:51:55.575233] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T09:51:55.594931] [RAG] 📥 Starting ingestion of 1 segments
+[2026-02-05T09:51:55.991676] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T09:52:47.799994] [RAG] 🔄 Loading vector store from ./chroma_db
+[2;36m[02/05/26 09:52:48][0m[2;36m [0m[34mINFO    [0m Anonymized telemetry enabled. See     ]8;id=324793;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py\[2mposthog.py[0m]8;;\[2m:[0m]8;id=284008;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py#22\[2m22[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://docs.trychroma.com/telemetry[0m  [2m             [0m
+[2;36m                    [0m         for more information.                 [2m             [0m
+[2026-02-05T09:52:48.115514] [RAG] 📥 Starting ingestion of 2 segments
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=146557;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=314144;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T09:52:49.089548] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T09:52:49.090154] [Server] Auto-ingested 2 segments on startup.
+[2026-02-05T09:52:49.375625] [RAG] 📥 Starting ingestion of 29 segments
+[2;36m[02/05/26 09:52:50][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=491550;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=868251;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T09:52:51.904477] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T09:57:08.911987] [RAG] 🔄 Loading vector store from ./chroma_db
+[2;36m[02/05/26 09:57:09][0m[2;36m [0m[34mINFO    [0m Anonymized telemetry enabled. See     ]8;id=586822;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py\[2mposthog.py[0m]8;;\[2m:[0m]8;id=789036;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py#22\[2m22[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://docs.trychroma.com/telemetry[0m  [2m             [0m
+[2;36m                    [0m         for more information.                 [2m             [0m
+[2026-02-05T09:57:09.148020] [RAG] 📥 Starting ingestion of 2 segments
+[2;36m[02/05/26 09:57:10][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=678998;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=636019;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T09:57:10.162120] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T09:57:10.162714] [Server] Auto-ingested 2 segments on startup.
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=941734;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=539681;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=775024;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=755651;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2;36m[02/05/26 09:57:12][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=153899;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=919939;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/chat/comp[0m [2m               [0m
+[2;36m                    [0m         [4;94mletions[0m [32m"HTTP/1.1 200 OK"[0m           [2m               [0m
+[2026-02-05T09:57:17.591416] [RAG] 🔄 Loading vector store from ./chroma_db
+[2;36m[02/05/26 09:57:17][0m[2;36m [0m[34mINFO    [0m Anonymized telemetry enabled. See     ]8;id=130760;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py\[2mposthog.py[0m]8;;\[2m:[0m]8;id=488718;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py#22\[2m22[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://docs.trychroma.com/telemetry[0m  [2m             [0m
+[2;36m                    [0m         for more information.                 [2m             [0m
+[2026-02-05T09:57:17.798303] [RAG] 📥 Starting ingestion of 2 segments
+[2;36m[02/05/26 09:57:18][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=846926;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=305468;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T09:57:18.481989] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T09:57:18.482629] [Server] Auto-ingested 2 segments on startup.
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=947036;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=542530;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T09:57:23.731440] [RAG] 🔄 Loading vector store from ./chroma_db
+[2;36m[02/05/26 09:57:23][0m[2;36m [0m[34mINFO    [0m Anonymized telemetry enabled. See     ]8;id=45575;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py\[2mposthog.py[0m]8;;\[2m:[0m]8;id=459454;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py#22\[2m22[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://docs.trychroma.com/telemetry[0m  [2m             [0m
+[2;36m                    [0m         for more information.                 [2m             [0m
+[2026-02-05T09:57:23.939992] [RAG] 📥 Starting ingestion of 2 segments
+[2;36m[02/05/26 09:57:24][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=296879;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=392449;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T09:57:24.483079] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T09:57:24.483947] [Server] Auto-ingested 2 segments on startup.
+[2;36m[02/05/26 09:57:30][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=243491;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=108835;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/chat/comp[0m [2m               [0m
+[2;36m                    [0m         [4;94mletions[0m [32m"HTTP/1.1 200 OK"[0m           [2m               [0m
+[2026-02-05T10:17:02.085384] [RAG] 🔄 Loading vector store from ./chroma_db
+[2;36m[02/05/26 10:17:02][0m[2;36m [0m[34mINFO    [0m Anonymized telemetry enabled. See     ]8;id=240083;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py\[2mposthog.py[0m]8;;\[2m:[0m]8;id=841930;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py#22\[2m22[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://docs.trychroma.com/telemetry[0m  [2m             [0m
+[2;36m                    [0m         for more information.                 [2m             [0m
+[2026-02-05T10:17:02.397531] [RAG] 📥 Starting ingestion of 2 segments
+[2;36m[02/05/26 10:17:03][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=741410;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=223015;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T10:17:03.275603] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T10:17:03.276379] [Server] Auto-ingested 2 segments on startup.
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=723670;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=445314;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2;36m[02/05/26 10:17:04][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=114841;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=349014;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2;36m[02/05/26 10:17:08][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=920693;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=833355;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/chat/comp[0m [2m               [0m
+[2;36m                    [0m         [4;94mletions[0m [32m"HTTP/1.1 200 OK"[0m           [2m               [0m
+[2026-02-05T10:19:21.739526] [RAG] 🔄 Loading vector store from ./chroma_db
+[2;36m[02/05/26 10:19:21][0m[2;36m [0m[34mINFO    [0m Anonymized telemetry enabled. See     ]8;id=617265;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py\[2mposthog.py[0m]8;;\[2m:[0m]8;id=134482;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py#22\[2m22[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://docs.trychroma.com/telemetry[0m  [2m             [0m
+[2;36m                    [0m         for more information.                 [2m             [0m
+[2026-02-05T10:19:21.947644] [RAG] 📥 Starting ingestion of 2 segments
+[2;36m[02/05/26 10:19:22][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=247177;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=33808;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T10:19:22.791947] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T10:19:22.792771] [Server] Auto-ingested 2 segments on startup.
+[2;36m[02/05/26 10:19:23][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=852693;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=86211;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=694021;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=809780;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2;36m[02/05/26 10:19:25][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=635640;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=269815;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/chat/comp[0m [2m               [0m
+[2;36m                    [0m         [4;94mletions[0m [32m"HTTP/1.1 200 OK"[0m           [2m               [0m
+[2026-02-05T10:19:30.092632] [RAG] 🔄 Loading vector store from ./chroma_db
+[2;36m[02/05/26 10:19:30][0m[2;36m [0m[34mINFO    [0m Anonymized telemetry enabled. See     ]8;id=794627;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py\[2mposthog.py[0m]8;;\[2m:[0m]8;id=18861;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py#22\[2m22[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://docs.trychroma.com/telemetry[0m  [2m             [0m
+[2;36m                    [0m         for more information.                 [2m             [0m
+[2026-02-05T10:19:30.302187] [RAG] 📥 Starting ingestion of 2 segments
+[2;36m[02/05/26 10:19:31][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=616343;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=576852;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T10:19:31.119759] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T10:19:31.120534] [Server] Auto-ingested 2 segments on startup.
+[2026-02-05T10:19:36.320712] [RAG] 🔄 Loading vector store from ./chroma_db
+[2;36m[02/05/26 10:19:36][0m[2;36m [0m[34mINFO    [0m Anonymized telemetry enabled. See     ]8;id=256325;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py\[2mposthog.py[0m]8;;\[2m:[0m]8;id=806805;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py#22\[2m22[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://docs.trychroma.com/telemetry[0m  [2m             [0m
+[2;36m                    [0m         for more information.                 [2m             [0m
+[2026-02-05T10:19:36.527273] [RAG] 📥 Starting ingestion of 2 segments
+[2;36m[02/05/26 10:19:37][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=624058;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=2013;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T10:19:37.801438] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T10:19:37.802097] [Server] Auto-ingested 2 segments on startup.
+[2;36m[02/05/26 10:19:41][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=997073;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=975732;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/chat/comp[0m [2m               [0m
+[2;36m                    [0m         [4;94mletions[0m [32m"HTTP/1.1 200 OK"[0m           [2m               [0m
+[2026-02-05T10:20:15.735272] [RAG] 🔄 Loading vector store from ./chroma_db
+[2;36m[02/05/26 10:20:15][0m[2;36m [0m[34mINFO    [0m Anonymized telemetry enabled. See     ]8;id=553530;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py\[2mposthog.py[0m]8;;\[2m:[0m]8;id=879662;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py#22\[2m22[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://docs.trychroma.com/telemetry[0m  [2m             [0m
+[2;36m                    [0m         for more information.                 [2m             [0m
+[2026-02-05T10:20:15.943582] [RAG] 📥 Starting ingestion of 2 segments
+[2;36m[02/05/26 10:20:16][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=137537;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=91908;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T10:20:16.781518] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T10:20:16.782305] [Server] Auto-ingested 2 segments on startup.
+[2;36m[02/05/26 10:20:17][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=354162;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=948130;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=278737;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=205103;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2;36m[02/05/26 10:20:19][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=983516;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=336265;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/chat/comp[0m [2m               [0m
+[2;36m                    [0m         [4;94mletions[0m [32m"HTTP/1.1 200 OK"[0m           [2m               [0m
+[2026-02-05T10:20:24.693168] [RAG] 🔄 Loading vector store from ./chroma_db
+[2;36m[02/05/26 10:20:24][0m[2;36m [0m[34mINFO    [0m Anonymized telemetry enabled. See     ]8;id=831576;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py\[2mposthog.py[0m]8;;\[2m:[0m]8;id=900594;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py#22\[2m22[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://docs.trychroma.com/telemetry[0m  [2m             [0m
+[2;36m                    [0m         for more information.                 [2m             [0m
+[2026-02-05T10:20:24.899964] [RAG] 📥 Starting ingestion of 2 segments
+[2;36m[02/05/26 10:20:25][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=320536;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=51771;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T10:20:25.763343] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T10:20:25.764025] [Server] Auto-ingested 2 segments on startup.
+[2026-02-05T10:20:31.641677] [RAG] 🔄 Loading vector store from ./chroma_db
+[2;36m[02/05/26 10:20:31][0m[2;36m [0m[34mINFO    [0m Anonymized telemetry enabled. See     ]8;id=647204;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py\[2mposthog.py[0m]8;;\[2m:[0m]8;id=693407;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/chromadb/telemetry/product/posthog.py#22\[2m22[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://docs.trychroma.com/telemetry[0m  [2m             [0m
+[2;36m                    [0m         for more information.                 [2m             [0m
+[2026-02-05T10:20:31.848043] [RAG] 📥 Starting ingestion of 2 segments
+[2;36m[02/05/26 10:20:32][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=150042;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=52600;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/embedding[0m [2m               [0m
+[2;36m                    [0m         [4;94ms[0m [32m"HTTP/1.1 200 OK"[0m                 [2m               [0m
+[2026-02-05T10:20:32.509364] [RAG] 💾 Saved to vector store successfully.
+[2026-02-05T10:20:32.510082] [Server] Auto-ingested 2 segments on startup.
+[2;36m[02/05/26 10:20:35][0m[2;36m [0m[34mINFO    [0m HTTP Request: [1;33mPOST[0m                  ]8;id=839895;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py\[2m_client.py[0m]8;;\[2m:[0m]8;id=987262;file:///Users/muhammadaliffandy/Documents/my-project/PineBioML/venv/lib/python3.10/site-packages/httpx/_client.py#1025\[2m1025[0m]8;;\
+[2;36m                    [0m         [4;94mhttps://api.openai.com/v1/chat/comp[0m [2m               [0m
+[2;36m                    [0m         [4;94mletions[0m [32m"HTTP/1.1 200 OK"[0m           [2m               [0m

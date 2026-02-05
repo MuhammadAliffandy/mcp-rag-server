@@ -353,5 +353,12 @@ def inspect_knowledge_base() -> str:
     with suppress_output():
         return rag_engine.get_knowledge_summaries()
 
+@mcp.tool()
+def exact_identifier_search(query: str, patient_id_filter: str = None) -> str:
+    """Performs exact substring search for medical identifiers and codes."""
+    with suppress_output():
+        res, hits = rag_engine.exact_search(query, patient_id_filter)
+        return res
+
 if __name__ == "__main__":
     mcp.run()

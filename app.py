@@ -368,6 +368,14 @@ if st.session_state.ingested:
                             res += f"\n- {m_res}"
                             tool_outputs.append(f"RAG Knowledge: {m_res}")
 
+                        elif t_name == "exact_identifier_search":
+                            with st.spinner("Finding exact matches..."):
+                                m_res = asyncio.run(call_mcp_tool("exact_identifier_search", {"query": prompt, "patient_id_filter": patient_filter}))
+                                st.markdown("### 🔍 Exact Match Results")
+                                st.markdown(m_res) # This will render the markdown + code blocks
+                                res += f"\n- Exact search completed."
+                                tool_outputs.append(f"Exact Search Results: {m_res}")
+
                         elif t_name in ["describe", "get_data_context"]:
                             with st.spinner("Analyzing data summary..."):
                                 m_res = asyncio.run(call_mcp_tool("get_data_context", {}))
