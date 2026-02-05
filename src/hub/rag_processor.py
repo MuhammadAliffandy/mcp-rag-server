@@ -152,7 +152,7 @@ Statistical Highlights:
                 }
             ))
             
-            max_rows = 50 
+            max_rows = 500 
             for i, row in df.head(max_rows).iterrows():
                 row_content = [f"{col}: {val}" for col, val in row.items() if pd.notnull(val)]
                 row_text = f"Data Record (Row {i+1}): {', '.join(row_content)}"

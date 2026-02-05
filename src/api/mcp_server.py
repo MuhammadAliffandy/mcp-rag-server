@@ -19,6 +19,7 @@ import traceback
 from mcp.server.fastmcp import FastMCP
 from src.hub.rag_processor import DocumentProcessor
 from src.hub.rag_engine import RAGEngine
+from src.hub.chart_styler import ChartStyler
 from dotenv import load_dotenv
 
 # PineBioML Core Imports
@@ -121,16 +122,16 @@ def smart_intent_dispatch(question: str, patient_id_filter: str = None, chat_his
                     schema_items.append(f"{c_clean} [ID: {c}] ({dtype})")
                 schema = ", ".join(schema_items)
         with suppress_output():
-            res, tool, tasks = rag_engine.smart_query(question, patient_id_filter, schema, chat_history)
-        return json.dumps({"answer": res, "tool": tool, "tasks": tasks})
+            res, tool, tasks, rag_context = rag_engine.smart_query(question, patient_id_filter, schema, chat_history)
+        return json.dumps({"answer": res, "tool": tool, "tasks": tasks, "rag_context": rag_context})
     except Exception as e:
-        return json.dumps({"answer": f"Dispatch error: {e}", "tool": "rag", "tasks": []})
+        return json.dumps({"answer": f"Dispatch error: {e}", "tool": "rag", "tasks": [], "rag_context": ""})
 
 @mcp.tool()
-def synthesize_medical_results(question: str, results: str) -> str:
-    """Provides high-level clinical synthesis from technical tool outputs."""
+def synthesize_medical_results(question: str, results: str, rag_context: str = "") -> str:
+    """Provides high-level clinical synthesis from technical tool outputs, integrating clinical documentation."""
     with suppress_output():
-        return rag_engine.synthesize_results(question, results)
+        return rag_engine.synthesize_results(question, results, rag_context)
 
 @mcp.tool()
 def get_data_context() -> str:
@@ -158,8 +159,16 @@ def get_data_context() -> str:
         return f"Error retrieving context: {e}"
 
 @mcp.tool()
-def generate_medical_plot(plot_type: str, patient_ids: str = None, target_column: str = None) -> str:
-    """Generates medical visualizations with detailed clinical descriptions."""
+def generate_medical_plot(plot_type: str, patient_ids: str = None, target_column: str = None, styling: str = None) -> str:
+    """
+    Generates medical visualizations with detailed clinical descriptions.
+    
+    Args:
+        plot_type: Type of plot (pca, distribution, bar, histogram)
+        patient_ids: Optional patient IDs for filtering
+        target_column: Column to visualize
+        styling: Optional JSON string with chart styling (theme, colors, fonts)
+    """
     try:
         with open(TABULAR_DATA_PATH, "r") as f: df = pd.read_json(io.StringIO(f.read()))
         if patient_ids:
@@ -167,7 +176,7 @@ def generate_medical_plot(plot_type: str, patient_ids: str = None, target_column
             id_cols = [c for c in df.columns if 'id' in c.lower() or 'patient' in c.lower()]
             if id_cols:
                 ids = [i.strip() for i in patient_ids.replace('-', ',').split(',')]
-                df = df[df[id_cols[0]].astype(str).str.contains('|'.join(ids), na=False)]
+                df = df[df[id_cols[0]].astype(str).isin(ids)]
 
         df.columns = [aggressive_clean(c) for c in df.columns]
         num_df = df.select_dtypes(include=['number']).dropna(axis=1, how='all').dropna()
@@ -184,6 +193,14 @@ def generate_medical_plot(plot_type: str, patient_ids: str = None, target_column
                 from PineBioML.report.utils import pca_plot
                 pp = pca_plot(n_pc=2)
                 pp.draw(num_df)
+                
+                # Apply custom styling if provided
+                if styling:
+                    styler = ChartStyler(styling)
+                    fig = plt.gcf()
+                    ax = plt.gca()
+                    styler.apply(fig, ax)
+                
                 plt.savefig(filename)
                 return f"{filename}|||PCA Analysis complete. Identified clusters based on {len(num_df.columns)} numeric variables."
             elif plot_type in ['distribution', 'bar', 'bar chart', 'histogram', 'count', 'frequency']:
@@ -225,6 +242,14 @@ def generate_medical_plot(plot_type: str, patient_ids: str = None, target_column
                 plt.title(f"Distribution of {col}")
                 plt.xticks(rotation=45)
                 plt.tight_layout()
+                
+                # Apply custom styling if provided
+                if styling:
+                    styler = ChartStyler(styling)
+                    fig = plt.gcf()
+                    ax = plt.gca()
+                    styler.apply(fig, ax)
+                
                 plt.savefig(filename)
                 
                 stats = ""
@@ -305,13 +330,36 @@ def discover_markers(target_column: str = None) -> str:
         return f"Marker discovery error: {e}"
 
 @mcp.tool()
-def run_pls_analysis() -> str:
+def run_pls_analysis(patient_ids: str = None) -> str:
     """Runs a Supervised PLS-DA dimension reduction using PineBioML."""
     try:
         if not os.path.exists(TABULAR_DATA_PATH): return "No data."
         with open(TABULAR_DATA_PATH, "r") as f: df = pd.read_json(io.StringIO(f.read()))
+
+        # Filtering Logic
+        if patient_ids:
+            patient_ids = str(patient_ids)
+            id_cols = [c for c in df.columns if 'id' in c.lower() or 'patient' in c.lower()]
+            if id_cols:
+                ids = [i.strip() for i in patient_ids.replace('-', ',').split(',')]
+                df = df[df[id_cols[0]].astype(str).isin(ids)]
+
+        # Get numeric columns FIRST
         num_cols = df.select_dtypes(include=['number'])
         if num_cols.empty: return "No numeric data."
+        
+        # Exclude Metadata / ID-like numeric columns
+        exclude_terms = ['id', 'date', 'image', 'scan', 'time', 'index', 'code', 'accession']
+        numeric_valid = []
+        for c in num_cols.columns:
+            if not any(term in c.lower() for term in exclude_terms):
+                numeric_valid.append(c)
+        
+        if len(numeric_valid) < 2:
+             # Fallback if everything was filtered
+             numeric_valid = num_cols.columns.tolist()
+        
+        X = num_cols[numeric_valid]
         
         cat_cols = df.select_dtypes(exclude=['number'])
         target = cat_cols.columns[0] if not cat_cols.empty else df.columns[-1]
@@ -319,41 +367,93 @@ def run_pls_analysis() -> str:
         from PineBioML.report.utils import pls_plot
         pp = pls_plot(is_classification=True)
         filename = f"plots/pls_{int(datetime.datetime.now().timestamp())}.png"
-        pp.draw(num_cols, df[target])
+        pp.draw(X, df[target])
         plt.savefig(filename)
-        return f"{filename}|||PLS-DA Analysis complete. Visualized separation between classes based on {target}."
+        
+        # Feedback String
+        n_unique_patients = df[id_cols[0]].nunique() if 'id_cols' in locals() and id_cols else len(df)
+        patient_list = ", ".join(df[id_cols[0]].unique().astype(str).tolist()[:5]) if 'id_cols' in locals() and id_cols else f"{n_unique_patients} IDs"
+        if n_unique_patients > 5: patient_list += "..."
+        
+        return f"{filename}|||PLS-DA Analysis complete on {n_unique_patients} patients ({patient_list}). Variables used: {len(numeric_valid)}."
     except Exception as e: return f"PLS error: {e}"
 
 @mcp.tool()
-def run_umap_analysis() -> str:
+def run_umap_analysis(patient_ids: str = None) -> str:
     """Runs a Non-linear UMAP dimension reduction using PineBioML."""
     try:
         if not os.path.exists(TABULAR_DATA_PATH): return "No data."
         with open(TABULAR_DATA_PATH, "r") as f: df = pd.read_json(io.StringIO(f.read()))
+        
+        # Filtering Logic
+        if patient_ids:
+            patient_ids = str(patient_ids)
+            id_cols = [c for c in df.columns if 'id' in c.lower() or 'patient' in c.lower()]
+            if id_cols:
+                ids = [i.strip() for i in patient_ids.replace('-', ',').split(',')]
+                df = df[df[id_cols[0]].astype(str).isin(ids)]
+
+        # Get numeric columns FIRST
         num_cols = df.select_dtypes(include=['number'])
+        if num_cols.empty: return "No numeric data."
+        
+        # Exclude Metadata
+        exclude_terms = ['id', 'date', 'image', 'scan', 'time', 'index', 'code']
+        numeric_valid = [c for c in num_cols.columns if not any(term in c.lower() for term in exclude_terms)]
+        if not numeric_valid: numeric_valid = num_cols.columns.tolist()
+        
+        X = num_cols[numeric_valid]
         
         from PineBioML.report.utils import umap_plot
         up = umap_plot()
         filename = f"plots/umap_{int(datetime.datetime.now().timestamp())}.png"
-        up.draw(num_cols)
+        up.draw(X)
         plt.savefig(filename)
-        return f"{filename}|||UMAP Analysis complete. Identified non-linear clusters in the dataset."
+        
+        n_unique_patients = df[id_cols[0]].nunique() if 'id_cols' in locals() and id_cols else len(df)
+        patient_list = ", ".join(df[id_cols[0]].unique().astype(str).tolist()[:5]) if 'id_cols' in locals() and id_cols else f"{n_unique_patients} IDs"
+        if n_unique_patients > 5: patient_list += "..."
+
+        return f"{filename}|||UMAP Analysis complete on {n_unique_patients} patients ({patient_list}). Clusters based on {len(numeric_valid)} clinical features."
     except Exception as e: return f"UMAP error: {e}"
 
 @mcp.tool()
-def run_correlation_heatmap() -> str:
+def run_correlation_heatmap(patient_ids: str = None) -> str:
     """Generates a Feature Correlation Heatmap using PineBioML."""
     try:
         if not os.path.exists(TABULAR_DATA_PATH): return "No data."
         with open(TABULAR_DATA_PATH, "r") as f: df = pd.read_json(io.StringIO(f.read()))
+        
+        # Filtering Logic
+        if patient_ids:
+            patient_ids = str(patient_ids)
+            id_cols = [c for c in df.columns if 'id' in c.lower() or 'patient' in c.lower()]
+            if id_cols:
+                ids = [i.strip() for i in patient_ids.replace('-', ',').split(',')]
+                df = df[df[id_cols[0]].astype(str).isin(ids)]
+        
+        # Get numeric columns FIRST
         num_cols = df.select_dtypes(include=['number'])
+        if num_cols.empty: return "No numeric data."
+        
+        # Exclude Metadata
+        exclude_terms = ['id', 'date', 'image', 'scan', 'time', 'index', 'code', 'accession']
+        numeric_valid = [c for c in num_cols.columns if not any(term in c.lower() for term in exclude_terms)]
+        if not numeric_valid: numeric_valid = num_cols.columns.tolist()
+        
+        X = num_cols[numeric_valid]
         
         from PineBioML.report.utils import corr_heatmap_plot
         hp = corr_heatmap_plot()
         filename = f"plots/heatmap_{int(datetime.datetime.now().timestamp())}.png"
-        hp.draw(num_cols)
+        hp.draw(X)
         plt.savefig(filename)
-        return f"{filename}|||Correlation Heatmap generated. Identified relationships between all numeric variables."
+        
+        n_unique_patients = df[id_cols[0]].nunique() if 'id_cols' in locals() and id_cols else len(df)
+        patient_list = ", ".join(df[id_cols[0]].unique().astype(str).tolist()[:5]) if 'id_cols' in locals() and id_cols else f"{n_unique_patients} IDs"
+        if n_unique_patients > 5: patient_list += "..."
+        
+        return f"{filename}|||Correlation Heatmap generated for {n_unique_patients} patients ({patient_list}). Showing relationships between {len(numeric_valid)} features (excluding metadata)."
     except Exception as e: return f"Heatmap error: {e}"
 
 @mcp.tool()

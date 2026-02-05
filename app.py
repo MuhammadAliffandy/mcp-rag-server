@@ -472,6 +472,10 @@ if st.session_state.get("processing_pending", False):
         answer = decision.get("answer")
         tool = decision.get("tool")
         tasks = decision.get("tasks", [])
+        rag_context = decision.get("rag_context", "")
+
+        # Store rag_context in session state for later synthesis
+        st.session_state.current_rag_context = rag_context
 
         # Wrap assistant output in custom container
         st.markdown(f'<div class="assistant-container"><div class="msg-avatar assistant-avatar">{icon_ai}</div><div class="assistant-content">', unsafe_allow_html=True)
@@ -527,7 +531,7 @@ if st.session_state.get("processing_pending", False):
 
                 elif t_name == "run_pls_analysis":
                     with st.spinner("Running PLS-DA..."):
-                        m_res = asyncio.run(call_mcp_tool("run_pls_analysis", {}))
+                        m_res = asyncio.run(call_mcp_tool("run_pls_analysis", t_args))
                         if "|||" in m_res:
                             path, txt = m_res.split("|||")
                             st.image(path)
@@ -542,7 +546,7 @@ if st.session_state.get("processing_pending", False):
 
                 elif t_name == "run_umap_analysis":
                     with st.spinner("Running UMAP..."):
-                        m_res = asyncio.run(call_mcp_tool("run_umap_analysis", {}))
+                        m_res = asyncio.run(call_mcp_tool("run_umap_analysis", t_args))
                         if "|||" in m_res:
                             path, txt = m_res.split("|||")
                             st.image(path)
@@ -557,7 +561,7 @@ if st.session_state.get("processing_pending", False):
 
                 elif t_name == "run_correlation_heatmap":
                     with st.spinner("Generating Heatmap..."):
-                        m_res = asyncio.run(call_mcp_tool("run_correlation_heatmap", {}))
+                        m_res = asyncio.run(call_mcp_tool("run_correlation_heatmap", t_args))
                         if "|||" in m_res:
                             path, txt = m_res.split("|||")
                             st.image(path)
@@ -610,7 +614,7 @@ if st.session_state.get("processing_pending", False):
                 elif t_name in ["rag", "query_medical_rag"]:
                     m_res = asyncio.run(call_mcp_tool("query_medical_rag", {"question": last_user_prompt}))
                     st.markdown(m_res)
-                    res += f"\n- {m_res}"
+                    res += f"\n- Medical records and clinical documentation retrieved."
                     tool_outputs.append(f"RAG Knowledge: {m_res}")
 
                 elif t_name == "exact_identifier_search":
@@ -618,7 +622,7 @@ if st.session_state.get("processing_pending", False):
                         m_res = asyncio.run(call_mcp_tool("exact_identifier_search", {"query": last_user_prompt, "patient_id_filter": patient_filter}))
                         st.markdown("### 🔍 Exact Match Results")
                         st.markdown(m_res) # This will render the markdown + code blocks
-                        res += f"\n- Exact search completed."
+                        res += f"\n- Precise clinical data points identified."
                         tool_outputs.append(f"Exact Search Results: {m_res}")
 
                 elif t_name in ["describe", "get_data_context"]:
@@ -634,7 +638,8 @@ if st.session_state.get("processing_pending", False):
                     combined_findings = "\n".join(tool_outputs)
                     synth_res = asyncio.run(call_mcp_tool("synthesize_medical_results", {
                         "question": last_user_prompt,
-                        "results": combined_findings
+                        "results": combined_findings,
+                        "rag_context": st.session_state.get("current_rag_context", "")
                     }))
                     st.markdown("### 📝 Clinical Synthesis")
                     st.info(synth_res)

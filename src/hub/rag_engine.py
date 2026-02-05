@@ -80,7 +80,7 @@ class RAGEngine:
 
     def _initialize_qa_chain(self):
         llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
-        retriever = self.vector_store.as_retriever(search_kwargs={"k": 10})
+        retriever = self.vector_store.as_retriever(search_kwargs={"k": 20})
         template = """
 You are a Medical Bio-ML Expert. Use the provided context to answer the QUESTION.
 STRICT RULE: Mirror the user's language EXACTLY. If the question is in Indonesian, respond in Indonesian. If in English, respond in English.
@@ -246,6 +246,61 @@ ORCHESTRATION LOGIC:
 10. JIKA user mencari kode spesifik atau ID pasien (misal: "temukan ACCES..."), GUNAKAN 'exact_identifier_search'.
 11. Response 'answer' MUST be in {lang} (AS DETECTED) and MUST MATCH THE INPUT LANGUAGE.
 12. FINAL CHECK: If the user spoke Indonesian, the 'answer' field MUST be Indonesian. No exceptions.
+13. COMMAND CONFIRMATION: If the user says 'ok', 'go ahead', 'run it', 'silahkan', or confirms a suggestion from the chat history, you MUST execute the relevant tool immediately. Do not just reply with text confirming you will do it. Set 'tool' to 'multi_task' and populate 'tasks'.
+14. PATIENT ID PARSING: If the user specifies IDs in the prompt (e.g., "analyze ids 1, 2, 3" or "1-5"), YOU MUST EXTRACT them and pass them to the 'patient_ids' argument of the tools. Use the extracted IDs to override the global filter.
+15. FEW-SHOT EXAMPLES (STRICTLY FOLLOW THIS PATTERN):
+
+    User: "Silahkan analysis hasil id 1 - 5"
+    Output: {{
+      "answer": "Baik, saya akan menjalankan analisis PLS-DA untuk pasien ID 1-5 sesuai permintaan.",
+      "tool": "multi_task",
+      "tasks": [
+        {{ "tool": "run_pls_analysis", "args": {{ "patient_ids": "1,2,3,4,5" }} }}
+      ]
+    }}
+
+    User: "Coba heatmap untuk pasien 1, 2, 3"
+    Output: {{
+      "answer": "Membuatkan heatmap korelasi khusus untuk pasien 1, 2, dan 3.",
+      "tool": "multi_task",
+      "tasks": [
+        {{ "tool": "run_correlation_heatmap", "args": {{ "patient_ids": "1,2,3" }} }}
+      ]
+    }}
+
+    User: "Ok run it" (Context: User previously asked about UMAP)
+    Output: {{
+      "answer": "Menjalankan analisis UMAP sekarang.",
+      "tool": "multi_task",
+      "tasks": [
+        {{ "tool": "run_umap_analysis", "args": {{}} }}
+      ]
+    }}
+
+    User: "plot distribution of age with dark theme"
+    Output: {{
+      "answer": "Generating distribution plot for age with dark theme styling.",
+      "tool": "multi_task",
+      "tasks": [
+        {{ "tool": "generate_medical_plot", "args": {{ "plot_type": "distribution", "target_column": "age", "styling": '{{"style": {{"theme": "dark"}}}}' }} }}
+      ]
+    }}
+
+    User: "visualize bmi dengan medical theme"
+    Output: {{
+      "answer": "Membuat visualisasi BMI dengan tema medical professional.",
+      "tool": "multi_task",
+      "tasks": [
+        {{ "tool": "generate_medical_plot", "args": {{ "plot_type": "distribution", "target_column": "bmi", "styling": '{{"style": {{"theme": "medical"}}}}' }} }}
+      ]
+    }}
+
+STYLING RULES:
+- Themes: "dark", "medical", "colorblind", "vibrant"
+- JSON format: {{"style": {{"theme": "NAME", "title_size": 14-20}}}}
+- Extract keywords (dark theme, large title) and convert to JSON
+- If NO styling mentioned, OMIT the parameter
+
 
 Return JSON ONLY:
 {{
@@ -260,14 +315,73 @@ Return JSON ONLY:
                 data = json.loads(clean_json)
                 # Force language mirroring in the answer if it leaked English
                 ans = data.get("answer", "Planning...")
-                return ans, "multi_task", data.get("tasks", [])
+                tool_type = data.get("tool", "rag")
+                tasks = data.get("tasks", [])
+                
+                # HEURISTIC OVERRIDE: Force execution if LLM misclassified
+                q_low = question.lower()
+                action_keywords = ['analisis', 'analysis', 'pls', 'umap', 'heatmap', 'plot', 'correlation', 'korelasi', 'tabel', 'tampilkan']
+                
+                # Enhanced ID Extraction
+                range_pattern = re.search(r'(?:id|pasien|patient)\s*(\d+)\s*[-,]\s*(\d+)', q_low)
+                single_pattern = re.search(r'(?:id|pasien|patient)\s*(\d+)\b', q_low)
+                
+                patient_ids = None
+                is_single_id = False
+                
+                if range_pattern:
+                    start_id = int(range_pattern.group(1))
+                    end_id = int(range_pattern.group(2))
+                    patient_ids = ",".join([str(i) for i in range(start_id, end_id + 1)])
+                elif single_pattern:
+                    patient_ids = single_pattern.group(1)
+                    is_single_id = True
+                
+                # Logic: If it's a single ID and a generic "analysis" request, keep it as RAG 
+                # unless a specific statistical tool (pls, umap, heatmap) is mentioned.
+                if tool_type == "rag" and any(kw in q_low for kw in action_keywords):
+                    # Specific Statistical Tools
+                    if 'pls' in q_low:
+                        tasks = [{"tool": "run_pls_analysis", "args": {"patient_ids": patient_ids} if patient_ids else {}}]
+                        tool_type = "multi_task"
+                    elif 'umap' in q_low:
+                        tasks = [{"tool": "run_umap_analysis", "args": {"patient_ids": patient_ids} if patient_ids else {}}]
+                        tool_type = "multi_task"
+                    elif 'heatmap' in q_low or 'correlation' in q_low or 'korelasi' in q_low:
+                        tasks = [{"tool": "run_correlation_heatmap", "args": {"patient_ids": patient_ids} if patient_ids else {}}]
+                        tool_type = "multi_task"
+                    elif ('analisis' in q_low or 'analysis' in q_low) and not is_single_id:
+                        # Only force PLS-DA for general analysis if it involves multiple IDs/range
+                        tasks = [{"tool": "run_pls_analysis", "args": {"patient_ids": patient_ids} if patient_ids else {}}]
+                        tool_type = "multi_task"
+                    # If it's a single ID and just says "analysis", stay as RAG (handled by query_medical_rag)
+
+                # CORRECTIVE RULE: Prevent statistical comparison for single IDs unless explicitly asked
+                if tool_type == "multi_task" and is_single_id:
+                    statistical_tools = ['run_pls_analysis', 'run_umap_analysis', 'run_correlation_heatmap']
+                    has_statistical = any(t.get('tool') in statistical_tools for t in tasks)
+                    specific_mentions = ['pls', 'umap', 'heatmap', 'korelasi', 'correlation']
+                    
+                    if has_statistical and not any(sm in q_low for sm in specific_mentions):
+                        # Use RAG and Search tasks instead of group statistics for a single subject
+                        tool_type = "multi_task"
+                        tasks = [
+                            {"tool": "exact_identifier_search", "args": {"query": patient_ids}},
+                            {"tool": "query_medical_rag", "args": {"question": f"Detail clinical and multi-omics analysis for patient {patient_ids}"}}
+                        ]
+                        if lang == "Indonesian":
+                            ans = f"Baik, saya akan mengumpulkan data klinis dan catatan medis detail untuk Pasien {patient_ids} dari basis pengetahuan kami."
+                        else:
+                            ans = f"I will retrieve detailed clinical records and medical notes for Patient {patient_ids} from our knowledge base."
+                
+                return ans, tool_type, tasks, full_context
         except Exception as e: 
             pine_logger(f"❌ Orchestration error: {e}")
             pass
             
         pine_logger(f"📡 Fallback: Using raw RAG query for '{question}'")
         answer, sources = self.query(question, patient_id_filter)
-        return answer, "rag", []
+        return answer, "rag", [], full_context
 
     def normalize_identifier(self, s: str) -> str:
         s2 = s.lower().strip()
@@ -369,25 +483,34 @@ Return JSON ONLY:
             return res.get("result", ""), res.get("source_documents", [])
         except Exception as e: return f"Error: {e}", []
 
-    def synthesize_results(self, question: str, tool_outputs: str):
+    def synthesize_results(self, question: str, tool_outputs: str, rag_context: str = ""):
         """Final clinical synthesis wrapping all findings with strict language mirroring."""
         try:
             lang = self.detect_language(question)
             llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.2)
             
             # Universal Mirroring Instruction
-            sys_msg = "You are a Senior Clinical Data Scientist. You MUST mirror the user's language perfectly."
-            instr = f"Mirror the user's language (Detect {lang}). Wrap findings into a cohesive clinical narrative. Explain biological significance. IF FINDINGS ARE A FILE LIST: Explain the COLLECTIVE UTILITY of these documents."
+            sys_msg = "You are a Senior Clinical Data Scientist. You MUST mirror the user's language perfectly and ABSORB ALL provided context."
+            instr = f"Mirror the user's language (Detect {lang}). Wrap findings into a cohesive clinical narrative. Explain biological significance. INTEGRATE EVERY RELEVANT DETAIL from the context."
 
             user_prompt = f"""
+[SYSTEM MANDATE]:
+You must provide a COMPREHENSIVE analysis. Do not ignore any clinical details provided in the [RAG CONTEXT]. If the context mentions specific thresholds, protocols, or patient history, INTEGRATE them into your final synthesis.
+
 [USER REQUEST]: {question}
-[TECHNICAL FINDINGS]:
+
+[RAG CONTEXT (CLINICAL BACKGROUND/GUIDELINES/RECORDS)]:
+{rag_context or "No specific documentation context provided."}
+
+[TECHNICAL ANALYSIS FINDINGS]:
 {tool_outputs}
 
 INSTRUCTIONS:
 1. {instr}
-2. Respond in the EXACT SAME language as the User Request. This is the Mirroring Rule.
-3. Professional Markdown formatting.
+2. INTEGRATE the [TECHNICAL ANALYSIS FINDINGS] with the [RAG CONTEXT] deeply. For example, explain how the analysis results compare to clinical norms or specific patient history mentioned in the context.
+3. Be EXHAUSTIVE yet concise. Mention relevant biomarkers, medications, and clinical observations from the context.
+4. Respond in the EXACT SAME language as the User Request. This is the Mirroring Rule.
+5. Professional Markdown formatting.
             """
             return llm.invoke([("system", sys_msg), ("human", user_prompt)]).content
         except Exception as e: return f"Synthesis error: {e}"
