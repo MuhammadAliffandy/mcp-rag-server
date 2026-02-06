@@ -5,6 +5,8 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from dotenv import load_dotenv
 import base64
+import json
+import re
 
 def get_img_base64(file_path):
     with open(file_path, "rb") as f:
@@ -473,10 +475,47 @@ if st.session_state.get("processing_pending", False):
             st.code(dispatch_res)
             st.stop()
         
+        # DEBUG: Check if we have tasks
+        if not decision.get("tasks"):
+            print("⚠️ DEBUG: No tasks found in Orchestrator response!")
+            print(f"Response: {dispatch_res}")
+        else:
+            print(f"✅ DEBUG: Orchestrator returned {len(decision.get('tasks'))} tasks.")
+            for t in decision.get("tasks"):
+                print(f"  - Tool: {t.get('tool')}, Args: {t.get('args')}")
+
         answer = decision.get("answer")
-        tool = decision.get("tool")
-        tasks = decision.get("tasks", [])
+        tool = decision.get("tool", "").strip().lower() # Normalize immediately
+        raw_tasks = decision.get("tasks", [])
         rag_context = decision.get("rag_context", "")
+
+        # REDUNDANT FAILSAFE: Task Flattener for LLM Hallucinations
+        tasks = []
+        _tasks_to_process = raw_tasks if isinstance(raw_tasks, list) else [raw_tasks]
+        for t in _tasks_to_process:
+            if not isinstance(t, dict): continue
+            
+            # Detect nested "0", "1", etc. keys (Screenshot turn 1745 confirmed this structure)
+            numeric_keys = [k for k in t.keys() if str(k).isdigit()]
+            if len(t) == 1 and numeric_keys:
+                inner = t[numeric_keys[0]]
+                if isinstance(inner, dict):
+                    print(f"✨ Redundant Flattening in App: Unpacked key '{numeric_keys[0]}'")
+                    tasks.append(inner)
+                else:
+                    tasks.append(t)
+            else:
+                tasks.append(t)
+
+        # SURGICAL DEBUG for Visualization Fix
+        print(f"DEBUG: tool='{tool}', tasks_len={len(tasks)}, raw_len={len(raw_tasks)}")
+        # SURGICAL DEBUG for Visualization Fix (Sidebar Only for cleanliness)
+        with st.sidebar:
+            st.divider()
+            st.caption("🔍 Orchestrator Status")
+            st.code(f"Tool: {tool}\nTasks: {len(tasks)}")
+            if tasks:
+                st.json(tasks)
 
         # Store rag_context in session state for later synthesis
         st.session_state.current_rag_context = rag_context
@@ -491,6 +530,10 @@ if st.session_state.get("processing_pending", False):
             # Display the AI's explanation/plan first
             if answer:
                 st.markdown(answer)
+            
+            # Clinical Execution Plan
+            with st.expander("🛠️ Clinical Execution Plan", expanded=False):
+                st.json(tasks)
             
             res = f"{answer}\n\n" if answer else ""
             
@@ -516,6 +559,10 @@ if st.session_state.get("processing_pending", False):
                 t_name = task.get("tool")
                 if not t_name:
                     t_name = "unknown_task"
+                
+                # Normalize tool name
+                t_name = t_name.strip().lower()
+
                 t_args = task.get("args", {})
                 
                 # Use mapped label or title-cased tool name
@@ -551,25 +598,60 @@ if st.session_state.get("processing_pending", False):
                 
                 elif t_name in ["plot", "generate_medical_plot"]:
                     with st.spinner(f"Generating plot..."):
-                        p_args = {
-                            "plot_type": t_args.get("plot_type", "pca"),
-                            "patient_ids": patient_filter,
-                            "target_column": t_args.get("target_column")
-                        }
-                        m_res = asyncio.run(call_mcp_tool("generate_medical_plot", p_args))
-                        if "|||" in m_res:
-                            path, interp = m_res.split("|||")
-                            st.image(path)
+                        # Fix: Pass ALL arguments from LLM, injecting context
+                        p_args = {k: v for k, v in t_args.items() if v is not None} # Sanitize immediately
+                        p_args["patient_ids"] = patient_filter
+                        if "plot_type" not in p_args: p_args["plot_type"] = "pca"
+                        
+                        # Fix argument types
+                        if "styling" in p_args and isinstance(p_args["styling"], dict):
+                            p_args["styling"] = json.dumps(p_args["styling"])
+                        elif "styling" not in p_args:
+                            p_args["styling"] = "{}" # Default empty JSON
                             
-                            # Persist image
-                            img_b64 = get_img_base64(path)
-                            res += f'<br><img src="data:image/png;base64,{img_b64}" width="100%" style="border-radius: 10px; margin: 10px 0;">'
+                        # Fix data_source (LLM hallucinations)
+                        p_args["data_source"] = "session"
+                        
+                        # Final conversion to ensure NO None values reach the server
+                        # (Server now supports Optional, but passing empty string is safer for Pydantic)
+                        for opt_col in ["x_column", "y_column", "target_column"]:
+                            if opt_col not in p_args or p_args[opt_col] is None:
+                                p_args[opt_col] = "" # Map to empty string instead of None
+
+                        try:
+                            # 1. CALL THE TOOL
+                            m_res = asyncio.run(call_mcp_tool("generate_medical_plot", p_args))
                             
-                            st.markdown(interp)
-                            res += f"\n- {interp}"
-                            tool_outputs.append(f"Plot Findings: {interp}")
-                        else:
-                            st.error(m_res)
+                            # 2. DEBUG: Show RAW Response immediately
+                            with st.expander("🛠️ Tool Execution Debug", expanded=True):
+                                st.code(f"Raw Response: {m_res}")
+                                if not m_res:
+                                    st.error("Received EMPTY response from server!")
+                            
+                            # 3. Handle Result
+                            if "|||" in m_res:
+                                path, interp = m_res.split("|||")
+                                
+                                # Verify file existence
+                                if os.path.exists(path):
+                                    st.image(path)
+                                    
+                                    # Persist image
+                                    img_b64 = get_img_base64(path)
+                                    res += f'<br><img src="data:image/png;base64,{img_b64}" width="100%" style="border-radius: 10px; margin: 10px 0;">'
+                                    
+                                    st.markdown(interp)
+                                    res += f"\n- {interp}"
+                                    tool_outputs.append(f"Plot Findings: {interp}")
+                                else:
+                                    st.error(f"❌ Plot generated but file not found at: {path}")
+                                    st.caption("Common cause: Relative path issue. Try restarting the server.")
+                            else:
+                                st.error(f"❌ Server Error: {m_res}")
+                        except Exception as e:
+                            st.error(f"❌ Crash during plot execution: {str(e)}")
+                            import traceback
+                            st.code(traceback.format_exc())
 
                 elif t_name == "run_pls_analysis":
                     with st.spinner("Running PLS-DA..."):
@@ -676,6 +758,10 @@ if st.session_state.get("processing_pending", False):
                             st.markdown(m_res)
                         res += f"\n- Data Summary Loaded."
                         tool_outputs.append(f"Data Summary: {m_res}")
+
+                else:
+                    st.warning(f"⚠️ Unrecognized tool: **{t_name}**")
+                    res += f"\n- Skipped unrecognized tool: {t_name}"
 
             # Final Step: Clinical Synthesis
             if tool_outputs:

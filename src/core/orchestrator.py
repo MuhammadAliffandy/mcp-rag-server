@@ -173,13 +173,25 @@ class PureOrchestrator:
                         tasks_raw = [tasks_raw] if tasks_raw else []
                         
                     # Convert to expected format
-                    tasks = [
-                        {
-                            "tool": task.get("tool", ""),
-                            "args": task.get("args", {})
-                        }
-                        for task in tasks_raw if isinstance(task, dict)
-                    ]
+                    tasks = []
+                    for task_raw in tasks_raw:
+                        if not isinstance(task_raw, dict):
+                            continue
+                            
+                        # Failsafe: Detect if task is nested under a numeric key (e.g., {"0": {"tool": "..."}})
+                        # This happens when LLM hallucinates an index Map instead of a List item
+                        actual_task = task_raw
+                        numeric_keys = [k for k in task_raw.keys() if str(k).isdigit()]
+                        if len(task_raw) == 1 and numeric_keys:
+                            nested = task_raw[numeric_keys[0]]
+                            if isinstance(nested, dict) and ("tool" in nested or "args" in nested):
+                                actual_task = nested
+                                print(f"  ✨ Flattened nested task from key '{numeric_keys[0]}'")
+
+                        tasks.append({
+                            "tool": actual_task.get("tool", ""),
+                            "args": actual_task.get("args", {})
+                        })
                     
                     # Special Case: If "answer" exists but "tasks" IS EMPTY and user asked for analysis
                     # We should check if we can reconstruct the intent

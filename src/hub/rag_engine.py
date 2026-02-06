@@ -413,6 +413,15 @@ INSTRUCTIONS:
             return llm.invoke([("system", sys_msg), ("human", user_prompt)]).content
         except Exception as e: return f"Synthesis error: {e}"
 
+    def has_doc_type(self, doc_type: str) -> bool:
+        """Checks if any documents of the given doc_type exist in the vector store."""
+        if not self.vector_store: return False
+        try:
+            res = self.vector_store.get(where={"doc_type": doc_type}, limit=1)
+            return len(res.get("ids", [])) > 0
+        except:
+            return False
+
     def get_knowledge_summaries(self):
         """Retrieves and beautifully formats knowledge base entries."""
         if not self.vector_store: return "No knowledge base loaded."

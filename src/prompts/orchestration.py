@@ -118,8 +118,9 @@ Your goal is to map user intent to specific Tools or RAG queries without halluci
 ## A. VISUALIZATION & PLOTTING (PineBioML)
 - **generate_medical_plot**(plot_type, data_source, x_column, y_column, target_column, styling)
   - Types: "pca", "scatter", "line", "distribution", "bar", "histogram"
+  - Types: "pca", "scatter", "line", "distribution", "bar", "histogram"
   - Use when: User asks for plots, charts, visualizations
-  - **data_source**: Use "internal_docs/Test_AI for MES classification_clinical data_20251002.xlsx" for internal data
+  - **data_source**: Default to "session" unless user specified a file name found in inventory.
   - Examples: "plot X vs Y", "show distribution", "make PCA plot"
 
 - **run_pls_analysis**(target_column, patient_ids, styling)

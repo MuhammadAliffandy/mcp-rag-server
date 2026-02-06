@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Optional
 
 # Ensure project root is in path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -10,6 +11,8 @@ import json
 import io
 import re
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg') # CRITICAL: Fix for Process group termination failed/GUI errors
 import matplotlib.pyplot as plt
 import sys
 import contextlib
@@ -40,30 +43,12 @@ def pine_log(msg):
     except:
         pass
 
-@contextlib.contextmanager
-def suppress_output():
-    log_dir = "logs"
-    os.makedirs(log_dir, exist_ok=True)
-    with open(os.path.join(log_dir, "server_debug.log"), "a") as logfile:
-        stdout_fd = sys.stdout.fileno()
-        stderr_fd = sys.stderr.fileno()
-        orig_stdout_fd = os.dup(stdout_fd)
-        orig_stderr_fd = os.dup(stderr_fd)
-        try:
-            os.dup2(logfile.fileno(), stdout_fd)
-            os.dup2(logfile.fileno(), stderr_fd)
-            warnings.filterwarnings('ignore')
-            yield
-        finally:
-            os.dup2(orig_stdout_fd, stdout_fd)
-            os.dup2(orig_stderr_fd, stderr_fd)
-            os.close(orig_stdout_fd)
-            os.close(orig_stderr_fd)
+
 
 mcp = FastMCP("Medical-PineBioML-Server")
 
-with suppress_output():
-    rag_engine = RAGEngine()
+# Initialize RAG Engine (Allow logs to stdout for stability)
+rag_engine = RAGEngine()
 
 STATE_DIR = ".mcp_state"
 TABULAR_DATA_PATH = "temp_uploads/tabular_data.json"
@@ -77,12 +62,17 @@ os.makedirs(STATE_DIR, exist_ok=True)
 os.makedirs(INTERNAL_KNOWLEDGE_PATH, exist_ok=True)
 
 def auto_ingest_internal():
+    """Optimized: Only ingest if doc type 'internal_record' is missing."""
     if os.path.exists(INTERNAL_KNOWLEDGE_PATH):
-        with suppress_output():
-            docs = DocumentProcessor.load_directory(INTERNAL_KNOWLEDGE_PATH, doc_type="internal_record")
-            if docs:
-                rag_engine.ingest_documents(docs)
-                pine_log(f"Auto-ingested {len(docs)} segments on startup.")
+        # FAST CHECK: If RAG already has internal records, skip the slow directory load
+        if rag_engine.has_doc_type("internal_record"):
+            pine_log("⏭️ Internal records already in vector store. Skipping redundant auto-ingest.")
+            return
+
+        docs = DocumentProcessor.load_directory(INTERNAL_KNOWLEDGE_PATH, doc_type="internal_record")
+        if docs:
+            rag_engine.ingest_documents(docs)
+            pine_log(f"✅ Auto-ingested {len(docs)} segments on startup.")
 
 auto_ingest_internal()
 
@@ -132,8 +122,9 @@ def find_semantic_column(df, user_term):
     
     for concept, terms in synonyms.items():
         if user_term == concept or user_term in terms:
-            # Look for these terms in actual columns
-            for t in terms:
+            # Look for these terms AND the concept itself in actual columns
+            search_terms = terms + [concept]
+            for t in search_terms:
                 for c in cols:
                     if t in c.lower() or t in aggressive_clean(c).lower():
                         return c
@@ -156,15 +147,14 @@ def find_semantic_column(df, user_term):
 def ingest_medical_files(directory_path: str, doc_type: str = "internal_patient") -> str:
     """Ingests medical documents and updates internal data state."""
     try:
-        with suppress_output():
-            docs = DocumentProcessor.load_directory(directory_path, doc_type=doc_type)
-            if not docs: return "No documents found."
-            for doc in docs:
-                if "df_json" in doc.metadata:
-                    with open(TABULAR_DATA_PATH, "w") as f: f.write(doc.metadata["df_json"])
-                    break
-            rag_engine.ingest_documents(docs)
-            return f"Success: Ingested {len(docs)} segments into {doc_type} context."
+        docs = DocumentProcessor.load_directory(directory_path, doc_type=doc_type)
+        if not docs: return "No documents found."
+        for doc in docs:
+            if "df_json" in doc.metadata:
+                with open(TABULAR_DATA_PATH, "w") as f: f.write(doc.metadata["df_json"])
+                break
+        rag_engine.ingest_documents(docs)
+        return f"Success: Ingested {len(docs)} segments into {doc_type} context."
     except Exception as e:
         return f"Ingestion error: {e}"
 
@@ -184,8 +174,9 @@ def smart_intent_dispatch(question: str, patient_id_filter: str = None, chat_his
                     # Pass both for better LLM reasoning
                     schema_items.append(f"{c_clean} [ID: {c}] ({dtype})")
                 schema = ", ".join(schema_items)
-        with suppress_output():
-            res, tool, tasks, rag_context = rag_engine.smart_query(question, patient_id_filter, schema, chat_history)
+                schema = ", ".join(schema_items)
+        
+        res, tool, tasks, rag_context = rag_engine.smart_query(question, patient_id_filter, schema, chat_history)
         return json.dumps({"answer": res, "tool": tool, "tasks": tasks, "rag_context": rag_context})
     except Exception as e:
         # Professional clinical fallback message
@@ -275,8 +266,7 @@ def extract_data_from_rag(
 @mcp.tool()
 def synthesize_medical_results(question: str, results: str, rag_context: str = "") -> str:
     """Provides high-level clinical synthesis from technical tool outputs, integrating clinical documentation."""
-    with suppress_output():
-        return rag_engine.synthesize_results(question, results, rag_context)
+    return rag_engine.synthesize_results(question, results, rag_context)
 
 @mcp.tool()
 def get_data_context() -> str:
@@ -307,11 +297,11 @@ def get_data_context() -> str:
 def generate_medical_plot(
     plot_type: str,
     data_source: str = "session",
-    x_column: str = None,
-    y_column: str = None,
-    target_column: str = None,
-    patient_ids: str = None,
-    styling: str = None
+    x_column: str = "",
+    y_column: str = "",
+    target_column: str = "",
+    patient_ids: str = "",
+    styling: str = "{}"
 ) -> str:
     """
     Generates medical visualizations from tabular data with flexible styling.
@@ -335,6 +325,8 @@ def generate_medical_plot(
         - PCA: plot_type='pca' (automatic dimensionality reduction)
     """
     try:
+        pine_log(f"📉 Generating Plot: {plot_type}, X={x_column}, Y={y_column}, Target={target_column}")
+        
         # Load data from specified source
         if data_source == "session":
             # Use session uploaded data
@@ -356,6 +348,7 @@ def generate_medical_plot(
             if id_cols:
                 ids = [i.strip() for i in patient_ids.replace('-', ',').split(',')]
                 df = df[df[id_cols[0]].astype(str).isin(ids)]
+                pine_log(f"Filtered to {len(df)} rows for patients: {patient_ids}")
 
         df.columns = [aggressive_clean(c) for c in df.columns]
         num_df = df.select_dtypes(include=['number']).dropna(axis=1, how='all').dropna()
@@ -366,7 +359,7 @@ def generate_medical_plot(
         
         plot_type = plot_type.lower().strip()
         
-        with suppress_output():
+        if True: # Wrapper to preserve existing indentation
             # Scatter and Line plots (2D visualizations)
             if plot_type in ['scatter', 'scatterplot', 'scatter plot']:
                 if not x_column or not y_column:
@@ -377,10 +370,18 @@ def generate_medical_plot(
                 y_col = find_semantic_column(df, y_column)
                 
                 if not x_col or not y_col:
+                    pine_log(f"❌ Column not found. X={x_col} (req: {x_column}), Y={y_col} (req: {y_column})")
                     return f"Error: Could not find columns. Available: {', '.join(df.columns[:10])}"
                 
+                pine_log(f"Plotting scatter: {x_col} vs {y_col}")
+                
                 plt.figure(figsize=(10, 6))
-                plt.scatter(df[x_col], df[y_col], alpha=0.6, s=50)
+                
+                # Fix: Convert to string if categorical to avoid matplotlib TypeError
+                x_data = df[x_col].astype(str) if not pd.api.types.is_numeric_dtype(df[x_col]) else df[x_col]
+                y_data = df[y_col].astype(str) if not pd.api.types.is_numeric_dtype(df[y_col]) else df[y_col]
+                
+                plt.scatter(x_data, y_data, alpha=0.6, s=50)
                 plt.xlabel(x_col)
                 plt.ylabel(y_col)
                 plt.title(f"{x_col} vs {y_col}")
@@ -392,6 +393,7 @@ def generate_medical_plot(
                     styler.apply(plt.gcf(), plt.gca())
                 
                 plt.savefig(filename)
+                plt.close()
                 return f"{filename}|||Scatter plot created: {x_col} vs {y_col}. {len(df)} data points plotted."
             
             elif plot_type in ['line', 'lineplot', 'line plot']:
@@ -403,7 +405,10 @@ def generate_medical_plot(
                 y_col = find_semantic_column(df, y_column)
                 
                 if not x_col or not y_col:
+                    pine_log(f"❌ Line Plot Columns not found. X={x_col}, Y={y_col}")
                     return f"Error: Could not find columns. Available: {', '.join(df.columns[:10])}"
+                
+                pine_log(f"Plotting Line: {x_col} vs {y_col}")
                 
                 plt.figure(figsize=(10, 6))
                 plt.plot(df[x_col], df[y_col], marker='o', linestyle='-', linewidth=2)
@@ -423,6 +428,7 @@ def generate_medical_plot(
             
             # PCA and Clustering
             elif plot_type in ['pca', 'clustering']:
+                pine_log("Calculating PCA...")
                 if num_df.empty:
                     return "Error: No numeric data available for PCA analysis. Please ensure data is cleaned or numeric columns exist."
                 
@@ -492,9 +498,14 @@ def generate_medical_plot(
                     target_column = str(target_column)
                     target_column = re.sub(r'\(.*\)', '', target_column).strip() 
                 
-                col = find_semantic_column(df, target_column) or df.columns[0]
+                # Find the actual column using semantic finder
+                col = find_semantic_column(df, target_column)
                 
-                pine_log(f"📊 Plotting column: {col} (requested: {target_column})")
+                if not col:
+                    pine_log(f"❌ Column not found for target: {target_column}")
+                    return f"Error: Could not find column '{target_column}'. Available: {', '.join(df.columns[:10])}"
+                
+                pine_log(f"Plotting distribution for: {col}")
                 
                 plt.figure(figsize=(10,6))
                 
@@ -526,12 +537,14 @@ def generate_medical_plot(
                     styler.apply(fig, ax)
                 
                 plt.savefig(filename)
+                plt.close() # CRITICAL: Close figure
                 
                 stats = ""
                 if is_numeric:
                     stats = f" Mean: {df[col].mean():.2f}, Std: {df[col].std():.2f}."
                 
-                return f"{filename}|||{desc} generated. {stats} Non-null count: {df[col].count()}."
+                res = f"{filename}|||{desc} generated. {stats} Non-null count: {df[col].count()}."
+                return res
         return "Error: Unsupported or invalid plot configuration."
     except Exception as e:
         err = f"{e}\n{traceback.format_exc()}"

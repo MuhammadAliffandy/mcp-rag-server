@@ -7,6 +7,7 @@ lib/
 share/
 include/
 architecture_docs/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -36,12 +37,26 @@ wheels/
 chroma_db/
 plots/
 output/
+src/pinebio/outputs/
+temp_uploads/
+logs/
+*.log
+log.txt
+server_debug.log
+note.txt
 *.joblib
+
+# Data Files (exclude from git)
 *.png
 *.jpg
 *.csv
 *.xlsx
 *.json
+
+# Allow specific config files
+!requirements.txt
+!pyproject.toml
+!package.json
 
 # IDEs & System
 .vscode/
@@ -51,3 +66,4 @@ output/
 
 # Streamlit
 .streamlit/
+
