@@ -151,237 +151,95 @@ ANSWER:"""
         return sorted(scores.items(), key=lambda x: -x[1])[0][0] if scores else raw_cols[0]
 
     def smart_query(self, question: str, patient_id_filter: str = None, schema_context: str = None, chat_history: list = None):
-        if not self.qa_chain: return "RAG not initialized.", "none", []
+        """
+        Smart query routing using Pure LLM Orchestrator (ZERO HARDCODING).
         
-        lang = self.detect_language(question)
-        question_lower = question.lower()
+        This method delegates to the PureOrchestrator for agentic tool selection
+        without any hardcoded heuristics or keyword matching.
+        """
+        if not self.qa_chain: 
+            return "RAG not initialized.", "none", [], ""
         
-        # 1. Get GLOBAL SUMMARIES (Inventaris Pengetahuan)
-        summary_docs = self.vector_store.similarity_search("[DEEP SUMMARY]", k=10)
+        pine_logger(f"🧠 Smart Query: '{question[:100]}...'")
         
-        # 2. Get CURRENT SESSION DOCUMENTS (Prioritas Utama User)
-        # We try to find content from user-uploaded files
-        session_docs = self.vector_store.similarity_search(
-            question, k=10, 
-            filter={"doc_type": {"$in": ["session_upload", "internal_patient"]}}
-        )
-        
-        # 3. Get KNOWLEDGE BASE / SOPs (Supporting Reference)
-        knowledge_docs = self.vector_store.similarity_search(
-            question, k=5, 
-            filter={"doc_type": "internal_record"}
-        )
-
-        # Context Formatting
-        session_preview = "\n---\n".join([d.page_content[:1500] for d in session_docs if "[DEEP SUMMARY]" not in d.page_content])
-        knowledge_preview = "\n---\n".join([d.page_content[:1000] for d in knowledge_docs if "[DEEP SUMMARY]" not in d.page_content])
-        inventory_preview = "\n---\n".join([d.page_content for d in summary_docs if "[DEEP SUMMARY]" in d.page_content])
-        
-        full_context = f"""
-[DATA SESI SAAT INI (USER UPLOAD)]:
-{session_preview or "Tidak ada data spesifik dari user upload yang relevan."}
-
-[PENGETAHUAN INTERNAL / SOP]:
-{knowledge_preview or "Tidak ada SOP internal yang relevan ditemukan."}
-
-[INVENTARIS FILE]:
-{inventory_preview}
-        """.strip()
-
-        pine_logger(f"🧠 Smart Query Context: Found {len(session_docs)} session chunks and {len(knowledge_docs)} knowledge chunks.")
-        
-        # LLM Orchestration Prompt
+        # 1. Multi-tier RAG Retrieval
         try:
-            llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
-            history_str = "".join([f"{m.get('role','').upper()}: {m.get('content','')}\n" for m in (chat_history or [])[-5:]])
+            # Get GLOBAL SUMMARIES (File Inventory)
+            summary_docs = self.vector_store.similarity_search("[DEEP SUMMARY]", k=10)
             
-            system_msg = f"""
-You are the Strategic Orchestrator for PineBioML. 
-STRICT RULE 1: YOU MUST MIRROR THE USER'S LANGUAGE. 
-- If user asks in Indonesian, answer in Indonesian.
-- If user asks in English, answer in English.
-- STRICT MIRRORING for the 'answer' field is mandatory.
-
-STRICT RULE 2: Use CHAT HISTORY to correct previous mistakes.
-
-STRICT RULE 3: PINNED SESSION PRIORITY
-- [DATA SESI SAAT INI] contains information the user JUST uploaded. This is the PRIMARY source for answering about "this file" or "my data".
-- [PENGETAHUAN INTERNAL / SOP] contains hospital guidelines and background knowledge. Use this ONLY as a reference or if the user asks about procedures/rules.
-- DO NOT confuse background SOPs with the user's specific uploaded documents.
-
-STRICT RULE 4: CONVERSATIONAL CONTINUITY
-- Use the CHAT HISTORY below to resolve ambiguous follow-up questions.
-- Example: If user asked for a plot of "sex" and then says "how about age?", you should generate a similar plot but for the "age" column.
-
-[CHAT HISTORY]:
-{history_str}
-
-Data Features: {schema_context}
-File Context Samples: {full_context[:3000]}
-
-Goal: Execute medical analysis. 
-
-Available Tools (PineBioML Core):
-- generate_medical_plot(plot_type, target_column): PCA, distribution, bar, histogram.
-- run_pls_analysis(): Supervised class separation (PLS-DA).
-- run_umap_analysis(): Non-linear manifold clustering (UMAP).
-- run_correlation_heatmap(): Feature relationship matrix.
-- get_data_context(): Describe statistics.
-- clean_medical_data(): PineBioML imputation logic.
-- train_medical_model(target_column): Random Forest tuner.
-- discover_markers(target_column): Volcano plot discovery.
-- inspect_knowledge_base(): List ALL ingested files and their summaries.
-- query_medical_rag(question, patient_id_filter): Search medical guidelines/SOPs.
-- exact_identifier_search(query, patient_id_filter): Perform literal/substring search for specific IDs like 'ACCES6U86680' or Patient IDs. Use this when the user mentions a specific code or wants to 'find' something very specific.
-
-ORCHESTRATION LOGIC:
-1. PILIH tool yang paling spesifik untuk menjawab kebutuhan client.
-2. JANGAN jalankan semua algoritma sekaligus kecuali user minta "analisis lengkap" atau "overview".
-3. Gunakan 'run_pls_analysis' jika user ingin melihat pemisahan antar grup (misal: Sehat vs Sakit).
-4. Gunakan 'run_umap_analysis' untuk mencari cluster data yang kompleks.
-6. Gunakan 'run_correlation_heatmap' jika user ingin melihat hubungan antar variabel.
-7. JIKA diminta plotting atau analisis kolom tertentu, PASTIKAN 'target_column' yang Anda pilih ADA di dalam daftar 'Data Features' di atas. Gunakan ID yang sesuai (misal: jika user minta 'age', pilih ID 'age_at_cpy' jika tersedia).
-8. ANDA WAJIB menggunakan 'query_medical_rag' untuk pertanyaan apapun yang bisa dijawab oleh dokumen yang sudah di-ingest (baik itu protokol, SOP, data medis, atau profil personal yang ada di dokumen).
-9. JANGAN mencoba menjawab pertanyaan tentang fakta spesifik (misal: pendidikan seseorang, detail protokol) menggunakan pengetahuan internal Anda jika ada kemungkinan datanya ada di RAG. Gunakan RAG terlebih dahulu.
-10. JIKA user mencari kode spesifik atau ID pasien (misal: "temukan ACCES..."), GUNAKAN 'exact_identifier_search'.
-11. Response 'answer' MUST be in {lang} (AS DETECTED) and MUST MATCH THE INPUT LANGUAGE.
-12. FINAL CHECK: If the user spoke Indonesian, the 'answer' field MUST be Indonesian. No exceptions.
-13. COMMAND CONFIRMATION: If the user says 'ok', 'go ahead', 'run it', 'silahkan', or confirms a suggestion from the chat history, you MUST execute the relevant tool immediately. Do not just reply with text confirming you will do it. Set 'tool' to 'multi_task' and populate 'tasks'.
-14. PATIENT ID PARSING: If the user specifies IDs in the prompt (e.g., "analyze ids 1, 2, 3" or "1-5"), YOU MUST EXTRACT them and pass them to the 'patient_ids' argument of the tools. Use the extracted IDs to override the global filter.
-15. FEW-SHOT EXAMPLES (STRICTLY FOLLOW THIS PATTERN):
-
-    User: "Silahkan analysis hasil id 1 - 5"
-    Output: {{
-      "answer": "Baik, saya akan menjalankan analisis PLS-DA untuk pasien ID 1-5 sesuai permintaan.",
-      "tool": "multi_task",
-      "tasks": [
-        {{ "tool": "run_pls_analysis", "args": {{ "patient_ids": "1,2,3,4,5" }} }}
-      ]
-    }}
-
-    User: "Coba heatmap untuk pasien 1, 2, 3"
-    Output: {{
-      "answer": "Membuatkan heatmap korelasi khusus untuk pasien 1, 2, dan 3.",
-      "tool": "multi_task",
-      "tasks": [
-        {{ "tool": "run_correlation_heatmap", "args": {{ "patient_ids": "1,2,3" }} }}
-      ]
-    }}
-
-    User: "Ok run it" (Context: User previously asked about UMAP)
-    Output: {{
-      "answer": "Menjalankan analisis UMAP sekarang.",
-      "tool": "multi_task",
-      "tasks": [
-        {{ "tool": "run_umap_analysis", "args": {{}} }}
-      ]
-    }}
-
-    User: "plot distribution of age with dark theme"
-    Output: {{
-      "answer": "Generating distribution plot for age with dark theme styling.",
-      "tool": "multi_task",
-      "tasks": [
-        {{ "tool": "generate_medical_plot", "args": {{ "plot_type": "distribution", "target_column": "age", "styling": '{{"style": {{"theme": "dark"}}}}' }} }}
-      ]
-    }}
-
-    User: "visualize bmi dengan medical theme"
-    Output: {{
-      "answer": "Membuat visualisasi BMI dengan tema medical professional.",
-      "tool": "multi_task",
-      "tasks": [
-        {{ "tool": "generate_medical_plot", "args": {{ "plot_type": "distribution", "target_column": "bmi", "styling": '{{"style": {{"theme": "medical"}}}}' }} }}
-      ]
-    }}
-
-STYLING RULES:
-- Themes: "dark", "medical", "colorblind", "vibrant"
-- JSON format: {{"style": {{"theme": "NAME", "title_size": 14-20}}}}
-- Extract keywords (dark theme, large title) and convert to JSON
-- If NO styling mentioned, OMIT the parameter
-
-
-Return JSON ONLY:
-{{
-  "answer": "Plan/Response in {lang}",
-  "tasks": [{{ "tool": "tool_name", "args": {{...}} }}]
-}}
-            """
+            # Get SESSION DOCUMENTS (User Uploads - Priority)
+            session_docs = self.vector_store.similarity_search(
+                question, k=10, 
+                filter={"doc_type": {"$in": ["session_upload", "internal_patient"]}}
+            )
             
-            res = llm.invoke([("system", system_msg), ("user", f"Question: {question}")]).content
-            if "{" in res:
-                clean_json = res[res.find("{"):res.rfind("}")+1]
-                data = json.loads(clean_json)
-                # Force language mirroring in the answer if it leaked English
-                ans = data.get("answer", "Planning...")
-                tool_type = data.get("tool", "rag")
-                tasks = data.get("tasks", [])
-                
-                # HEURISTIC OVERRIDE: Force execution if LLM misclassified
-                q_low = question.lower()
-                action_keywords = ['analisis', 'analysis', 'pls', 'umap', 'heatmap', 'plot', 'correlation', 'korelasi', 'tabel', 'tampilkan']
-                
-                # Enhanced ID Extraction
-                range_pattern = re.search(r'(?:id|pasien|patient)\s*(\d+)\s*[-,]\s*(\d+)', q_low)
-                single_pattern = re.search(r'(?:id|pasien|patient)\s*(\d+)\b', q_low)
-                
-                patient_ids = None
-                is_single_id = False
-                
-                if range_pattern:
-                    start_id = int(range_pattern.group(1))
-                    end_id = int(range_pattern.group(2))
-                    patient_ids = ",".join([str(i) for i in range(start_id, end_id + 1)])
-                elif single_pattern:
-                    patient_ids = single_pattern.group(1)
-                    is_single_id = True
-                
-                # Logic: If it's a single ID and a generic "analysis" request, keep it as RAG 
-                # unless a specific statistical tool (pls, umap, heatmap) is mentioned.
-                if tool_type == "rag" and any(kw in q_low for kw in action_keywords):
-                    # Specific Statistical Tools
-                    if 'pls' in q_low:
-                        tasks = [{"tool": "run_pls_analysis", "args": {"patient_ids": patient_ids} if patient_ids else {}}]
-                        tool_type = "multi_task"
-                    elif 'umap' in q_low:
-                        tasks = [{"tool": "run_umap_analysis", "args": {"patient_ids": patient_ids} if patient_ids else {}}]
-                        tool_type = "multi_task"
-                    elif 'heatmap' in q_low or 'correlation' in q_low or 'korelasi' in q_low:
-                        tasks = [{"tool": "run_correlation_heatmap", "args": {"patient_ids": patient_ids} if patient_ids else {}}]
-                        tool_type = "multi_task"
-                    elif ('analisis' in q_low or 'analysis' in q_low) and not is_single_id:
-                        # Only force PLS-DA for general analysis if it involves multiple IDs/range
-                        tasks = [{"tool": "run_pls_analysis", "args": {"patient_ids": patient_ids} if patient_ids else {}}]
-                        tool_type = "multi_task"
-                    # If it's a single ID and just says "analysis", stay as RAG (handled by query_medical_rag)
-
-                # CORRECTIVE RULE: Prevent statistical comparison for single IDs unless explicitly asked
-                if tool_type == "multi_task" and is_single_id:
-                    statistical_tools = ['run_pls_analysis', 'run_umap_analysis', 'run_correlation_heatmap']
-                    has_statistical = any(t.get('tool') in statistical_tools for t in tasks)
-                    specific_mentions = ['pls', 'umap', 'heatmap', 'korelasi', 'correlation']
-                    
-                    if has_statistical and not any(sm in q_low for sm in specific_mentions):
-                        # Use RAG and Search tasks instead of group statistics for a single subject
-                        tool_type = "multi_task"
-                        tasks = [
-                            {"tool": "exact_identifier_search", "args": {"query": patient_ids}},
-                            {"tool": "query_medical_rag", "args": {"question": f"Detail clinical and multi-omics analysis for patient {patient_ids}"}}
-                        ]
-                        if lang == "Indonesian":
-                            ans = f"Baik, saya akan mengumpulkan data klinis dan catatan medis detail untuk Pasien {patient_ids} dari basis pengetahuan kami."
-                        else:
-                            ans = f"I will retrieve detailed clinical records and medical notes for Patient {patient_ids} from our knowledge base."
-                
-                return ans, tool_type, tasks, full_context
-        except Exception as e: 
+            # Get KNOWLEDGE BASE (SOPs/Guidelines - Reference)
+            knowledge_docs = self.vector_store.similarity_search(
+                question, k=5, 
+                filter={"doc_type": "internal_record"}
+            )
+            
+            # Format context previews
+            session_preview = "\n---\n".join([
+                d.page_content[:1500] 
+                for d in session_docs 
+                if "[DEEP SUMMARY]" not in d.page_content
+            ])
+            
+            knowledge_preview = "\n---\n".join([
+                d.page_content[:1000] 
+                for d in knowledge_docs 
+                if "[DEEP SUMMARY]" not in d.page_content
+            ])
+            
+            inventory_preview = "\n---\n".join([
+                d.page_content 
+                for d in summary_docs 
+                if "[DEEP SUMMARY]" in d.page_content
+            ])
+            
+            pine_logger(f"📚 Retrieved: {len(session_docs)} session, {len(knowledge_docs)} knowledge, {len(summary_docs)} summary docs")
+            
+        except Exception as e:
+            pine_logger(f"⚠️ Retrieval error: {e}")
+            session_preview = ""
+            knowledge_preview = ""
+            inventory_preview = ""
+        
+        # 2. Delegate to Pure Orchestrator (NO HARDCODING)
+        try:
+            from src.core.orchestrator import PureOrchestrator
+            
+            orchestrator = PureOrchestrator()
+            
+            # Build context dictionary
+            context = {
+                "schema": schema_context or "",
+                "session_preview": session_preview,
+                "knowledge_preview": knowledge_preview,
+                "inventory_preview": inventory_preview,
+                "chat_history": chat_history or []
+            }
+            
+            # Route using pure LLM reasoning
+            answer, tasks, full_context = orchestrator.route(question, context)
+            
+            pine_logger(f"✅ Orchestrator decision: {len(tasks)} tasks")
+            
+            # Convert to expected format
+            tool_type = "multi_task" if tasks else "rag"
+            
+            return answer, tool_type, tasks, full_context
+            
+        except Exception as e:
             pine_logger(f"❌ Orchestration error: {e}")
-            pass
+            import traceback
+            pine_logger(traceback.format_exc())
             
-        pine_logger(f"📡 Fallback: Using raw RAG query for '{question}'")
-        answer, sources = self.query(question, patient_id_filter)
-        return answer, "rag", [], full_context
+            # Fallback to direct RAG query
+            pine_logger(f"📡 Fallback: Using raw RAG query")
+            answer, sources = self.query(question, patient_id_filter)
+            return answer, "rag", [], ""
 
     def normalize_identifier(self, s: str) -> str:
         s2 = s.lower().strip()
@@ -416,44 +274,84 @@ Return JSON ONLY:
         ident = self.extract_identifier(query) or query.strip()
         ident_low = ident.lower()
         
+        # Extract numeric ID if present for flexible matching
+        # "patient 1" → "1", "ID 1" → "1", "1" → "1"
+        numeric_id = None
+        id_match = re.search(r'\b(\d+)\b', ident)
+        if id_match:
+            numeric_id = id_match.group(1)
+        
         for doc_text, meta in zip(docs, metas):
-            p_ids = str(meta.get("patient_ids", "")).lower()
+            p_ids = str(meta.get("patient_ids", ""))
+            p_ids_low = p_ids.lower()
             
-            # Smart Patient Filter
-            # If user explicitly filtered in sidebar OR if we extracted a simple patient ID
-            active_filter = patient_id_filter or (ident if ident.isdigit() else None)
-            
-            if active_filter:
-                clean_filter = str(active_filter).lower()
+            # Smart Patient Filter with flexible matching
+            # ONLY apply filter if user explicitly filtered in sidebar
+            # Do NOT filter based on extracted ID from query - let flexible matching handle it
+            if patient_id_filter:
+                clean_filter = str(patient_id_filter).lower()
                 # Check if the filter exists in the comma-separated metadata
-                if clean_filter not in p_ids.split(','):
-                    if f"patient_{clean_filter}" not in p_ids:
+                if clean_filter not in p_ids_low.split(','):
+                    if f"patient_{clean_filter}" not in p_ids_low:
                         continue
-
-            # Substring match in text or source
-            source = str(meta.get("source", "")).lower()
-            if ident_low in doc_text.lower() or ident_low in source:
-                # Extract snippets for auditability with line numbers
-                snippets = []
-                lines = doc_text.splitlines()
-                for i, ln in enumerate(lines):
-                    if ident_low in ln.lower():
-                        start = max(0, i - 1)
-                        end = min(len(lines), i + 2)
-                        
-                        # Build window with line numbers
-                        window = []
-                        for idx in range(start, end):
-                            prefix = ">> " if idx == i else "   "
-                            window.append(f"{prefix}L{idx+1}: {lines[idx]}")
-                        
-                        snippets.append("\n".join(window))
+        
+            # IMPROVED: Flexible Patient ID matching
+            # Match "patient 1" with "ID 1", "id 1", "patient 1", etc.
+            should_include = False
+            
+            if numeric_id:
+                # Try multiple format variations
+                variations = [
+                    numeric_id,  # "1"
+                    f"id {numeric_id}",  # "id 1"
+                    f"id{numeric_id}",  # "id1"
+                    f"patient {numeric_id}",  # "patient 1"
+                    f"patient{numeric_id}",  # "patient1"
+                ]
                 
-                hits.append({
-                    "text": doc_text,
-                    "metadata": meta,
-                    "snippets": snippets[:5] # Limit snippets per hit
-                })
+                # Check if any variation exists in patient_ids metadata
+                for var in variations:
+                    if var in p_ids_low:
+                        should_include = True
+                        break
+                
+                # Also check in document text if not found in metadata
+                if not should_include:
+                    for var in variations:
+                        if var in doc_text.lower():
+                            should_include = True
+                            break
+            
+            # Fallback: Substring match in text or source
+            if not should_include:
+                source = str(meta.get("source", "")).lower()
+                if ident_low in doc_text.lower() or ident_low in source:
+                    should_include = True
+            
+            if not should_include:
+                continue
+
+            # Document matches! Extract snippets for auditability with line numbers
+            snippets = []
+            lines = doc_text.splitlines()
+            for i, ln in enumerate(lines):
+                if ident_low in ln.lower():
+                    start = max(0, i - 1)
+                    end = min(len(lines), i + 2)
+                    
+                    # Build window with line numbers
+                    window = []
+                    for idx in range(start, end):
+                        prefix = ">> " if idx == i else "   "
+                        window.append(f"{prefix}L{idx+1}: {lines[idx]}")
+                    
+                    snippets.append("\n".join(window))
+            
+            hits.append({
+                "text": doc_text,
+                "metadata": meta,
+                "snippets": snippets[:5] # Limit snippets per hit
+            })
                 
             if len(hits) >= 50: # Cap results
                 break

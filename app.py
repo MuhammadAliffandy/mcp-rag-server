@@ -463,6 +463,10 @@ if st.session_state.get("processing_pending", False):
         import json
         try:
             decision = json.loads(dispatch_res)
+            
+            # Quiet logging for production persona
+            # pine_log(f"Smart Dispatch Result: {decision.get('tool')} with {len(decision.get('tasks', []))} tasks")
+            
         except json.JSONDecodeError as e:
             st.error(f"❌ Error parsing AI response: {e}")
             st.write("**Raw response:**")
@@ -492,13 +496,31 @@ if st.session_state.get("processing_pending", False):
             
             tool_outputs = [] # Collect results for synthesis
 
+            # Mapping technical tool names to professional clinical titles
+            TOOL_LABEL_MAP = {
+                "extract_data_from_rag": "Retrieving Clinical Records",
+                "generate_medical_plot": "Generating Diagnostic Visualization",
+                "clean_medical_data": "Pre-processing Clinical Data",
+                "run_pls_analysis": "Performing PLS-DA Separation Analysis",
+                "run_umap_analysis": "Executing UMAP Clustering Analysis",
+                "discover_markers": "Identifying Significant Biomarkers",
+                "train_medical_model": "Developing Predictive Model",
+                "generate_data_overview": "Preparing Comprehensive Data Report",
+                "run_correlation_heatmap": "Analyzing Feature Correlations",
+                "query_medical_rag": "Consulting Medical Knowledge Base",
+                "get_data_context": "Analyzing Data Schema",
+                "exact_identifier_search": "Searching Patient Records"
+            }
+
             for i, task in enumerate(tasks):
                 t_name = task.get("tool")
                 if not t_name:
                     t_name = "unknown_task"
                 t_args = task.get("args", {})
                 
-                st.write(f"**Step {i+1}: {t_name.title()}**")
+                # Use mapped label or title-cased tool name
+                display_label = TOOL_LABEL_MAP.get(t_name, t_name.replace("_", " ").title())
+                st.markdown(f"**Step {i+1}: {display_label}**")
                 
                 if t_name in ["clean", "clean_medical_data"]:
                     with st.spinner("Cleaning medical data..."):
@@ -506,6 +528,26 @@ if st.session_state.get("processing_pending", False):
                         st.success(m_res)
                         res += f"\n- {m_res}"
                         tool_outputs.append(f"Clean Data: {m_res}")
+                
+                elif t_name in ["extract", "extract_data_from_rag"]:
+                    with st.spinner("Dr. AI is meticulously retrieving clinical records..."):
+                        m_res = asyncio.run(call_mcp_tool("extract_data_from_rag", t_args))
+                        if "success|||" in m_res:
+                            _, summary = m_res.split("|||")
+                            # Extract common label for clean display
+                            clean_summary = summary.split(". Columns:")[0] if ". Columns:" in summary else summary
+                            st.success(f"✅ {clean_summary}")
+                            
+                            # Move technical column info to hidden expander
+                            if ". Columns:" in summary:
+                                with st.expander("🔍 View Technical Data Schema"):
+                                    st.write(summary.split(". Columns:")[1])
+                                    
+                            res += f"\n- Medical data preparation complete: {clean_summary}"
+                            tool_outputs.append(f"Data Extraction: {summary}")
+                        else:
+                            st.error(f"❌ Record retrieval challenge: {m_res}")
+                            res += f"\n- Extraction failed: {m_res}"
                 
                 elif t_name in ["plot", "generate_medical_plot"]:
                     with st.spinner(f"Generating plot..."):
@@ -612,23 +654,26 @@ if st.session_state.get("processing_pending", False):
                             tool_outputs.append(f"Report Summary: {txt}")
                 
                 elif t_name in ["rag", "query_medical_rag"]:
-                    m_res = asyncio.run(call_mcp_tool("query_medical_rag", {"question": last_user_prompt}))
-                    st.markdown(m_res)
-                    res += f"\n- Medical records and clinical documentation retrieved."
-                    tool_outputs.append(f"RAG Knowledge: {m_res}")
+                    with st.spinner("Consulting internal clinical documentation..."):
+                        m_res = asyncio.run(call_mcp_tool("query_medical_rag", {"question": last_user_prompt}))
+                        with st.expander("🔍 Clinical Knowledge Base Records", expanded=False):
+                            st.markdown(m_res)
+                        res += f"\n- Medical records and clinical documentation retrieved."
+                        tool_outputs.append(f"RAG Knowledge: {m_res}")
 
                 elif t_name == "exact_identifier_search":
-                    with st.spinner("Finding exact matches..."):
+                    with st.spinner("Searching for specific patient identifiers..."):
                         m_res = asyncio.run(call_mcp_tool("exact_identifier_search", {"query": last_user_prompt, "patient_id_filter": patient_filter}))
-                        st.markdown("### 🔍 Exact Match Results")
-                        st.markdown(m_res) # This will render the markdown + code blocks
+                        with st.expander("🔍 Patient Identifier Search Results", expanded=False):
+                            st.markdown(m_res) # This will render the markdown + code blocks
                         res += f"\n- Precise clinical data points identified."
                         tool_outputs.append(f"Exact Search Results: {m_res}")
 
                 elif t_name in ["describe", "get_data_context"]:
-                    with st.spinner("Analyzing data summary..."):
+                    with st.spinner("Analyzing patient data context..."):
                         m_res = asyncio.run(call_mcp_tool("get_data_context", {}))
-                        st.markdown(m_res)
+                        with st.expander("🔍 Detailed Data Schema Overview", expanded=False):
+                            st.markdown(m_res)
                         res += f"\n- Data Summary Loaded."
                         tool_outputs.append(f"Data Summary: {m_res}")
 
