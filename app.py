@@ -552,7 +552,8 @@ if st.session_state.get("processing_pending", False):
                 "run_correlation_heatmap": "Analyzing Feature Correlations",
                 "query_medical_rag": "Consulting Medical Knowledge Base",
                 "get_data_context": "Analyzing Data Schema",
-                "exact_identifier_search": "Searching Patient Records"
+                "exact_identifier_search": "Searching Patient Records",
+                "query_exprag_hybrid": "Searching Similar Cases & Knowledge"
             }
 
             for i, task in enumerate(tasks):
@@ -758,6 +759,45 @@ if st.session_state.get("processing_pending", False):
                             st.markdown(m_res)
                         res += f"\n- Data Summary Loaded."
                         tool_outputs.append(f"Data Summary: {m_res}")
+
+                elif t_name == "query_exprag_hybrid":
+                    with st.spinner("Finding similar cases and SOPs..."):
+                        # Handle potential JSON string from LLM
+                        p_data = t_args.get("patient_data", {})
+                        if isinstance(p_data, str):
+                            # Already a string, use as is (try to validate if valid JSON first?)
+                            try:
+                                json.loads(p_data) # Check validity
+                                p_data_str = p_data
+                            except:
+                                p_data_str = "{}"
+                        else:
+                            # Is a dict, dump to string
+                            p_data_str = json.dumps(p_data)
+
+                        exprag_args = {"question": last_user_prompt, "patient_data": p_data_str}
+                        
+                        # DEBUG
+                        print(f"📡 Calling EXPRAG with: {exprag_args}")
+                        
+                        m_res = asyncio.run(call_mcp_tool("query_exprag_hybrid", exprag_args))
+                        
+                        # DEBUG
+                        print(f"📥 EXPRAG Raw Response: {m_res[:200]}...")
+
+                        try:
+                            hybrid_result = json.loads(m_res)
+                            if "error" in hybrid_result:
+                                st.error(f"❌ EXPRAG Error: {hybrid_result['error']}")
+                            else:
+                                with st.expander("🔍 Similar Patient Cohort", expanded=False):
+                                    st.write(f"**Similar Cases:** {hybrid_result.get('cohort_ids', [])}")
+                                    st.json(hybrid_result.get('profile', {}))
+                                st.markdown(hybrid_result.get('answer', ''))
+                                res += f"\n- Hybrid EXPRAG analysis complete."
+                                tool_outputs.append(f"EXPRAG: {hybrid_result.get('answer', '')}")
+                        except json.JSONDecodeError:
+                            st.error(f"❌ Failed to parse EXPRAG result: {m_res}")
 
                 else:
                     st.warning(f"⚠️ Unrecognized tool: **{t_name}**")

@@ -68,6 +68,7 @@ Your goal is to map user intent to specific Tools or RAG queries without halluci
 - ✅ User asks for: specific patient lookup by ID
 - ✅ User asks for: interpretation of results (AFTER analysis)
 - ✅ User asks for: SOPs, guidelines, protocols
+- ✅ User asks for: similarities, peer experience, "what happened in similar cases?"
 
 ### Examples:
 - "Tampilkan overview data" → **generate_data_overview** (NOT query_medical_rag)
@@ -75,6 +76,7 @@ Your goal is to map user intent to specific Tools or RAG queries without halluci
 - "Cari biomarkers" → **discover_markers** (NOT query_medical_rag)
 - "Buatkan PCA plot" → **generate_medical_plot** (NOT query_medical_rag)
 - "What is diabetes?" → **query_medical_rag** (medical knowledge)
+- "How do we treat cases like this patient?" → **query_exprag_hybrid** (experience + knowledge)
 
 ## Rule 6: SEMANTIC COLUMN MAPPING (Excel-Like)
 - Do not wait for exact column names. Map natural language to clinical data!
@@ -91,6 +93,7 @@ Your goal is to map user intent to specific Tools or RAG queries without halluci
   - "Relationships between features" -> `run_correlation_heatmap`
   - "Distribution/Overview" -> `generate_medical_plot(plot_type='distribution')`
   - "2D Comparison" -> `generate_medical_plot(plot_type='scatter')`
+  - "Peer cohort distribution" -> `generate_medical_plot` filtered by cohort_ids from EXPRAG.
 
 ---
 
@@ -116,18 +119,18 @@ Your goal is to map user intent to specific Tools or RAG queries without halluci
 # AVAILABLE TOOLS (API):
 
 ## A. VISUALIZATION & PLOTTING (PineBioML)
-- **generate_medical_plot**(plot_type, data_source, x_column, y_column, target_column, styling)
-  - Types: "pca", "scatter", "line", "distribution", "bar", "histogram"
+- **generate_medical_plot**(plot_type, data_source, x_column, y_column, target_column, patient_ids, styling)
   - Types: "pca", "scatter", "line", "distribution", "bar", "histogram"
   - Use when: User asks for plots, charts, visualizations
   - **data_source**: Default to "session" unless user specified a file name found in inventory.
+  - **patient_ids**: Use to filter the plot to a specific cohort (e.g. results from EXPRAG).
   - Examples: "plot X vs Y", "show distribution", "make PCA plot"
 
 - **run_pls_analysis**(target_column, patient_ids, styling)
   - Use when: Supervised separation, "find differences between groups"
   - Examples: "PLS-DA for Disease", "separate healthy vs sick"
 
-- **run_umap_analysis**(patient_ids, styling)
+- **run_umap_analysis**(target_column, patient_ids, styling)
   - Use when: Unsupervised clustering, "find patterns", "group similar patients"
   - Examples: "UMAP clustering", "find patient groups"
 
@@ -163,6 +166,11 @@ Your goal is to map user intent to specific Tools or RAG queries without halluci
   - Examples: "extract clinical data", "load patient records", "prepare data"
 
 ## F. DATA & KNOWLEDGE RETRIEVAL (RAG)
+- **query_exprag_hybrid**(question, patient_data)
+  - Use when: Comprehensive clinical reasoning, similarity search, combining internal experience with external SOPs.
+  - **patient_data**: JSON string of current patient metrics (Age, Mayo, Hb, etc.)
+  - Examples: "How do we treat this patient?", "Find similar cases and show protocols"
+
 - **exact_identifier_search**(query, patient_id_filter)
   - Use when: Looking for specific IDs, codes, names
   - Examples: "find patient 123", "search for code ABC"

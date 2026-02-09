@@ -58,8 +58,12 @@ INTERNAL_KNOWLEDGE_PATH = "internal_docs"
 OUTPUT_DIR = "src/pinebio/outputs"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+# state_dir etc...
 os.makedirs(STATE_DIR, exist_ok=True)
 os.makedirs(INTERNAL_KNOWLEDGE_PATH, exist_ok=True)
+
+from src.core.exprag_pipeline import EXPRAGPipeline
+exprag = EXPRAGPipeline()
 
 def auto_ingest_internal():
     """Optimized: Only ingest if doc type 'internal_record' is missing."""
@@ -259,9 +263,59 @@ def extract_data_from_rag(
         traceback.print_exc()
         return f"error|||{str(e)}"
 
-# ============================================================================
-# CONTEXT & SEARCH TOOLS
-# ============================================================================
+@mcp.tool()
+def query_exprag_hybrid(question: str, patient_data: str = "{}") -> str:
+    """
+    Performs Hybrid RAG (EXPRAG Internal Experience + SOP External Knowledge).
+    
+    This is the premium search mode for clinical reasoning. It:
+    1. Identifies similar patients (Peer Experience) using EXPRAG.
+    2. Retrieves specific SOPs/Guidelines from RAG.
+    3. Synthesizes a consolidated clinical recommendation.
+    
+    Args:
+        question: clinical question (e.g., "What's the best treatment approach?")
+        patient_data: JSON string of current patient metrics (Age, Mayo, Hb, etc.)
+    """
+    try:
+        data_dict = json.loads(patient_data)
+        
+        # 1. Get EXPRAG Hybrid Context
+        hybrid_res = exprag.get_hybrid_context(data_dict, question)
+        
+        # 2. Get External SOP Context (Standard RAG)
+        sop_answer, sop_docs = rag_engine.query(question)
+        sop_context = "\n---\n".join([d.page_content for d in sop_docs])
+        
+        # 3. Consolidate Context for Synthesis
+        internal_exp = "\n---\n".join([f"Case {hit['case_id']} (Score: {hit['score']:.2f}): {hit['text']}" for hit in hybrid_res['internal_experience']])
+        
+        consolidated_context = f"""
+### 🏥 PEER EXPERIENCE (EXPRAG - SIMILAR CASES)
+{internal_exp or "No similar cases found in internal historical records."}
+
+### 📖 CLINICAL GUIDELINES & SOPs (EXTERNAL KNOWLEDGE)
+{sop_context or "No specific SOPs matches found."}
+        """
+        
+        # 4. Synthesize final answer
+        answer = rag_engine.synthesize_results(question, "Hybrid EXPRAG analysis complete.", consolidated_context)
+        
+        return json.dumps({
+            "answer": answer,
+            "cohort_ids": hybrid_res['cohort_ids'],
+            "profile": hybrid_res['patient_profile'].model_dump()
+        })
+        
+    except Exception as e:
+        pine_log(f"❌ EXPRAG Hybrid Error: {e}")
+        return json.dumps({"error": str(e)})
+
+@mcp.tool()
+def exact_identifier_search(query: str, patient_id_filter: str = None) -> str:
+    """Perform literal substring search across all ingested documents."""
+    res, hits = rag_engine.exact_search(query, patient_id_filter)
+    return res
 
 @mcp.tool()
 def synthesize_medical_results(question: str, results: str, rag_context: str = "") -> str:
