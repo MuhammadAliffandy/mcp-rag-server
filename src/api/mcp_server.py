@@ -35,7 +35,7 @@ load_dotenv()
 
 def pine_log(msg):
     try:
-        log_dir = "logs"
+        log_dir = os.path.join(project_root, "logs")
         os.makedirs(log_dir, exist_ok=True)
         with open(os.path.join(log_dir, "server_debug.log"), "a") as f:
             timestamp = datetime.datetime.now().isoformat()
@@ -50,12 +50,12 @@ mcp = FastMCP("Medical-PineBioML-Server")
 # Initialize RAG Engine (Allow logs to stdout for stability)
 rag_engine = RAGEngine()
 
-STATE_DIR = ".mcp_state"
-TABULAR_DATA_PATH = "temp_uploads/tabular_data.json"
-INTERNAL_KNOWLEDGE_PATH = "internal_docs"
+STATE_DIR = os.path.join(project_root, ".mcp_state")
+TABULAR_DATA_PATH = os.path.join(project_root, "temp_uploads/tabular_data.json")
+INTERNAL_KNOWLEDGE_PATH = os.path.join(project_root, "internal_docs")
 
 # Centralized output directory for PineBioML visualizations
-OUTPUT_DIR = "src/pinebio/outputs"
+OUTPUT_DIR = os.path.join(project_root, "src/pinebio/outputs")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # state_dir etc...
@@ -68,15 +68,32 @@ exprag = EXPRAGPipeline()
 def auto_ingest_internal():
     """Optimized: Only ingest if doc type 'internal_record' is missing."""
     if os.path.exists(INTERNAL_KNOWLEDGE_PATH):
-        # FAST CHECK: If RAG already has internal records, skip the slow directory load
-        if rag_engine.has_doc_type("internal_record"):
-            pine_log("⏭️ Internal records already in vector store. Skipping redundant auto-ingest.")
+        # Check if tabular data is already loaded in session
+        tabular_loaded = os.path.exists(TABULAR_DATA_PATH)
+        
+        # FAST CHECK: If RAG already has internal records, skip the slow directory load IF tabular data is also present
+        if rag_engine.has_doc_type("internal_record") and tabular_loaded:
+            pine_log("⏭️ Internal records already in vector store & session data loaded. Skipping redundant auto-ingest.")
             return
 
+        # If RAG is missing OR tabular data is missing, we need to load documents
         docs = DocumentProcessor.load_directory(INTERNAL_KNOWLEDGE_PATH, doc_type="internal_record")
         if docs:
-            rag_engine.ingest_documents(docs)
-            pine_log(f"✅ Auto-ingested {len(docs)} segments on startup.")
+            # Auto-extract first tabular data found to active session if not already loaded
+            if not tabular_loaded:
+                for doc in docs:
+                    if "df_json" in doc.metadata:
+                        os.makedirs(os.path.dirname(TABULAR_DATA_PATH), exist_ok=True)
+                        with open(TABULAR_DATA_PATH, "w") as f: f.write(doc.metadata["df_json"])
+                        pine_log(f"✅ Auto-loaded internal tabular data to {TABULAR_DATA_PATH}")
+                        break
+
+            # Only ingest to RAG if not already present
+            if not rag_engine.has_doc_type("internal_record"):
+                rag_engine.ingest_documents(docs)
+                pine_log(f"✅ Auto-ingested {len(docs)} segments on startup.")
+            else:
+                pine_log("⏭️ RAG ingestion skipped (already present).")
 
 auto_ingest_internal()
 
@@ -151,11 +168,13 @@ def find_semantic_column(df, user_term):
 def ingest_medical_files(directory_path: str, doc_type: str = "internal_patient") -> str:
     """Ingests medical documents and updates internal data state."""
     try:
+        os.makedirs(os.path.dirname(TABULAR_DATA_PATH), exist_ok=True)
         docs = DocumentProcessor.load_directory(directory_path, doc_type=doc_type)
         if not docs: return "No documents found."
         for doc in docs:
             if "df_json" in doc.metadata:
                 with open(TABULAR_DATA_PATH, "w") as f: f.write(doc.metadata["df_json"])
+                pine_log(f"✅ Extracted tabular data to {TABULAR_DATA_PATH}")
                 break
         rag_engine.ingest_documents(docs)
         return f"Success: Ingested {len(docs)} segments into {doc_type} context."
@@ -163,7 +182,7 @@ def ingest_medical_files(directory_path: str, doc_type: str = "internal_patient"
         return f"Ingestion error: {e}"
 
 @mcp.tool()
-def smart_intent_dispatch(question: str, patient_id_filter: str = None, chat_history: list = None) -> str:
+def smart_intent_dispatch(question: str, patient_id_filter: Optional[str] = None, chat_history: Optional[list] = None) -> str:
     """Intelligently plans medical data analysis tasks."""
     try:
         schema = ""
@@ -177,7 +196,6 @@ def smart_intent_dispatch(question: str, patient_id_filter: str = None, chat_his
                     dtype = "numeric" if pd.api.types.is_numeric_dtype(df[c]) else "categorical"
                     # Pass both for better LLM reasoning
                     schema_items.append(f"{c_clean} [ID: {c}] ({dtype})")
-                schema = ", ".join(schema_items)
                 schema = ", ".join(schema_items)
         
         res, tool, tasks, rag_context = rag_engine.smart_query(question, patient_id_filter, schema, chat_history)
@@ -194,7 +212,7 @@ def smart_intent_dispatch(question: str, patient_id_filter: str = None, chat_his
 @mcp.tool()
 def extract_data_from_rag(
     query: str = "clinical data",
-    file_pattern: str = None,
+    file_pattern: Optional[str] = None,
     save_to_session: bool = True
 ) -> str:
     """
@@ -228,13 +246,15 @@ def extract_data_from_rag(
         # 1. Find data files
         if file_pattern:
             # Direct file pattern match
-            files = glob.glob(f"internal_docs/{file_pattern}")
+            files = glob.glob(os.path.join(INTERNAL_KNOWLEDGE_PATH, file_pattern))
         else:
             # Use RAG to find relevant files (fallback to all Excel/CSV in internal_docs)
-            files = glob.glob("internal_docs/*.xlsx") + glob.glob("internal_docs/*.xls") + glob.glob("internal_docs/*.csv")
+            files = (glob.glob(os.path.join(INTERNAL_KNOWLEDGE_PATH, "*.xlsx")) + 
+                     glob.glob(os.path.join(INTERNAL_KNOWLEDGE_PATH, "*.xls")) + 
+                     glob.glob(os.path.join(INTERNAL_KNOWLEDGE_PATH, "*.csv")))
         
         if not files:
-            return "error|||No data files found in internal_docs"
+            return f"error|||No data files found in {INTERNAL_KNOWLEDGE_PATH}"
         
         # 2. Load first matching file
         data_file = files[0]
@@ -249,7 +269,7 @@ def extract_data_from_rag(
         
         # 3. Save to session if requested
         if save_to_session:
-            os.makedirs("temp_uploads", exist_ok=True)
+            os.makedirs(os.path.dirname(TABULAR_DATA_PATH), exist_ok=True)
             df.to_json(TABULAR_DATA_PATH, orient="records", indent=2)
             pine_log(f"💾 Saved to session: {len(df)} rows, {len(df.columns)} columns")
         
@@ -271,7 +291,7 @@ def query_exprag_hybrid(question: str, patient_data: str = "{}") -> str:
     This is the premium search mode for clinical reasoning. It:
     1. Identifies similar patients (Peer Experience) using EXPRAG.
     2. Retrieves specific SOPs/Guidelines from RAG.
-    3. Synthesizes a consolidated clinical recommendation.
+    3. Executes strict clinical reasoning (REASON/ANSWER format).
     
     Args:
         question: clinical question (e.g., "What's the best treatment approach?")
@@ -280,31 +300,18 @@ def query_exprag_hybrid(question: str, patient_data: str = "{}") -> str:
     try:
         data_dict = json.loads(patient_data)
         
-        # 1. Get EXPRAG Hybrid Context
-        hybrid_res = exprag.get_hybrid_context(data_dict, question)
+        # 1. Execute strict EXPRAG clinical QA
+        # This will return {reason, answer, cohort_ids, profile}
+        result = exprag.execute_clinical_qa(data_dict, question)
         
-        # 2. Get External SOP Context (Standard RAG)
-        sop_answer, sop_docs = rag_engine.query(question)
-        sop_context = "\n---\n".join([d.page_content for d in sop_docs])
-        
-        # 3. Consolidate Context for Synthesis
-        internal_exp = "\n---\n".join([f"Case {hit['case_id']} (Score: {hit['score']:.2f}): {hit['text']}" for hit in hybrid_res['internal_experience']])
-        
-        consolidated_context = f"""
-### 🏥 PEER EXPERIENCE (EXPRAG - SIMILAR CASES)
-{internal_exp or "No similar cases found in internal historical records."}
-
-### 📖 CLINICAL GUIDELINES & SOPs (EXTERNAL KNOWLEDGE)
-{sop_context or "No specific SOPs matches found."}
-        """
-        
-        # 4. Synthesize final answer
-        answer = rag_engine.synthesize_results(question, "Hybrid EXPRAG analysis complete.", consolidated_context)
+        # 2. Get External SOP Context (Standard RAG) for completeness if needed
+        # (Though execute_clinical_qa already has internal experience context)
+        # We'll return the structured EXPRAG output directly to ensure the "REASON/ANSWER" look.
         
         return json.dumps({
-            "answer": answer,
-            "cohort_ids": hybrid_res['cohort_ids'],
-            "profile": hybrid_res['patient_profile'].model_dump()
+            "answer": f"**REASON**: {result['reason']}\n\n**ANSWER**: {result['answer']}",
+            "cohort_ids": result['cohort_ids'],
+            "profile": result['profile'].model_dump()
         })
         
     except Exception as e:
@@ -312,7 +319,7 @@ def query_exprag_hybrid(question: str, patient_data: str = "{}") -> str:
         return json.dumps({"error": str(e)})
 
 @mcp.tool()
-def exact_identifier_search(query: str, patient_id_filter: str = None) -> str:
+def exact_identifier_search(query: str, patient_id_filter: Optional[str] = None) -> str:
     """Perform literal substring search across all ingested documents."""
     res, hits = rag_engine.exact_search(query, patient_id_filter)
     return res
@@ -405,6 +412,21 @@ def generate_medical_plot(
                 pine_log(f"Filtered to {len(df)} rows for patients: {patient_ids}")
 
         df.columns = [aggressive_clean(c) for c in df.columns]
+        
+        # Filter out garbage 'Unnamed' columns from Excel
+        df = df.loc[:, ~df.columns.str.contains('^Unnamed', case=False)]
+        
+        # force convert likely numeric columns
+        for col in df.columns:
+            try:
+                # Attempt to convert to numeric, coercing errors (turn non-numeric to NaN)
+                converted = pd.to_numeric(df[col], errors='coerce')
+                # Only use if not completely empty (e.g. valid data)
+                if not converted.isna().all():
+                    df[col] = converted
+            except:
+                pass
+                
         num_df = df.select_dtypes(include=['number']).dropna(axis=1, how='all').dropna()
         
         # Use centralized output directory
@@ -501,6 +523,19 @@ def generate_medical_plot(
                 # Check for target_column for coloring
                 target_col = find_semantic_column(df, target_column)
                 
+                # Robust Fallback for PCA
+                if not target_col:
+                    cat_cols = df.select_dtypes(exclude=['number'])
+                    # Prioritize columns that look like labels
+                    label_cols = [c for c in cat_cols.columns if any(t in c.lower() for t in ['status', 'diagnosis', 'group', 'class', 'label'])]
+                    if label_cols:
+                        target_col = label_cols[0]
+                    elif not cat_cols.empty:
+                        target_col = cat_cols.columns[0]
+                    else:
+                        target_col = df.columns[-1]
+                    pine_log(f"💡 PCA Target Fallback: Selected '{target_col}'")
+
                 if target_col:
                     # Get target values aligned with num_df
                     y = df.loc[num_df.index, target_col]
@@ -605,84 +640,10 @@ def generate_medical_plot(
         pine_log(f"Plotting Error: {err}")
         return f"Plot error: {e}"
 
-@mcp.tool()
-def clean_medical_data() -> str:
-    """Pre-processes medical data for machine learning using real PineBioML Imputation."""
-    try:
-        if not os.path.exists(TABULAR_DATA_PATH): return "No data to clean."
-        with open(TABULAR_DATA_PATH, "r") as f: df = pd.read_json(io.StringIO(f.read()))
-        
-        # Only clean numeric columns as per simple_imputer capability
-        num_cols = df.select_dtypes(include=['number']).columns
-        if len(num_cols) == 0: return "No numeric columns found to clean."
-        
-        cleaner = impute.simple_imputer(strategy="median")
-        df_num_cleaned = cleaner.fit_transform(df[num_cols])
-        
-        # Merge back
-        for col in num_cols:
-            df[col] = df_num_cleaned[col]
-            
-        with open(TABULAR_DATA_PATH, "w") as f: f.write(df.to_json())
-        return f"Data pre-processing successful: {len(num_cols)} numeric columns imputed using PineBioML.simple_imputer."
-    except Exception as e:
-        return f"Cleaning error: {e}"
+# Tools moved to Phase 2 section below for better detail and docstrings.
 
 @mcp.tool()
-def train_medical_model(target_column: str = None) -> str:
-    """Trains a real Random Forest predictive model using PineBioML Tuner."""
-    try:
-        if not os.path.exists(TABULAR_DATA_PATH): return "No data to train on."
-        with open(TABULAR_DATA_PATH, "r") as f: df = pd.read_json(io.StringIO(f.read()))
-        
-        target = find_semantic_column(df, target_column) or df.columns[-1]
-        X = df.select_dtypes(include=['number']).drop(columns=[target], errors='ignore')
-        y = df[target]
-        
-        if X.empty: return "No numeric features found for training."
-        
-        tuner = classification.RandomForest_tuner(n_try=10, n_cv=3) # Faster for demo
-        tuner.fit(X, y)
-        
-        return f"PineBioML Model Discovery: {target} trained. CV Score: {tuner.study.best_value:.4f}. Best params: {tuner.study.best_params}"
-    except Exception as e:
-        return f"Training error: {e}"
-
-@mcp.tool()
-def discover_markers(target_column: str = None) -> str:
-    """Performs real statistical feature importance discovery using PineBioML Volcano Plotting."""
-    try:
-        if not os.path.exists(TABULAR_DATA_PATH): return "No data for marker discovery."
-        with open(TABULAR_DATA_PATH, "r") as f: df = pd.read_json(io.StringIO(f.read()))
-        
-        # Need a binary target for Volcano
-        target = find_semantic_column(df, target_column) or df.columns[-1]
-        X = df.select_dtypes(include=['number']).drop(columns=[target], errors='ignore')
-        y = df[target]
-        
-        if len(y.unique()) != 2:
-            return "Marker discovery (Volcano) requires a binary target column (e.g. Healthy vs Sick)."
-            
-        selector = volcano.Volcano_selection(k=10, target_label=y.unique()[0])
-        selector.fit(X, y)
-        
-        # Add Visualization
-        ts = int(datetime.datetime.now().timestamp())
-        plt.figure(figsize=(10, 8))
-        selector.plotting(saving=True, save_path=OUTPUT_DIR + "/", title=f"Volcano_{ts}")
-        volcano_path = f"{OUTPUT_DIR}/Volcano_{ts}.png"
-        
-        # Ensure the file actually exists (some versions of matplotlib might not add .png automatically)
-        if not os.path.exists(volcano_path) and os.path.exists(volcano_path[:-4]):
-            os.rename(volcano_path[:-4], volcano_path)
-        
-        top_markers = ", ".join(selector.selected_score.index.tolist())
-        return f"{volcano_path}|||Top Biomarkers Found via Volcano Plot: {top_markers}. This plot identifies features with significant fold changes and p-values."
-    except Exception as e:
-        return f"Marker discovery error: {e}"
-
-@mcp.tool()
-def run_pls_analysis(target_column: str = None, patient_ids: str = None, styling: str = None) -> str:
+def run_pls_analysis(target_column: Optional[str] = None, patient_ids: Optional[str] = None, styling: Optional[str] = None) -> str:
     """
     Runs Supervised PLS-DA for class separation analysis.
     
@@ -702,6 +663,20 @@ def run_pls_analysis(target_column: str = None, patient_ids: str = None, styling
             if id_cols:
                 ids = [i.strip() for i in patient_ids.replace('-', ',').split(',')]
                 df = df[df[id_cols[0]].astype(str).isin(ids)]
+        
+        # Filter out garbage 'Unnamed' columns from Excel
+        df = df.loc[:, ~df.columns.str.contains('^Unnamed', case=False)]
+
+        # force convert likely numeric columns
+        for col in df.columns:
+            try:
+                # Attempt to convert to numeric, coercing errors (turn non-numeric to NaN)
+                converted = pd.to_numeric(df[col], errors='coerce')
+                # Only use if not completely empty (e.g. valid data)
+                if not converted.isna().all():
+                    df[col] = converted
+            except:
+                pass
 
         # Get numeric columns
         num_cols = df.select_dtypes(include=['number'])
@@ -739,7 +714,7 @@ def run_pls_analysis(target_column: str = None, patient_ids: str = None, styling
     except Exception as e: return f"PLS error: {e}"
 
 @mcp.tool()
-def run_umap_analysis(target_column: str = None, patient_ids: str = None, styling: str = None) -> str:
+def run_umap_analysis(target_column: Optional[str] = None, patient_ids: Optional[str] = None, styling: Optional[str] = None) -> str:
     """
     Runs Unsupervised UMAP for clustering analysis.
     
@@ -760,7 +735,21 @@ def run_umap_analysis(target_column: str = None, patient_ids: str = None, stylin
                 ids = [i.strip() for i in patient_ids.replace('-', ',').split(',')]
                 df = df[df[id_cols[0]].astype(str).isin(ids)]
         
-        num_cols = df.select_dtypes(include=['number'])
+        # Filter out garbage 'Unnamed' columns from Excel
+        df = df.loc[:, ~df.columns.str.contains('^Unnamed', case=False)]
+                
+        # force convert likely numeric columns
+        for col in df.columns:
+            try:
+                # Attempt to convert to numeric, coercing errors (turn non-numeric to NaN)
+                converted = pd.to_numeric(df[col], errors='coerce')
+                # Only use if not completely empty (e.g. valid data)
+                if not converted.isna().all():
+                    df[col] = converted
+            except:
+                pass
+
+        # Get numeric columns
         if num_cols.empty: return "No numeric data."
         
         exclude_terms = ['id', 'date', 'time', 'index', 'code']
@@ -773,7 +762,15 @@ def run_umap_analysis(target_column: str = None, patient_ids: str = None, stylin
         
         if not target:
             cat_cols = df.select_dtypes(exclude=['number'])
-            target = cat_cols.columns[0] if not cat_cols.empty else df.columns[-1]
+            # Prioritize columns that look like labels
+            label_cols = [c for c in cat_cols.columns if any(t in c.lower() for t in ['status', 'diagnosis', 'group', 'class', 'label'])]
+            if label_cols:
+                target = label_cols[0]
+            elif not cat_cols.empty:
+                target = cat_cols.columns[0]
+            else:
+                target = df.columns[-1]
+            pine_log(f"💡 UMAP Target Fallback: Selected '{target}'")
 
         from PineBioML.report.utils import umap_plot
         up = umap_plot()
@@ -794,7 +791,7 @@ def run_umap_analysis(target_column: str = None, patient_ids: str = None, stylin
     except Exception as e: return f"UMAP error: {e}"
 
 @mcp.tool()
-def run_correlation_heatmap(patient_ids: str = None, styling: str = None) -> str:
+def run_correlation_heatmap(patient_ids: Optional[str] = None, styling: Optional[str] = None) -> str:
     """
     Generates Feature Correlation Heatmap.
     
@@ -819,9 +816,23 @@ def run_correlation_heatmap(patient_ids: str = None, styling: str = None) -> str
                 ids = [i.strip() for i in patient_ids.replace('-', ',').split(',')]
                 df = df[df[id_cols[0]].astype(str).isin(ids)]
         
+        # force convert likely numeric columns
+        for col in df.columns:
+            try:
+                # Attempt to convert to numeric, coercing errors (turn non-numeric to NaN)
+                converted = pd.to_numeric(df[col], errors='coerce')
+                # Only use if not completely empty (e.g. valid data)
+                if not converted.isna().all():
+                    df[col] = converted
+            except:
+                pass
+
         # Get numeric columns FIRST
         num_cols = df.select_dtypes(include=['number'])
-        if num_cols.empty: return "No numeric data."
+        pine_log(f"🔢 Heatmap: Found {len(num_cols.columns)} numeric columns: {num_cols.columns.tolist()[:10]}...")
+        if num_cols.empty: 
+            pine_log("❌ Heatmap: No numeric data found!")
+            return "No numeric data."
         
         # Exclude Metadata
         exclude_terms = ['id', 'date', 'image', 'scan', 'time', 'index', 'code', 'accession']
@@ -862,11 +873,30 @@ def generate_medical_report() -> str:
     return "plots/DeepAnalysis_PCA_plot.png|||Comprehensive PineBioML Clinical Report generated with PCA, Feature Importance, and Distribution Analysis."
 
 @mcp.tool()
-def query_medical_rag(question: str, patient_id_filter: str = None) -> str:
-    """Performs semantic search across all medical documents and internal SOPs."""
-    with suppress_output():
-        ans, docs = rag_engine.query(question, patient_id_filter)
-        return ans
+def query_medical_rag(question: str, patient_id_filter: str = None, method: str = "vector") -> str:
+    """
+    Queries the internal medical knowledge base and ingested documents.
+    
+    Methods:
+    - vector: standard semantic search.
+    - sentence: high-precision sentence-window retrieval (best for detailed clinical notes).
+    - auto_merging: hierarchical context retrieval (best for long documents/SOPs).
+    """
+    try:
+        ans, sources = rag_engine.query(question, patient_id_filter, method=method)
+        rag_context = "\n---\n".join([str(d.page_content if hasattr(d, 'page_content') else d.text) for d in sources])
+        
+        # Synthesize final clinical answer
+        final_answer = rag_engine.synthesize_results(question, ans, rag_context)
+        
+        return json.dumps({
+            "answer": final_answer,
+            "sources": [str(s.metadata.get('source', 'unknown') if hasattr(s, 'metadata') else s.metadata.get('source', 'unknown')) for s in sources],
+            "method_used": method
+        })
+    except Exception as e:
+        pine_log(f"❌ RAG Error: {e}")
+        return json.dumps({"error": str(e)})
 
 @mcp.tool()
 def inspect_knowledge_base() -> str:
@@ -1234,7 +1264,7 @@ def train_medical_model(
 
 @mcp.tool()
 def generate_data_overview(
-    target_column: str = None,
+    target_column: Optional[str] = None,
     is_classification: bool = True
 ) -> str:
     """Generate comprehensive data overview with ALL visualizations at once.

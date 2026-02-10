@@ -374,7 +374,40 @@ ANSWER:"""
                 
         return formatted_res, hits
 
-    def query(self, question: str, patient_id_filter: str = None):
+    def query(self, question: str, patient_id_filter: str = None, method: str = "vector"):
+        """
+        Base query method with support for advanced medical RAG methods.
+        - vector: Standard LangChain retrieval.
+        - sentence: LlamaIndex Sentence Window retrieval.
+        - auto_merging: LlamaIndex Hierarchical merging retrieval.
+        """
+        if method in ["sentence", "auto_merging"]:
+            try:
+                from src.hub.advanced_rag import AdvancedRAGTool
+                # Get all docs from vector store to load into LlamaIndex
+                # (In production, we would persist LlamaIndex directly, but for now we bridge)
+                res = self.vector_store.get()
+                docs_to_load = []
+                for text, meta in zip(res.get("documents", []), res.get("metadatas", [])):
+                    from llama_index.core import Document
+                    docs_to_load.append(Document(text=text, metadata=meta))
+                
+                adv_rag = AdvancedRAGTool()
+                adv_rag.documents = docs_to_load
+                
+                if method == "sentence":
+                    pine_logger("🔭 Using Sentence Window Retrieval")
+                    ans, nodes = adv_rag.query_sentence_window(question)
+                else:
+                    pine_logger("🌳 Using Auto-Merging Retrieval")
+                    ans, nodes = adv_rag.query_auto_merging(question)
+                    
+                return ans, nodes
+            except Exception as e:
+                pine_logger(f"⚠️ Advanced RAG failed: {e}. Falling back to standard vector.")
+                import traceback
+                pine_logger(traceback.format_exc())
+
         if not self.qa_chain: return "Not ready.", []
         try:
             res = self.qa_chain.invoke({"query": question})

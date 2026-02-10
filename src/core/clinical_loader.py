@@ -2,42 +2,63 @@ import pandas as pd
 from typing import List
 from src.core.patient_profile import PatientProfile
 
-def load_clinical_excel(file_path: str) -> List[PatientProfile]:
+import pandas as pd
+import os
+from typing import List, Optional
+from src.core.patient_profile import PatientProfile
+
+def load_patient_data(file_path: str) -> List[PatientProfile]:
     """
-    Load clinical data from Excel and convert to PatientProfile objects.
-    
-    Mapping Strategy:
-    - patient -> case_id
-    - age_at_cpy -> age
-    - sum_pMayo -> sum_pmayo
-    - dz_location_active only -> dz_location
-    - hb -> hb
+    Unified loader for clinical data (Excel or CSV).
+    Automatically detects format and maps to PatientProfile.
     """
+    if not os.path.exists(file_path):
+        print(f"⚠️ File not found: {file_path}")
+        return []
+
+    ext = os.path.splitext(file_path)[1].lower()
     try:
-        df = pd.read_excel(file_path)
+        if ext == '.xlsx' or ext == '.xls':
+            df = pd.read_excel(file_path)
+        elif ext == '.csv':
+            df = pd.read_csv(file_path)
+        else:
+            print(f"⚠️ Unsupported format: {ext}")
+            return []
+
         profiles = []
-        
         for _, row in df.iterrows():
-            # Basic validation: must have patient ID
-            if pd.isna(row.get('patient')):
-                continue
-                
+            # Flexible Mapping Logic
+            def get_val(keys, default=None):
+                for k in keys:
+                    if k in row and not pd.isna(row[k]):
+                        return row[k]
+                return default
+
+            case_id = str(get_val(['patient', 'hadm_id', 'case_id'], 'unknown'))
+            if case_id == 'unknown': continue
+
+            # Extract fields with multi-key support (mapping standard EHR keys)
             profile = PatientProfile(
-                case_id=str(row.get('patient')),
-                indication="ibd",  # Default for this dataset
-                age=float(row.get('age_at_cpy')) if not pd.isna(row.get('age_at_cpy')) else None,
-                sum_pmayo=float(row.get('sum_pMayo')) if not pd.isna(row.get('sum_pMayo')) else None,
-                dz_location=str(row.get('dz_location_active only')) if not pd.isna(row.get('dz_location_active only')) else None,
-                hb=float(row.get('hb')) if not pd.isna(row.get('hb')) else None,
-                # Polyp history and procedures can be inferred or extracted if needed
-                polyp_history=[],
-                procedures=["colonoscopy"]
+                case_id=case_id,
+                indication=str(get_val(['indication', 'diagnosis'], 'screening')).lower(),
+                age=float(get_val(['age', 'age_at_cpy', 'usia'])) if get_val(['age', 'age_at_cpy', 'usia']) else None,
+                sum_pmayo=float(get_val(['sum_pmayo', 'mayo', 'mayo_score'])) if get_val(['sum_pmayo', 'mayo', 'mayo_score']) else None,
+                dz_location=str(get_val(['dz_location', 'dz_location_active only', 'location', 'lokasi'])) if get_val(['dz_location', 'dz_location_active only', 'location', 'lokasi']) else None,
+                hb=float(get_val(['hb', 'hemoglobin', 'hbg'])) if get_val(['hb', 'hemoglobin', 'hbg']) else None,
+                rectal_bleed=float(get_val(['rectal_bleed', 'bleeding'])) if get_val(['rectal_bleed', 'bleeding']) else None,
+                polyp_history=str(get_val(['polyp_history', 'polyp'], '')).split(',') if get_val(['polyp_history', 'polyp']) else [],
+                procedures=str(get_val(['procedures', 'procedure'], 'colonoscopy')).split(',')
             )
             profiles.append(profile)
-            
+
         print(f"✅ Successfully loaded {len(profiles)} clinical profiles from {file_path}")
         return profiles
-        
+
     except Exception as e:
-        print(f"❌ Error loading Excel: {e}")
+        print(f"❌ Error loading {file_path}: {e}")
         return []
+
+def load_clinical_excel(file_path: str) -> List[PatientProfile]:
+    """Legacy wrapper for backward compatibility."""
+    return load_patient_data(file_path)

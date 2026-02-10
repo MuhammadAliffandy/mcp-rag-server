@@ -10,7 +10,8 @@ from langchain_core.documents import Document as LangChainDocument
 # Helper log agar tidak crash
 def log_safe(msg):
     try:
-        log_dir = "logs"
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        log_dir = os.path.join(project_root, "logs")
         os.makedirs(log_dir, exist_ok=True)
         with open(os.path.join(log_dir, "server_debug.log"), "a") as f:
             f.write(f"[Processor] {msg}\n")
@@ -200,10 +201,16 @@ Statistical Highlights:
     @classmethod
     def load_directory(cls, directory_path: str, doc_type: str = "internal_patient") -> List[LangChainDocument]:
         all_docs = []
+        log_safe(f"📂 Loading directory: {directory_path}")
+        
         if not os.path.exists(directory_path):
+            log_safe(f"❌ Directory not found: {directory_path}")
             return []
             
-        for filename in os.listdir(directory_path):
+        files = os.listdir(directory_path)
+        log_safe(f"📄 Found {len(files)} files: {files}")
+        
+        for filename in files:
             file_path = os.path.join(directory_path, filename)
             if filename.startswith('.'): continue
             

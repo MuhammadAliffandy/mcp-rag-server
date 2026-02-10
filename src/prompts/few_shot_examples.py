@@ -231,4 +231,51 @@ Output: {
     }
   ]
 }
-"""
+
+## Example 21: Clinical Experience Reasoning (EXPRAG Hybrid)
+User: "Pasien 60 tahun dengan Mayo Score 9 dan riwayat UC. Apa rekomendasi follow-up berdasarkan pengalaman pasien serupa?"
+Output: {
+  "answer": "Saya akan mencari pasien dengan profil klinis serupa (Age: 60, Mayo: 9, Indication: UC) dan membandingkan tindakan medis mereka dengan protokol SOP kita.",
+  "thoughts": "User asks for treatment based on 'similar patients' and provides clinical metrics. High-priority for query_exprag_hybrid.",
+  "tasks": [
+    {
+      "tool": "query_exprag_hybrid",
+      "args": {
+        "question": "rekomendasi follow-up berdasarkan pengalaman pasien serupa",
+        "patient_data": "{\\\"age\\\": 60, \\\"sum_pmayo\\\": 9, \\\"indication\\\": \\\"UC\\\"}"
+      }
+    }
+  ]
+}
+
+## Example 22: Advanced Medical RAG (Sentence Window)
+User: "Lakukan analisis mendalam terhadap catatan klinis ini menggunakan Sentence Window."
+Output: {
+  "answer": "Saya akan menggunakan mesin Sentence Window untuk mengekstraksi konteks klinis yang paling detail dari catatan Anda.",
+  "thoughts": "User wants high-precision sentence-level analysis for complex records.",
+  "tasks": [
+    {
+      "tool": "query_medical_rag",
+      "args": {
+        "question": "Analisis detail catatan klinis",
+        "method": "sentence"
+      }
+    }
+  ]
+}
+
+## Example 23: Advanced Medical RAG (Auto-Merging)
+User: "What are the standard protocols for this according to the SOP documents?"
+Output: {
+  "answer": "I will scan the SOP documents using hierarchical auto-merging to find the exact official protocols for your query.",
+  "thoughts": "Long SOP documents are best handled with auto-merging for hierarchical context.",
+  "tasks": [
+    {
+      "tool": "query_medical_rag",
+      "args": {
+        "question": "Official standard protocols",
+        "method": "auto_merging"
+      }
+    }
+  ]
+}"""

@@ -16,11 +16,16 @@ def get_img_base64(file_path):
 load_dotenv()
 st.set_page_config(page_title="Medical MCP RAG & PineBioML", page_icon="🌲", layout="wide")
 
+# Project Path Discovery
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMP_UPLOADS_DIR = os.path.join(APP_DIR, "temp_uploads")
+os.makedirs(TEMP_UPLOADS_DIR, exist_ok=True)
+
 # MCP Server Parameters
 server_params = StdioServerParameters(
-    command="./venv/bin/python", # Pastikan path python benar
-    args=["src/api/mcp_server.py"],
-    env={**os.environ, "PYTHONPATH": "."}
+    command=os.path.join(APP_DIR, "venv/bin/python"),
+    args=[os.path.join(APP_DIR, "src/api/mcp_server.py")],
+    env={**os.environ, "PYTHONPATH": APP_DIR}
 )
 
 # Initialize dark mode state
@@ -322,6 +327,53 @@ async def call_mcp_tool(tool_name, arguments):
 if "messages" not in st.session_state: st.session_state.messages = []
 if "ingested" not in st.session_state: st.session_state.ingested = False
 
+# --- Helper for Rendering Tool Results ---
+def render_tool_result(m_res, t_name, step_idx):
+    """
+    Parses and renders "path|||summary" or "path1,path2|||summary" format.
+    """
+    res_text = ""
+    if "|||" in m_res:
+        paths_part, summary = m_res.split("|||")
+        
+        # Handle multiple paths (common in overview/report)
+        paths = [p.strip() for p in paths_part.split(",")]
+        
+        valid_images = []
+        for path in paths:
+            if os.path.exists(path):
+                st.image(path)
+                valid_images.append(path)
+            else:
+                # Some versions of PineBioML might not add .png
+                if os.path.exists(path + ".png"):
+                    st.image(path + ".png")
+                    valid_images.append(path + ".png")
+        
+        # Display Markdown summary
+        st.markdown(summary)
+        res_text = f"\n- {summary}"
+        
+        # Persist images for chat history (base64)
+        for img_p in valid_images:
+            img_b64 = get_img_base64(img_p)
+            res_text += f'<br><img src="data:image/png;base64,{img_b64}" width="100%" style="border-radius: 10px; margin: 10px 0;">'
+        
+        return res_text, summary
+    else:
+        # Standard text response
+        if "success|||" in m_res: # Handle "success|||message" from clean/extract
+            _, msg = m_res.split("|||")
+            st.success(msg)
+            return f"\n- {msg}", msg
+        elif "error|||" in m_res:
+            _, msg = m_res.split("|||")
+            st.error(msg)
+            return f"\n- Error: {msg}", msg
+        else:
+            st.markdown(m_res)
+            return f"\n- {m_res}", m_res
+
 # --- SIDEBAR (Premium Dashboard) ---
 with st.sidebar:
     # 1. Brand Header (ChatGPT Style)
@@ -360,20 +412,20 @@ with st.sidebar:
         if uploaded_files:
             with st.spinner("Processing..."):
                 import shutil
-                temp_dir = "temp_uploads"
-                if os.path.exists(temp_dir): shutil.rmtree(temp_dir)
-                os.makedirs(temp_dir, exist_ok=True)
+                if os.path.exists(TEMP_UPLOADS_DIR): shutil.rmtree(TEMP_UPLOADS_DIR)
+                os.makedirs(TEMP_UPLOADS_DIR, exist_ok=True)
                 
                 for f in uploaded_files:
-                    with open(os.path.join(temp_dir, f.name), "wb") as out:
+                    target_p = os.path.join(TEMP_UPLOADS_DIR, f.name)
+                    with open(target_p, "wb") as out:
                         out.write(f.getbuffer())
                 
                 res = asyncio.run(call_mcp_tool("ingest_medical_files", {
-                    "directory_path": os.path.abspath(temp_dir),
+                    "directory_path": TEMP_UPLOADS_DIR,
                     "doc_type": "session_upload"
                 }))
                 st.session_state.ingested = True
-                st.success("Context loaded.")
+                st.success(f"Context loaded from {len(uploaded_files)} files.")
         else:
             st.warning("Upload first.")
 
@@ -507,16 +559,6 @@ if st.session_state.get("processing_pending", False):
             else:
                 tasks.append(t)
 
-        # SURGICAL DEBUG for Visualization Fix
-        print(f"DEBUG: tool='{tool}', tasks_len={len(tasks)}, raw_len={len(raw_tasks)}")
-        # SURGICAL DEBUG for Visualization Fix (Sidebar Only for cleanliness)
-        with st.sidebar:
-            st.divider()
-            st.caption("🔍 Orchestrator Status")
-            st.code(f"Tool: {tool}\nTasks: {len(tasks)}")
-            if tasks:
-                st.json(tasks)
-
         # Store rag_context in session state for later synthesis
         st.session_state.current_rag_context = rag_context
 
@@ -573,231 +615,125 @@ if st.session_state.get("processing_pending", False):
                 if t_name in ["clean", "clean_medical_data"]:
                     with st.spinner("Cleaning medical data..."):
                         m_res = asyncio.run(call_mcp_tool("clean_medical_data", t_args))
-                        st.success(m_res)
-                        res += f"\n- {m_res}"
-                        tool_outputs.append(f"Clean Data: {m_res}")
+                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        res += update_res
+                        tool_outputs.append(f"Clean Data: {tool_findings}")
                 
                 elif t_name in ["extract", "extract_data_from_rag"]:
                     with st.spinner("Dr. AI is meticulously retrieving clinical records..."):
                         m_res = asyncio.run(call_mcp_tool("extract_data_from_rag", t_args))
-                        if "success|||" in m_res:
-                            _, summary = m_res.split("|||")
-                            # Extract common label for clean display
-                            clean_summary = summary.split(". Columns:")[0] if ". Columns:" in summary else summary
-                            st.success(f"✅ {clean_summary}")
-                            
-                            # Move technical column info to hidden expander
-                            if ". Columns:" in summary:
-                                with st.expander("🔍 View Technical Data Schema"):
-                                    st.write(summary.split(". Columns:")[1])
-                                    
-                            res += f"\n- Medical data preparation complete: {clean_summary}"
-                            tool_outputs.append(f"Data Extraction: {summary}")
-                        else:
-                            st.error(f"❌ Record retrieval challenge: {m_res}")
-                            res += f"\n- Extraction failed: {m_res}"
+                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        res += update_res
+                        tool_outputs.append(f"Data Extraction: {tool_findings}")
                 
                 elif t_name in ["plot", "generate_medical_plot"]:
                     with st.spinner(f"Generating plot..."):
-                        # Fix: Pass ALL arguments from LLM, injecting context
-                        p_args = {k: v for k, v in t_args.items() if v is not None} # Sanitize immediately
+                        p_args = {k: v for k, v in t_args.items() if v is not None}
                         p_args["patient_ids"] = patient_filter
                         if "plot_type" not in p_args: p_args["plot_type"] = "pca"
-                        
-                        # Fix argument types
                         if "styling" in p_args and isinstance(p_args["styling"], dict):
                             p_args["styling"] = json.dumps(p_args["styling"])
-                        elif "styling" not in p_args:
-                            p_args["styling"] = "{}" # Default empty JSON
-                            
-                        # Fix data_source (LLM hallucinations)
+                        elif "styling" not in p_args: p_args["styling"] = "{}"
                         p_args["data_source"] = "session"
-                        
-                        # Final conversion to ensure NO None values reach the server
-                        # (Server now supports Optional, but passing empty string is safer for Pydantic)
                         for opt_col in ["x_column", "y_column", "target_column"]:
-                            if opt_col not in p_args or p_args[opt_col] is None:
-                                p_args[opt_col] = "" # Map to empty string instead of None
+                            if opt_col not in p_args or p_args[opt_col] is None: p_args[opt_col] = ""
 
-                        try:
-                            # 1. CALL THE TOOL
-                            m_res = asyncio.run(call_mcp_tool("generate_medical_plot", p_args))
-                            
-                            # 2. DEBUG: Show RAW Response immediately
-                            with st.expander("🛠️ Tool Execution Debug", expanded=True):
-                                st.code(f"Raw Response: {m_res}")
-                                if not m_res:
-                                    st.error("Received EMPTY response from server!")
-                            
-                            # 3. Handle Result
-                            if "|||" in m_res:
-                                path, interp = m_res.split("|||")
-                                
-                                # Verify file existence
-                                if os.path.exists(path):
-                                    st.image(path)
-                                    
-                                    # Persist image
-                                    img_b64 = get_img_base64(path)
-                                    res += f'<br><img src="data:image/png;base64,{img_b64}" width="100%" style="border-radius: 10px; margin: 10px 0;">'
-                                    
-                                    st.markdown(interp)
-                                    res += f"\n- {interp}"
-                                    tool_outputs.append(f"Plot Findings: {interp}")
-                                else:
-                                    st.error(f"❌ Plot generated but file not found at: {path}")
-                                    st.caption("Common cause: Relative path issue. Try restarting the server.")
-                            else:
-                                st.error(f"❌ Server Error: {m_res}")
-                        except Exception as e:
-                            st.error(f"❌ Crash during plot execution: {str(e)}")
-                            import traceback
-                            st.code(traceback.format_exc())
+                        m_res = asyncio.run(call_mcp_tool("generate_medical_plot", p_args))
+                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        res += update_res
+                        tool_outputs.append(f"Plot Findings: {tool_findings}")
 
-                elif t_name == "run_pls_analysis":
+                elif t_name in ["run_pls_analysis", "pls"]:
                     with st.spinner("Running PLS-DA..."):
                         m_res = asyncio.run(call_mcp_tool("run_pls_analysis", t_args))
-                        if "|||" in m_res:
-                            path, txt = m_res.split("|||")
-                            st.image(path)
-                            
-                            # Persist image
-                            img_b64 = get_img_base64(path)
-                            res += f'<br><img src="data:image/png;base64,{img_b64}" width="100%" style="border-radius: 10px; margin: 10px 0;">'
-                            
-                            st.markdown(txt)
-                            res += f"\n- PLS-DA Analysis complete."
-                            tool_outputs.append(f"PLS-DA Findings: {txt}")
+                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        res += update_res
+                        tool_outputs.append(f"PLS-DA Findings: {tool_findings}")
 
-                elif t_name == "run_umap_analysis":
+                elif t_name in ["run_umap_analysis", "umap"]:
                     with st.spinner("Running UMAP..."):
                         m_res = asyncio.run(call_mcp_tool("run_umap_analysis", t_args))
-                        if "|||" in m_res:
-                            path, txt = m_res.split("|||")
-                            st.image(path)
-                            
-                            # Persist image
-                            img_b64 = get_img_base64(path)
-                            res += f'<br><img src="data:image/png;base64,{img_b64}" width="100%" style="border-radius: 10px; margin: 10px 0;">'
-                            
-                            st.markdown(txt)
-                            res += f"\n- UMAP Analysis complete."
-                            tool_outputs.append(f"UMAP Findings: {txt}")
+                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        res += update_res
+                        tool_outputs.append(f"UMAP Findings: {tool_findings}")
 
-                elif t_name == "run_correlation_heatmap":
+                elif t_name in ["run_correlation_heatmap", "heatmap"]:
                     with st.spinner("Generating Heatmap..."):
                         m_res = asyncio.run(call_mcp_tool("run_correlation_heatmap", t_args))
-                        if "|||" in m_res:
-                            path, txt = m_res.split("|||")
-                            st.image(path)
-                            
-                            # Persist image
-                            img_b64 = get_img_base64(path)
-                            res += f'<br><img src="data:image/png;base64,{img_b64}" width="100%" style="border-radius: 10px; margin: 10px 0;">'
-                            
-                            st.markdown(txt)
-                            res += f"\n- Heatmap complete."
-                            tool_outputs.append(f"Heatmap Findings: {txt}")
+                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        res += update_res
+                        tool_outputs.append(f"Heatmap Findings: {tool_findings}")
                 
                 elif t_name in ["train", "train_medical_model"]:
                     with st.spinner("Training model..."):
                         m_res = asyncio.run(call_mcp_tool("train_medical_model", t_args))
-                        st.markdown(m_res)
-                        res += f"\n- Training complete."
-                        tool_outputs.append(f"Training Results: {m_res}")
+                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        res += update_res
+                        tool_outputs.append(f"Training Results: {tool_findings}")
                 
                 elif t_name == "inspect_knowledge_base":
                     with st.spinner("Inspecting knowledge base..."):
                         m_res = asyncio.run(call_mcp_tool("inspect_knowledge_base", {}))
-                        st.info("Knowledge Base Inventory")
-                        st.markdown(m_res)
-                        res += f"\n- Knowledge inspection complete."
-                        tool_outputs.append(f"Knowledge Inventory: {m_res}")
+                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        res += update_res
+                        tool_outputs.append(f"Knowledge Inventory: {tool_findings}")
 
                 elif t_name in ["discover", "discover_markers"]:
-                    with st.spinner("Discovering biomarkers..."):
+                    with st.spinner("Identifying biomarkers..."):
                         m_res = asyncio.run(call_mcp_tool("discover_markers", t_args))
-                        st.markdown(m_res)
-                        res += f"\n- Biomarkers identified."
-                        tool_outputs.append(f"Discovery Results: {m_res}")
+                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        res += update_res
+                        tool_outputs.append(f"Discovery Results: {tool_findings}")
                 
                 elif t_name in ["report", "generate_medical_report"]:
                     with st.spinner("Generating report..."):
                         m_res = asyncio.run(call_mcp_tool("generate_medical_report", {}))
-                        if "|||" in m_res:
-                            path, txt = m_res.split("|||")
-                            st.image(path)
-                            
-                            # Persist image
-                            img_b64 = get_img_base64(path)
-                            res += f'<br><img src="data:image/png;base64,{img_b64}" width="100%" style="border-radius: 10px; margin: 10px 0;">'
-                            
-                            st.markdown(txt)
-                            res += f"\n- Report generated."
-                            tool_outputs.append(f"Report Summary: {txt}")
+                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        res += update_res
+                        tool_outputs.append(f"Report Summary: {tool_findings}")
+
+                elif t_name in ["generate_data_overview", "overview", "full_overview", "perform_deep_analysis"]:
+                    with st.spinner("Preparing comprehensive data overview..."):
+                        m_res = asyncio.run(call_mcp_tool("generate_data_overview", t_args))
+                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        res += update_res
+                        tool_outputs.append(f"Overview Results: {tool_findings}")
                 
                 elif t_name in ["rag", "query_medical_rag"]:
-                    with st.spinner("Consulting internal clinical documentation..."):
-                        m_res = asyncio.run(call_mcp_tool("query_medical_rag", {"question": last_user_prompt}))
-                        with st.expander("🔍 Clinical Knowledge Base Records", expanded=False):
-                            st.markdown(m_res)
-                        res += f"\n- Medical records and clinical documentation retrieved."
-                        tool_outputs.append(f"RAG Knowledge: {m_res}")
+                    with st.spinner("Consulting clinical records..."):
+                        m_res = asyncio.run(call_mcp_tool("query_medical_rag", t_args))
+                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        res += update_res
+                        tool_outputs.append(f"RAG Knowledge: {tool_findings}")
 
                 elif t_name == "exact_identifier_search":
-                    with st.spinner("Searching for specific patient identifiers..."):
-                        m_res = asyncio.run(call_mcp_tool("exact_identifier_search", {"query": last_user_prompt, "patient_id_filter": patient_filter}))
-                        with st.expander("🔍 Patient Identifier Search Results", expanded=False):
-                            st.markdown(m_res) # This will render the markdown + code blocks
-                        res += f"\n- Precise clinical data points identified."
-                        tool_outputs.append(f"Exact Search Results: {m_res}")
+                    with st.spinner("Searching for identifiers..."):
+                        m_res = asyncio.run(call_mcp_tool("exact_identifier_search", t_args))
+                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        res += update_res
+                        tool_outputs.append(f"Exact Search: {tool_findings}")
 
                 elif t_name in ["describe", "get_data_context"]:
-                    with st.spinner("Analyzing patient data context..."):
+                    with st.spinner("Analyzing data context..."):
                         m_res = asyncio.run(call_mcp_tool("get_data_context", {}))
-                        with st.expander("🔍 Detailed Data Schema Overview", expanded=False):
-                            st.markdown(m_res)
-                        res += f"\n- Data Summary Loaded."
-                        tool_outputs.append(f"Data Summary: {m_res}")
+                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        res += update_res
+                        tool_outputs.append(f"Data Summary: {tool_findings}")
 
                 elif t_name == "query_exprag_hybrid":
-                    with st.spinner("Finding similar cases and SOPs..."):
-                        # Handle potential JSON string from LLM
-                        p_data = t_args.get("patient_data", {})
-                        if isinstance(p_data, str):
-                            # Already a string, use as is (try to validate if valid JSON first?)
-                            try:
-                                json.loads(p_data) # Check validity
-                                p_data_str = p_data
-                            except:
-                                p_data_str = "{}"
-                        else:
-                            # Is a dict, dump to string
-                            p_data_str = json.dumps(p_data)
-
-                        exprag_args = {"question": last_user_prompt, "patient_data": p_data_str}
-                        
-                        # DEBUG
-                        print(f"📡 Calling EXPRAG with: {exprag_args}")
-                        
-                        m_res = asyncio.run(call_mcp_tool("query_exprag_hybrid", exprag_args))
-                        
-                        # DEBUG
-                        print(f"📥 EXPRAG Raw Response: {m_res[:200]}...")
-
+                    with st.spinner("Finding similar cases..."):
+                        # ... preserved exprag logic ...
+                        p_data = t_args.get("patient_data", "{}")
+                        if not isinstance(p_data, str): p_data = json.dumps(p_data)
+                        m_res = asyncio.run(call_mcp_tool("query_exprag_hybrid", {"question": last_user_prompt, "patient_data": p_data}))
                         try:
-                            hybrid_result = json.loads(m_res)
-                            if "error" in hybrid_result:
-                                st.error(f"❌ EXPRAG Error: {hybrid_result['error']}")
-                            else:
-                                with st.expander("🔍 Similar Patient Cohort", expanded=False):
-                                    st.write(f"**Similar Cases:** {hybrid_result.get('cohort_ids', [])}")
-                                    st.json(hybrid_result.get('profile', {}))
-                                st.markdown(hybrid_result.get('answer', ''))
-                                res += f"\n- Hybrid EXPRAG analysis complete."
-                                tool_outputs.append(f"EXPRAG: {hybrid_result.get('answer', '')}")
-                        except json.JSONDecodeError:
-                            st.error(f"❌ Failed to parse EXPRAG result: {m_res}")
+                            hb_res = json.loads(m_res)
+                            ans_txt = hb_res.get('answer', '')
+                            st.markdown(ans_txt)
+                            res += f"\n- Hybrid Analysis complete."
+                            tool_outputs.append(f"EXPRAG: {ans_txt}")
+                        except:
+                            st.error(m_res)
 
                 else:
                     st.warning(f"⚠️ Unrecognized tool: **{t_name}**")
@@ -822,3 +758,7 @@ if st.session_state.get("processing_pending", False):
         st.markdown('</div></div>', unsafe_allow_html=True)
         st.session_state.messages.append({"role": "assistant", "content": res})
         st.rerun()
+
+
+# --- SYSTEM FOOTER ---
+# Logic consolidated in mcp_server.py

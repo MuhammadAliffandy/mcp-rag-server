@@ -1,265 +1,189 @@
-"""
-EXPRAG Pipeline - Complete 3-Phase Implementation
-
-This module orchestrates the full EXPRAG workflow:
-1. Data Structuring: Convert unstructured data to PatientProfile
-2. Coarse Ranking: Find similar patients using Jaccard similarity
-3. Scoped Retrieval: Query Pinecone with metadata filter on cohort
-"""
-
 from typing import List, Dict, Any, Optional
+import pandas as pd
 from src.core.patient_profile import PatientProfile
-from src.core.similarity import rank_cohort, get_cohort_ids
+from src.core.similarity import get_cohort_ids
 from src.hub.pinecone_connector import PineconeRetriever
+from src.core.prompt_engine import EXPRAGPromptEngine
+from src.core.clinical_loader import load_patient_data
+from src.hub.database import EHRDatabase
 
-
-from src.core.clinical_loader import load_clinical_excel
 
 class EXPRAGPipeline:
     """
-    Complete EXPRAG workflow orchestrator.
+    Complete EXPRAG workflow orchestrator (Advanced 2.0).
     
-    This pipeline implements the 3-phase experience retrieval architecture:
-    - Phase 1: Structured comparison base
-    - Phase 2: Efficient coarse filtering
-    - Phase 3: Precise vector search within cohort
+    Implements:
+    - Multi-Axis Similarity
+    - Quintile Diversity Binning
+    - SQL/CSV Record Persistence
+    - Dual RAG Modes (Combine/Separate)
     """
     
-    def __init__(self, pinecone_index: str = "medical-records", excel_path: str = "./internal_docs/Test_AI for MES classification_clinical data_20251002.xlsx"):
-        """
-        Initialize EXPRAG pipeline.
-        
-        Args:
-            pinecone_index: Name of Pinecone index for Phase 3
-            excel_path: Path to the experience database (Excel)
-        """
+    def __init__(
+        self, 
+        pinecone_index: str = "medical-records", 
+        excel_path: str = "./internal_docs/Test_AI for MES classification_clinical data_20251002.xlsx",
+        db_path: str = "./internal_docs/mimic_iv_records.db",
+        rag_mode: str = "combine",
+        use_diversity: bool = True
+    ):
         self.pinecone = PineconeRetriever(index_name=pinecone_index)
-        self.database: List[PatientProfile] = []
+        self.database: EHRDatabase = EHRDatabase(db_path)
+        self.profiles: List[PatientProfile] = []
+        self.prompt_engine = EXPRAGPromptEngine()
         
-        # Auto-load database if file exists
+        # Ablation / Configuration Flags
+        self.rag_mode = rag_mode
+        self.use_diversity = use_diversity
+        
+        # Auto-load profile metadata if file exists
         import os
         if os.path.exists(excel_path):
-            self.load_patient_database(load_clinical_excel(excel_path))
+            self.load_profiles(load_patient_data(excel_path))
     
-    def load_patient_database(self, profiles: List[PatientProfile]):
-        """
-        Load historical patient profiles for comparison.
-        """
-        self.database = profiles
-        print(f"📊 Loaded {len(profiles)} patient profiles into Experience Index")
+    def load_profiles(self, profiles: List[PatientProfile]):
+        """Load profile metadata for similarity comparison."""
+        self.profiles = profiles
+        print(f"📊 Experience Base: {len(profiles)} patient profiles registered.")
 
-    def get_hybrid_context(
-        self,
-        current_patient_data: Dict[str, Any],
-        query: str,
-        top_k_cohort: int = 5
-    ) -> Dict[str, Any]:
-        """
-        Consolidated method for Hybrid RAG retrieval.
-        Retrieves both Peer Experience (Internal) and Knowledge (External).
-        """
-        # 1. Internal Experience Stream
-        profile = self.create_profile_from_dict(current_patient_data)
-        cohort_ids = self.find_similar_cohort(profile, top_k=top_k_cohort)
-        internal_context = self.retrieve_context(query, cohort_ids)
-        
-        # 2. External Knowledge Stream (Placeholder - would call RAGEngine)
-        # For now, we return a structured dictionary that the Orchestrator can use
-        
-        return {
-            'patient_profile': profile,
-            'cohort_ids': cohort_ids,
-            'internal_experience': internal_context,
-            'query': query
-        }
-
-    def create_profile_from_dict(self, data: Dict[str, Any]) -> PatientProfile:
-        """
-        Phase 1: Convert unstructured data to PatientProfile.
-        Maps messy keys to structured clinical metrics.
-        """
-        # Normalize polyp_history from string to list if needed
-        polyp_history = data.get('polyp_history', [])
-        if isinstance(polyp_history, str):
-            polyp_history = [p.strip() for p in polyp_history.split(',') if p.strip()]
-        
-        # Normalize procedures from string to list if needed
-        procedures = data.get('procedures', [])
-        if isinstance(procedures, str):
-            procedures = [p.strip() for p in procedures.split(',') if p.strip()]
-        
-        # Clinical Mapping (Fuzzy identification of keys)
-        def find_val(keys):
-            for k in keys:
-                if k in data: return data[k]
-            return None
-
-        profile = PatientProfile(
-            case_id=str(data.get('case_id', data.get('patient', 'unknown'))),
-            indication=data.get('indication', 'screening'),
-            age=find_val(['age', 'age_at_cpy', 'usia']),
-            sum_pmayo=find_val(['sum_pmayo', 'mayo', 'mayo_score']),
-            dz_location=find_val(['dz_location', 'location', 'lokasi']),
-            hb=find_val(['hb', 'hemoglobin', 'hbg']),
-            rectal_bleed=find_val(['rectal_bleed', 'bleeding']),
-            polyp_history=polyp_history,
-            procedures=procedures
-        )
-        
-        return profile
-    
     def find_similar_cohort(
         self,
         input_profile: PatientProfile,
-        top_k: int = 10,
-        min_threshold: float = 0.1
+        top_k: int = 10
     ) -> List[str]:
-        """
-        Phase 2: Find Top-K similar patients using Jaccard similarity.
-        
-        Args:
-            input_profile: The current patient's profile
-            top_k: Number of similar cases to retrieve
-            min_threshold: Minimum similarity threshold
-        
-        Returns:
-            List of case_ids for similar patients
-            
-        Example:
-            >>> cohort_ids = pipeline.find_similar_cohort(current_patient, top_k=5)
-            >>> # Returns: ["analysis_id_1", "analysis_id_2", ...]
-        """
-        if not self.database:
-            print("⚠️ Patient database is empty. Load profiles first.")
-            return []
-        
-        cohort_ids = get_cohort_ids(
+        """Phase 2: Find similar patients with optional Diversity Binning."""
+        return get_cohort_ids(
             input_profile,
-            self.database,
+            self.profiles,
             top_k=top_k,
-            min_threshold=min_threshold
+            use_diversity=self.use_diversity
         )
-        
-        print(f"🎯 Phase 2 Complete: Found {len(cohort_ids)} similar cases")
-        return cohort_ids
     
-    def retrieve_context(
-        self,
-        query: str,
-        cohort_ids: List[str],
-        top_k: int = 5
-    ) -> List[Dict[str, Any]]:
+    def get_structured_context(
+        self, 
+        query: str, 
+        cohort_ids: List[str], 
+        top_k_chunks: int = 3
+    ) -> str:
         """
-        Phase 3: Retrieve relevant context (Pinecone or In-Memory Fallback).
-        
-        If Pinecone is unavailable, falls back to returning the raw patient 
-        data from the in-memory database for the given cohort IDs.
+        Phase 3: Scoped Retrieval & Formatting.
+        - combine: Standard RAG across all cohort chunks.
+        - separate: Fetches full records from EHRDatabase for a patient-by-patient overview.
         """
-        # Try Pinecone first
-        results = self.pinecone.retrieve_scoped_context(
-            query=query,
-            cohort_ids=cohort_ids,
-            top_k=top_k
-        )
+        if self.rag_mode == "separate":
+            # Fetch full patient summaries from EHRDatabase
+            summaries = []
+            for pid in cohort_ids:
+                record = self.database.get_full_record(pid)
+                if record:
+                    summaries.append({'case_id': pid, 'text': record[:2000] + "..."}) # Snippet
+            return self.prompt_engine.build_experience_block(summaries)
         
-        # Fallback: If Pinecone returned nothing, use in-memory database
-        if not results and self.database:
-            print("⚠️ Pinecone unavailable, using in-memory patient data fallback.")
-            for profile in self.database:
-                if profile.case_id in cohort_ids:
-                    # Convert profile to structured text context
-                    profile_text = (
-                        f"Patient {profile.case_id}: "
-                        f"Age={profile.age or 'N/A'}, "
-                        f"pMayo={profile.sum_pmayo or 'N/A'}, "
-                        f"Hb={profile.hb or 'N/A'}, "
-                        f"Location={profile.dz_location or 'N/A'}, "
-                        f"Bleeding={profile.rectal_bleed or 'N/A'}"
-                    )
-                    results.append({
-                        'case_id': profile.case_id,
-                        'score': 1.0,  # Max score for exact ID match
-                        'text': profile_text
-                    })
-            print(f"📚 In-Memory Fallback: Retrieved data for {len(results)} patients.")
-        
-        print(f"📚 Phase 3 Complete: Retrieved {len(results)} relevant chunks")
-        return results
-
-    
-    def run_full_pipeline(
-        self,
-        current_patient_data: Dict[str, Any],
-        query: str,
-        top_k_cohort: int = 10,
-        top_k_chunks: int = 5,
-        min_similarity: float = 0.1
-    ) -> Dict[str, Any]:
-        """
-        Execute complete EXPRAG workflow end-to-end.
-        
-        Args:
-            current_patient_data: Unstructured data about current patient
-            query: User's question
-            top_k_cohort: How many similar patients to find (Phase 2)
-            top_k_chunks: How many chunks to retrieve (Phase 3)
-            min_similarity: Minimum similarity threshold
-        
-        Returns:
-            Dictionary with results from all 3 phases
-            
-        Example:
-            >>> result = pipeline.run_full_pipeline(
-            ...     current_patient_data={
-            ...         "case_id": "new_001",
-            ...         "indication": "IBD",
-            ...         "polyp_history": "tubular",
-            ...         "procedures": "colonoscopy"
-            ...     },
-            ...     query="What is the typical treatment protocol?"
-            ... )
-            >>> print(result['retrieved_chunks'])
-        """
-        print("=" * 60)
-        print("🚀 Starting EXPRAG Pipeline")
-        print("=" * 60)
-        
-        # Phase 1: Structure the data
-        print("\n📋 Phase 1: Data Structuring")
-        current_profile = self.create_profile_from_dict(current_patient_data)
-        print(f"   ✅ Created profile for: {current_profile.case_id}")
-        
-        # Phase 2: Coarse ranking
-        print("\n🔍 Phase 2: Coarse Ranking")
-        cohort_ids = self.find_similar_cohort(
-            current_profile,
-            top_k=top_k_cohort,
-            min_threshold=min_similarity
-        )
-        
-        if not cohort_ids:
-            print("   ⚠️ No similar patients found")
-            return {
-                'profile': current_profile,
-                'cohort_ids': [],
-                'retrieved_chunks': []
-            }
-        
-        # Phase 3: Scoped retrieval
-        print("\n📡 Phase 3: Scoped Vector Retrieval")
-        retrieved_chunks = self.retrieve_context(
+        # Combine mode: Scoped Vector Search
+        raw_results = self.pinecone.retrieve_scoped_context(
             query=query,
             cohort_ids=cohort_ids,
             top_k=top_k_chunks
         )
         
-        print("\n" + "=" * 60)
-        print("✅ EXPRAG Pipeline Complete")
-        print("=" * 60)
+        if not raw_results:
+            # Fallback to EHRDatabase full records if Pinecone fails
+            fallback_summaries = []
+            for pid in cohort_ids:
+                record = self.database.get_full_record(pid)
+                if record:
+                    fallback_summaries.append({'case_id': pid, 'text': record[:1000]})
+            return self.prompt_engine.build_experience_block(fallback_summaries)
+            
+        return self.prompt_engine.build_experience_block(raw_results)
+
+    def run_full_pipeline(
+        self,
+        current_patient_data: Dict[str, Any],
+        query: str,
+        options: Optional[List[str]] = None,
+        top_k_cohort: int = 10
+    ) -> Dict[str, Any]:
+        """Full Advanced EXPRAG execution."""
+        print(f"🚀 Running FULL EXPRAG (Diversity: {self.use_diversity}, Mode: {self.rag_mode})")
+        
+        # 1. Profile Generation
+        current_profile = self.create_profile_from_dict(current_patient_data)
+        
+        # 2. Diversity Ranking (Phase 2)
+        cohort_ids = self.find_similar_cohort(current_profile, top_k=top_k_cohort)
+        
+        # 3. Scoped Context (Phase 3)
+        context = self.get_structured_context(query, cohort_ids)
+        
+        # 4. Prompt Synthesis (Phase 4)
+        final_prompt = self.prompt_engine.build_qa_prompt(
+            profile_dict=current_profile.to_comparison_dict(),
+            question=query,
+            experience_context=context,
+            options=options
+        )
         
         return {
-            'profile': current_profile,
+            'prompt': final_prompt,
             'cohort_ids': cohort_ids,
-            'retrieved_chunks': retrieved_chunks,
-            'query': query
+            'profile': current_profile,
+            'mode': self.rag_mode,
+            'context': context
         }
+
+    def execute_clinical_qa(
+        self,
+        current_patient_data: Dict[str, Any],
+        query: str,
+        options: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Executes the full EXPRAG pipeline and performs the final LLM reasoning.
+        Returns structured result with REASON and ANSWER.
+        """
+        from langchain_openai import ChatOpenAI
+        
+        # 1. Generate the overpowered prompt
+        pipeline_res = self.run_full_pipeline(current_patient_data, query, options)
+        full_prompt = pipeline_res['prompt']
+        
+        # 2. Call LLM (Mirroring EXPRAG strict temperature)
+        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.0)
+        response = llm.invoke(full_prompt).content
+        
+        # 3. Parse formatted output
+        parsed = self.prompt_engine.extract_reason_answer(response)
+        
+        return {
+            "reason": parsed['reason'],
+            "answer": parsed['answer'],
+            "full_response": response,
+            "cohort_ids": pipeline_res['cohort_ids'],
+            "profile": pipeline_res['profile']
+        }
+
+    def create_profile_from_dict(self, data: Dict[str, Any]) -> PatientProfile:
+        """Phase 1: Robust structure mapping."""
+        def find_val(keys):
+            for k in keys:
+                if k in data and not pd.isna(data[k]): return data[k]
+            return None
+
+        # Normalize list fields
+        def to_list(val):
+            if isinstance(val, str):
+                return [v.strip() for v in val.split(',') if v.strip()]
+            return val if isinstance(val, list) else []
+
+        return PatientProfile(
+            case_id=str(data.get('case_id', data.get('patient', 'unknown'))),
+            indication=str(data.get('indication', 'screening')).lower(),
+            age=find_val(['age', 'age_at_cpy', 'usia']),
+            sum_pmayo=find_val(['sum_pmayo', 'mayo', 'mayo_score']),
+            dz_location=find_val(['dz_location', 'location', 'lokasi']),
+            hb=find_val(['hb', 'hemoglobin', 'hbg']),
+            rectal_bleed=find_val(['rectal_bleed', 'bleeding']),
+            polyp_history=to_list(data.get('polyp_history', [])),
+            procedures=to_list(data.get('procedures', ['colonoscopy']))
+        )
