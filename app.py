@@ -486,6 +486,7 @@ else:
             </div>
             """, unsafe_allow_html=True)
         else:
+            # For history rendering, we use a single block to avoid breakage
             st.markdown(f"""
             <div class="assistant-container">
                 <div class="msg-avatar assistant-avatar">{icon_ai}</div>
@@ -562,8 +563,11 @@ if st.session_state.get("processing_pending", False):
         # Store rag_context in session state for later synthesis
         st.session_state.current_rag_context = rag_context
 
-        # Wrap assistant output in custom container
-        st.markdown(f'<div class="assistant-container"><div class="msg-avatar assistant-avatar">{icon_ai}</div><div class="assistant-content">', unsafe_allow_html=True)
+        # Use st.chat_message for synchronous, persistent feeling during execution
+        with st.chat_message("assistant"):
+            # We still wrap the internal content for styling, but in a SINGLE block per task or overall
+            # To maintain the premium look during execution:
+            container = st.container()
         
         if tool == "rag":
             st.markdown(answer)
@@ -610,7 +614,9 @@ if st.session_state.get("processing_pending", False):
                 
                 # Use mapped label or title-cased tool name
                 display_label = TOOL_LABEL_MAP.get(t_name, t_name.replace("_", " ").title())
-                st.markdown(f"**Step {i+1}: {display_label}**")
+                step_header = f"**Step {i+1}: {display_label}**"
+                st.markdown(step_header)
+                res += f"\n\n{step_header}"
                 
                 if t_name in ["clean", "clean_medical_data"]:
                     with st.spinner("Cleaning medical data..."):
@@ -755,7 +761,6 @@ if st.session_state.get("processing_pending", False):
             st.markdown(answer)
             res = answer
         
-        st.markdown('</div></div>', unsafe_allow_html=True)
         st.session_state.messages.append({"role": "assistant", "content": res})
         st.rerun()
 

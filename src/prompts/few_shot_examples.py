@@ -278,4 +278,55 @@ Output: {
       }
     }
   ]
+}
+
+## Example 24: Grouped Distribution (Indonesian)
+User: "tampilkan distribusi umur berdasarkan jenis kelamin"
+Output: {
+  "answer": "Saya akan membuat plot distribusi umur yang dikelompokkan berdasarkan jenis kelamin untuk melihat perbandingannya.",
+  "thoughts": "User wants distribution (umur) by category (jenis kelamin). Using hue_column for grouping.",
+  "tasks": [
+    {
+      "tool": "generate_medical_plot",
+      "args": {
+        "plot_type": "distribution",
+        "target_column": "age",
+        "hue_column": "sex"
+      }
+    }
+  ]
+}
+
+## Example 25: Box Plot for Comparison (English)
+User: "compare CRP levels between disease groups using a box plot"
+Output: {
+  "answer": "I will generate a box plot to compare CRP levels across different disease groups.",
+  "thoughts": "User explicitly requested a box plot for comparison. Mapping CRP to target and disease groups to hue.",
+  "tasks": [
+    {
+      "tool": "generate_medical_plot",
+      "args": {
+        "plot_type": "box",
+        "target_column": "crp",
+        "hue_column": "disease"
+      }
+    }
+  ]
+}
+
+## Example 26: Parameter Refinement (Session Aware)
+User: "ganti warna biru"
+Output: {
+  "answer": "Tentu, saya ganti warna plotnya menjadi biru.",
+  "thoughts": "User wants a style change. Checking history... Last plot used target_column='age' and type='distribution'. Reusing those params.",
+  "tasks": [
+    {
+      "tool": "generate_medical_plot",
+      "args": {
+        "plot_type": "distribution",
+        "target_column": "age",
+        "styling": { "bar_color": "blue" }
+      }
+    }
+  ]
 }"""

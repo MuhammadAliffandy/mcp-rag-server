@@ -14,6 +14,7 @@ import pandas as pd
 import matplotlib
 matplotlib.use('Agg') # CRITICAL: Fix for Process group termination failed/GUI errors
 import matplotlib.pyplot as plt
+import seaborn as sns
 import sys
 import contextlib
 import warnings
@@ -116,7 +117,8 @@ def find_semantic_column(df, user_term):
     4. Fuzzy matching (difflib)
     """
     if not user_term: return None
-    user_term = str(user_term).lower().strip()
+    # Clean user term to match aggressive_clean logic
+    user_term = str(user_term).lower().replace('_', ' ').replace('-', ' ').replace('.', ' ').strip()
     
     # Standardize column map {cleaned_name: original_name}
     cols = df.columns.tolist()
@@ -361,6 +363,7 @@ def generate_medical_plot(
     x_column: str = "",
     y_column: str = "",
     target_column: str = "",
+    hue_column: str = "",
     patient_ids: str = "",
     styling: str = "{}"
 ) -> str:
@@ -368,11 +371,12 @@ def generate_medical_plot(
     Generates medical visualizations from tabular data with flexible styling.
     
     Args:
-        plot_type: Type of plot (scatter, line, pca, distribution, bar, histogram)
+        plot_type: Type of plot (scatter, line, pca, distribution, box, violin, boxen, bar, histogram)
         data_source: Data source - 'session' for uploaded data, or path to Excel/CSV file
-        x_column: X-axis column (for scatter/line plots)
-        y_column: Y-axis column (for scatter/line plots)
-        target_column: Single column to visualize (for distribution/bar/histogram)
+        x_column: X-axis column 
+        y_column: Y-axis column
+        target_column: Main numerical target (for distribution/box/violin)
+        hue_column: Grouping column (for coloring groups)
         patient_ids: Optional patient IDs for filtering (comma-separated)
         styling: Optional JSON string with chart styling
                  Example: '{"style": {"theme": "dark", "title_size": 18}}'
@@ -386,7 +390,7 @@ def generate_medical_plot(
         - PCA: plot_type='pca' (automatic dimensionality reduction)
     """
     try:
-        pine_log(f"📉 Generating Plot: {plot_type}, X={x_column}, Y={y_column}, Target={target_column}")
+        pine_log(f"📉 Generating Plot: {plot_type}, X={x_column}, Y={y_column}, Target={target_column}, Hue={hue_column}")
         
         # Load data from specified source
         if data_source == "session":
@@ -438,16 +442,21 @@ def generate_medical_plot(
         if True: # Wrapper to preserve existing indentation
             # Scatter and Line plots (2D visualizations)
             if plot_type in ['scatter', 'scatterplot', 'scatter plot']:
-                if not x_column or not y_column:
-                    return "Error: Scatter plot requires both x_column and y_column parameters."
-                
                 # Find columns using semantic finder
                 x_col = find_semantic_column(df, x_column)
                 y_col = find_semantic_column(df, y_column)
                 
+                # Fallback if columns not specified or found
                 if not x_col or not y_col:
-                    pine_log(f"❌ Column not found. X={x_col} (req: {x_column}), Y={y_col} (req: {y_column})")
-                    return f"Error: Could not find columns. Available: {', '.join(df.columns[:10])}"
+                    if len(num_df.columns) >= 2:
+                        x_col = num_df.columns[0]
+                        y_col = num_df.columns[1]
+                        pine_log(f"💡 Scatter Fallback: Selected {x_col} and {y_col}")
+                    elif len(df.columns) >= 2:
+                        x_col = df.columns[0]
+                        y_col = df.columns[1]
+                    else:
+                        return "Error: Not enough columns for scatter plot."
                 
                 pine_log(f"Plotting scatter: {x_col} vs {y_col}")
                 
@@ -473,17 +482,21 @@ def generate_medical_plot(
                 return f"{filename}|||Scatter plot created: {x_col} vs {y_col}. {len(df)} data points plotted."
             
             elif plot_type in ['line', 'lineplot', 'line plot']:
-                if not x_column or not y_column:
-                    return "Error: Line plot requires both x_column and y_column parameters."
-                
                 # Find columns using semantic finder
                 x_col = find_semantic_column(df, x_column)
                 y_col = find_semantic_column(df, y_column)
                 
+                # Fallback if columns not specified or found
                 if not x_col or not y_col:
-                    pine_log(f"❌ Line Plot Columns not found. X={x_col}, Y={y_col}")
-                    return f"Error: Could not find columns. Available: {', '.join(df.columns[:10])}"
-                
+                    if len(num_df.columns) >= 2:
+                        x_col = num_df.columns[0]
+                        y_col = num_df.columns[1]
+                    elif len(df.columns) >= 2:
+                        x_col = df.columns[0]
+                        y_col = df.columns[1]
+                    else:
+                        return "Error: Not enough columns for line plot."
+
                 pine_log(f"Plotting Line: {x_col} vs {y_col}")
                 
                 plt.figure(figsize=(10, 6))
@@ -542,7 +555,6 @@ def generate_medical_plot(
                     unique_groups = y.unique()
                     
                     # Use professional color palette
-                    import seaborn as sns
                     palette = sns.color_palette("husl", len(unique_groups))
                     
                     for i, group in enumerate(unique_groups):
@@ -582,6 +594,48 @@ def generate_medical_plot(
                     desc += f" Groups separated by {target_col}."
                     
                 return f"{filename}|||{desc}"
+
+            elif plot_type in ['box', 'boxplot', 'violin', 'violinplot', 'boxen', 'boxenplot']:
+                # Semantic find for target (numerical Y) and hue (categorical X or Legend)
+                val_col = find_semantic_column(df, target_column)
+                hue_col = find_semantic_column(df, hue_column)
+                
+                if not val_col:
+                    if not num_df.empty:
+                        val_col = num_df.columns[0]
+                    else:
+                        return "Error: Could not find numeric column for box/violin plot."
+                
+                plt.figure(figsize=(10, 7))
+                
+                # If we have a hue but no explicit X, use hue as X
+                x_val = hue_col if hue_col else None
+                
+                try:
+                    if plot_type in ['box', 'boxplot']:
+                        sns.boxplot(data=df, x=x_val, y=val_col, hue=hue_col if x_val != hue_col else None, palette="Set2")
+                    elif plot_type in ['violin', 'violinplot']:
+                        sns.violinplot(data=df, x=x_val, y=val_col, hue=hue_col if x_val != hue_col else None, split=True, palette="Pastel1")
+                    else:
+                        sns.boxenplot(data=df, x=x_val, y=val_col, hue=hue_col if x_val != hue_col else None, palette="viridis")
+                except Exception as ex:
+                    pine_log(f"Seaborn error: {ex}")
+                    # Fallback to simple matplotlib boxplot
+                    df.boxplot(column=val_col, by=hue_col if hue_col else None)
+
+                plt.title(f"{plot_type.title()} of {val_col}" + (f" by {hue_col}" if hue_col else ""))
+                plt.xticks(rotation=45)
+                plt.tight_layout()
+                
+                # Apply custom styling
+                if styling:
+                    styler = ChartStyler(styling)
+                    styler.apply(plt.gcf(), plt.gca())
+                
+                plt.savefig(filename)
+                plt.close()
+                return f"{filename}|||{plot_type.title()} completed for {val_col}."
+
             elif plot_type in ['distribution', 'bar', 'bar chart', 'histogram', 'count', 'frequency']:
                 if target_column:
                     target_column = str(target_column)
@@ -589,10 +643,16 @@ def generate_medical_plot(
                 
                 # Find the actual column using semantic finder
                 col = find_semantic_column(df, target_column)
+                hue_col = find_semantic_column(df, hue_column)
                 
                 if not col:
-                    pine_log(f"❌ Column not found for target: {target_column}")
-                    return f"Error: Could not find column '{target_column}'. Available: {', '.join(df.columns[:10])}"
+                    # Fallback for distribution
+                    cat_cols = df.select_dtypes(exclude=['number'])
+                    if not cat_cols.empty:
+                        col = cat_cols.columns[0]
+                    else:
+                        col = df.columns[-1]
+                    pine_log(f"💡 Distribution Fallback: Selected {col}")
                 
                 pine_log(f"Plotting distribution for: {col}")
                 
@@ -608,13 +668,19 @@ def generate_medical_plot(
                         is_numeric = True
                 
                 if is_numeric and df[col].nunique() > 10:
-                    df[col].plot(kind='hist', bins=20, color='skyblue', edgecolor='black')
-                    desc = f"Histrogram of {col}"
+                    if hue_col:
+                        sns.histplot(data=df, x=col, hue=hue_col, kde=True, palette="magma", element="step")
+                    else:
+                        df[col].plot(kind='hist', bins=20, color='skyblue', edgecolor='black')
+                    desc = f"Histogram of {col}"
                 else:
-                    df[col].value_counts().head(15).plot(kind='bar', color='coral')
+                    if hue_col:
+                        sns.countplot(data=df, x=col, hue=hue_col, palette="coolwarm")
+                    else:
+                        df[col].value_counts().head(15).plot(kind='bar', color='coral')
                     desc = f"Bar Chart of {col}"
                 
-                plt.title(f"Distribution of {col}")
+                plt.title(f"Distribution of {col}" + (f" grouped by {hue_col}" if hue_col else ""))
                 plt.xticks(rotation=45)
                 plt.tight_layout()
                 
