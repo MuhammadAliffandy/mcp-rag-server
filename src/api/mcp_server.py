@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Optional
+from typing import Optional, Union
 
 # Ensure project root is in path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -11,6 +11,7 @@ import json
 import io
 import re
 import pandas as pd
+import numpy as np
 import matplotlib
 matplotlib.use('Agg') # CRITICAL: Fix for Process group termination failed/GUI errors
 import matplotlib.pyplot as plt
@@ -21,9 +22,9 @@ import warnings
 import datetime
 import traceback
 from mcp.server.fastmcp import FastMCP
-from src.hub.rag_processor import DocumentProcessor
-from src.hub.rag_engine import RAGEngine
-from src.hub.chart_styler import ChartStyler
+from PineBioML.rag.processor import DocumentProcessor
+from PineBioML.rag.engine import RAGEngine
+from PineBioML.visualization.style import ChartStyler
 from dotenv import load_dotenv
 
 # PineBioML Core Imports
@@ -57,13 +58,63 @@ INTERNAL_KNOWLEDGE_PATH = os.path.join(project_root, "internal_docs")
 
 # Centralized output directory for PineBioML visualizations
 OUTPUT_DIR = os.path.join(project_root, "src/pinebio/outputs")
+
+def _load_and_clean_data(target_column: Optional[str] = None) -> tuple[pd.DataFrame, list, str]:
+    """
+    Helper to load data, force-convert numeric columns, impute missing values,
+    and return cleaned DataFrame, feature list, and target column name.
+    """
+    if not os.path.exists(TABULAR_DATA_PATH):
+        raise FileNotFoundError("No data loaded.")
+    
+    with open(TABULAR_DATA_PATH, "r") as f:
+        df = pd.read_json(io.StringIO(f.read()))
+
+    # Find target column
+    target_col = None
+    if target_column:
+        for c in df.columns:
+            if aggressive_clean(target_column).lower() == aggressive_clean(c).lower():
+                target_col = c
+                break
+        if not target_col:
+             pine_log(f"⚠️ Target '{target_column}' not found. Available: {df.columns.tolist()}")
+             # If target not found but requested, return error in caller
+    
+    # Force convert likely numeric columns
+    for col in df.columns:
+        if target_col and col == target_col: continue
+        try:
+            # Coerce errors (turn non-numeric/ <5 to NaN)
+            converted = pd.to_numeric(df[col], errors='coerce')
+            # Use if not completely empty
+            if not converted.isna().all():
+                df[col] = converted
+                # Impute missing with mean
+                if df[col].isna().any():
+                        df[col] = df[col].fillna(df[col].mean())
+                        df[col] = df[col].fillna(0)
+        except:
+            pass
+
+    # Select features (numeric only, exclude metadata)
+    numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+    exclude_terms = ['id', 'patient', 'subject', 'code', 'accession', 'date', 'time']
+    # If target is numeric, exclude it from features
+    features = [c for c in numeric_cols if c != target_col and not any(term in c.lower() for term in exclude_terms)]
+    
+    if target_col:
+        # debug log target distribution
+        pine_log(f"📊 Target '{target_col}' distribution: {df[target_col].value_counts().to_dict()}")
+
+    return df, features, target_col
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # state_dir etc...
 os.makedirs(STATE_DIR, exist_ok=True)
 os.makedirs(INTERNAL_KNOWLEDGE_PATH, exist_ok=True)
 
-from src.core.exprag_pipeline import EXPRAGPipeline
+from PineBioML.rag.pipeline import EXPRAGPipeline
 exprag = EXPRAGPipeline()
 
 def auto_ingest_internal():
@@ -365,7 +416,7 @@ def generate_medical_plot(
     target_column: str = "",
     hue_column: str = "",
     patient_ids: str = "",
-    styling: str = "{}"
+    styling: Union[str, dict] = "{}"
 ) -> str:
     """
     Generates medical visualizations from tabular data with flexible styling.
@@ -378,7 +429,7 @@ def generate_medical_plot(
         target_column: Main numerical target (for distribution/box/violin)
         hue_column: Grouping column (for coloring groups)
         patient_ids: Optional patient IDs for filtering (comma-separated)
-        styling: Optional JSON string with chart styling
+        styling: Optional JSON string or dictionary with chart styling
                  Example: '{"style": {"theme": "dark", "title_size": 18}}'
     
     Returns:
@@ -390,6 +441,9 @@ def generate_medical_plot(
         - PCA: plot_type='pca' (automatic dimensionality reduction)
     """
     try:
+        # Robust handling: Convert dict to string if needed
+        if isinstance(styling, dict):
+            styling = json.dumps(styling)
         pine_log(f"📉 Generating Plot: {plot_type}, X={x_column}, Y={y_column}, Target={target_column}, Hue={hue_column}")
         
         # Load data from specified source
@@ -709,15 +763,18 @@ def generate_medical_plot(
 # Tools moved to Phase 2 section below for better detail and docstrings.
 
 @mcp.tool()
-def run_pls_analysis(target_column: Optional[str] = None, patient_ids: Optional[str] = None, styling: Optional[str] = None) -> str:
+def run_pls_analysis(target_column: Optional[str] = None, patient_ids: Optional[str] = None, styling: Optional[Union[str, dict]] = None) -> str:
     """
     Runs Supervised PLS-DA for class separation analysis.
     
     Args:
         target_column: Column to use for class coloring (e.g. 'Disease')
-        patient_ids: Optional comma-separated patient IDs for filtering
-        styling: Optional JSON string with chart styling
+        patient_ids: Optional patient IDs for filtering
+        styling: Optional JSON string or dictionary with chart styling
     """
+    # Robust handling: Convert dict to string if needed
+    if isinstance(styling, dict):
+        styling = json.dumps(styling)
     try:
         if not os.path.exists(TABULAR_DATA_PATH): return "No data."
         with open(TABULAR_DATA_PATH, "r") as f: df = pd.read_json(io.StringIO(f.read()))
@@ -754,6 +811,13 @@ def run_pls_analysis(target_column: Optional[str] = None, patient_ids: Optional[
         
         X = num_cols[numeric_valid]
         
+        # Handle NaN values: Fill with mean
+        if X.isna().any().any():
+            pine_log(f"⚠️ PLS-DA: Found missing values in {X.isna().sum().sum()} cells. Imputing with mean.")
+            X = X.fillna(X.mean())
+            # If any remain (e.g. all NaN column), fill with 0
+            X = X.fillna(0)
+        
         target = find_semantic_column(df, target_column)
         
         if not target:
@@ -780,15 +844,18 @@ def run_pls_analysis(target_column: Optional[str] = None, patient_ids: Optional[
     except Exception as e: return f"PLS error: {e}"
 
 @mcp.tool()
-def run_umap_analysis(target_column: Optional[str] = None, patient_ids: Optional[str] = None, styling: Optional[str] = None) -> str:
+def run_umap_analysis(target_column: Optional[str] = None, patient_ids: Optional[str] = None, styling: Optional[Union[str, dict]] = None) -> str:
     """
     Runs Unsupervised UMAP for clustering analysis.
     
     Args:
         target_column: Column to use for cluster coloring (e.g. 'Disease')
-        patient_ids: Optional comma-separated patient IDs for filtering
-        styling: Optional JSON string with chart styling
+        patient_ids: Optional patient IDs for filtering
+        styling: Optional JSON string or dictionary with chart styling
     """
+    # Robust handling: Convert dict to string if needed
+    if isinstance(styling, dict):
+        styling = json.dumps(styling)
     try:
         if not os.path.exists(TABULAR_DATA_PATH): return "No data."
         with open(TABULAR_DATA_PATH, "r") as f: df = pd.read_json(io.StringIO(f.read()))
@@ -824,6 +891,12 @@ def run_umap_analysis(target_column: Optional[str] = None, patient_ids: Optional
         
         X = num_cols[numeric_valid]
         
+        # Handle NaN values: Fill with mean
+        if X.isna().any().any():
+            pine_log(f"⚠️ UMAP: Found missing values in {X.isna().sum().sum()} cells. Imputing with mean.")
+            X = X.fillna(X.mean())
+            X = X.fillna(0)
+        
         target = find_semantic_column(df, target_column)
         
         if not target:
@@ -857,7 +930,7 @@ def run_umap_analysis(target_column: Optional[str] = None, patient_ids: Optional
     except Exception as e: return f"UMAP error: {e}"
 
 @mcp.tool()
-def run_correlation_heatmap(patient_ids: Optional[str] = None, styling: Optional[str] = None) -> str:
+def run_correlation_heatmap(patient_ids: Optional[str] = None, styling: Optional[Union[str, dict]] = None) -> str:
     """
     Generates Feature Correlation Heatmap.
     
@@ -868,8 +941,11 @@ def run_correlation_heatmap(patient_ids: Optional[str] = None, styling: Optional
     
     Args:
         patient_ids: Optional comma-separated patient IDs for filtering
-        styling: Optional JSON string with chart styling
+        styling: Optional JSON string or dictionary with chart styling
     """
+    # Robust handling: Convert dict to string if needed
+    if isinstance(styling, dict):
+        styling = json.dumps(styling)
     try:
         if not os.path.exists(TABULAR_DATA_PATH): return "No data."
         with open(TABULAR_DATA_PATH, "r") as f: df = pd.read_json(io.StringIO(f.read()))
@@ -939,7 +1015,7 @@ def generate_medical_report() -> str:
     return "plots/DeepAnalysis_PCA_plot.png|||Comprehensive PineBioML Clinical Report generated with PCA, Feature Importance, and Distribution Analysis."
 
 @mcp.tool()
-def query_medical_rag(question: str, patient_id_filter: str = None, method: str = "vector") -> str:
+def query_medical_rag(question: str, patient_id_filter: Optional[str] = None, method: str = "vector") -> str:
     """
     Queries the internal medical knowledge base and ingested documents.
     
@@ -1133,7 +1209,8 @@ def discover_markers(
     p_value_threshold: float = 0.05,
     fold_change_threshold: float = 2.0,
     top_k: int = 20,
-    strategy: str = "fold"
+    strategy: str = "fold",
+    styling: str = "{}"
 ) -> str:
     """Discover significant biomarkers using Volcano plot analysis.
     
@@ -1147,6 +1224,8 @@ def discover_markers(
         fold_change_threshold: Minimum fold-change (default: 2.0x)
         top_k: Number of top markers to return (default: 20)
         strategy: Selection strategy - "fold" (by fold-change) or "p" (by p-value)
+        styling: Optional JSON string for custom colors/theme
+                 Example: '{"colors": {"up": "red", "down": "blue"}, "labels": {"top_n": 5}}'
     
     Returns:
         String with format: "filepath|||description"
@@ -1212,10 +1291,11 @@ def discover_markers(
         # Generate volcano plot
         filename = f"{OUTPUT_DIR}/volcano_{int(datetime.datetime.now().timestamp())}.png"
         volcano_selector.plotting(
-            title="Biomarker Discovery - Volcano Plot",
+            title=f"Volcano Plot: {y.unique()[1]} vs {y.unique()[0]}",
             show=False,
             saving=True,
-            save_path=filename.replace('.png', '')
+            save_path=filename.replace('.png', ''),
+            styling=styling
         )
         
         # Format results
@@ -1234,6 +1314,8 @@ def discover_markers(
         pine_log(f"❌ Biomarker discovery error: {err}")
         return f"Error: {e}"
 
+
+import joblib
 
 @mcp.tool()
 def train_medical_model(
@@ -1258,7 +1340,7 @@ def train_medical_model(
         n_trials: Number of hyperparameter optimization trials (default: 25)
     
     Returns:
-        String with format: "status|||performance_metrics"
+        String with format: "model_path|||performance_metrics"
     
     Use Cases:
         - "Train a model to predict disease from biomarkers"
@@ -1271,31 +1353,48 @@ def train_medical_model(
         - SVM good for small sample sizes (common in medical research)
     """
     try:
-        if not os.path.exists(TABULAR_DATA_PATH):
-            return "Error: No data loaded."
-        
-        with open(TABULAR_DATA_PATH, "r") as f:
-            df = pd.read_json(io.StringIO(f.read()))
-        
-        # Find target column
-        target_col = None
-        for c in df.columns:
-            if aggressive_clean(target_column).lower() == aggressive_clean(c).lower():
-                target_col = c
-                break
+        # Use shared helper to load and clean data
+        try:
+            df, features, target_col = _load_and_clean_data(target_column)
+        except Exception as e:
+            return f"Error: {e}"
         
         if not target_col:
             return f"Error: Target column '{target_column}' not found."
-        
-        # Get features
-        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
-        exclude_terms = ['id', 'patient', 'subject', 'code', 'accession', 'date', 'time']
-        features = [c for c in numeric_cols if c != target_col and not any(term in c.lower() for term in exclude_terms)]
-        
+
+        # Features are already selected by helper
         X = df[features]
-        y = df[target_col]
+        # Fix: Force target to string to avoid "Encoders require uniformly strings or numbers" error
+        y = df[target_col].astype(str)
         
-        pine_log(f"🤖 Training {model_type} model on {len(features)} features")
+        # Check for extreme class imbalance (e.g. 1 sample) which breaks CV
+        # Naive Oversampling: Duplicate minority samples to at least n_cv (5)
+        min_samples_needed = 5
+        class_counts = y.value_counts()
+        for label, count in class_counts.items():
+            if count < min_samples_needed:
+                pine_log(f"⚠️ Class '{label}' has only {count} samples. Oversampling to {min_samples_needed} to enable CV.")
+                # Find indices of this class
+                indices = y[y == label].index
+                # Calculate how many duplicates needed
+                n_needed = min_samples_needed - count
+                # Sample with replacement
+                extras = np.random.choice(indices, n_needed, replace=True)
+                # Append to X and y
+                X_extra = X.loc[extras]
+                y_extra = y.loc[extras]
+                X = pd.concat([X, X_extra], axis=0)
+                y = pd.concat([y, y_extra], axis=0)
+        
+        # Reset index after oversampling
+        X = X.reset_index(drop=True)
+        y = y.reset_index(drop=True)
+
+        pine_log(f"🤖 Training {model_type} model on {len(features)} features. Samples after oversampling: {len(X)}")
+        
+        # Silence Optuna to prevent stdout pollution breaking MCP JSONRPC
+        import optuna
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
         
         # Select model
         if model_type == "RandomForest":
@@ -1310,23 +1409,265 @@ def train_medical_model(
         # Train
         model.fit(X, y)
         
-        # Get performance
-        best_score = model.best_score
+        # Save model
+        timestamp = int(datetime.datetime.now().timestamp())
+        model_path = os.path.join(OUTPUT_DIR, f"model_{model_type}_{timestamp}.pkl")
+        joblib.dump(model, model_path)
         
+        # Also update 'latest_model.pkl' link/copy for easy access
+        joblib.dump(model, os.path.join(OUTPUT_DIR, "latest_model.pkl"))
+        
+        # Get performance
+        best_score = model.study.best_value
+        if hasattr(model, 'default_performance'):
+            best_score = max(best_score, model.default_performance)
+        
+        # Extended Diagnosis Summary
+        target_counts = y.value_counts().to_dict()
         summary = f"🤖 Model Training Complete\n\n"
         summary += f"Model: {model_type}\n"
+        summary += f"Features ({len(features)}): {', '.join(features)}\n"
+        summary += f"Samples: {len(X)}\n"
+        summary += f"Target '{target_column}' Distribution: {target_counts}\n"
+        summary += f"Best CV Score (MCC): {best_score:.3f}\n\n"
+        summary += f"Model saved to: {os.path.basename(model_path)}"
         summary += f"Features: {len(features)}\n"
         summary += f"Samples: {len(X)}\n"
         summary += f"Best CV Score (MCC): {best_score:.3f}\n\n"
-        summary += f"Model saved and ready for predictions."
+        summary += f"Model saved to: {os.path.basename(model_path)}"
         
-        return f"success|||{summary}"
+        return f"{model_path}|||{summary}"
     
     except Exception as e:
         err = f"{e}\n{traceback.format_exc()}"
         pine_log(f"❌ Model training error: {err}")
         return f"Error: {e}"
 
+
+@mcp.tool()
+def explain_model_predictions(
+    data_source: str = "session",
+    plot_type: str = "summary",
+    model_path: Optional[str] = None,
+    styling: Union[str, dict] = "{}"
+) -> str:
+    """
+    Explains model predictions using SHAP (SHapley Additive exPlanations).
+    
+    Args:
+        data_source: "session" (current data) or path to data file
+        plot_type: "summary", "bar", or "dependence"
+        model_path: Path to trained model pkl file. Defaults to latest trained model.
+        styling: Optional JSON string or dictionary with chart styling
+    
+    Returns:
+        String with format: "filepath|||description"
+    """
+    try:
+        # Robust handling: Convert dict to string if needed
+        if isinstance(styling, dict):
+            styling = json.dumps(styling)
+        from PineBioML.explanation.shap_utils import ShapExplainer
+        
+        # Load and clean data consistently
+        # IMPORTANT: Passing None for target_column as we just need features here, 
+        # or we could rely on the model's features if we persisted them metadata.
+        # But for now, we re-clean using the same logic.
+        try:
+            df, features, _ = _load_and_clean_data()
+        except Exception as e:
+            return f"Error loading data: {e}"
+        
+        # Filter to features (ensure they match what the model expects, vaguely)
+        # Ideally we should save feature names in the model object.
+        # For now, we trust the shared logic produces the same features.
+        X = df[features]
+
+        # Load Model
+        if not model_path:
+            model_path = os.path.join(OUTPUT_DIR, "latest_model.pkl")
+            
+        # Fallback: specific path not found? Try scanning output dir for newest .pkl
+        if not os.path.exists(model_path):
+            pine_log(f"⚠️ Model not found at {model_path}. Searching for latest .pkl in {OUTPUT_DIR}...")
+            try:
+                pkl_files = [os.path.join(OUTPUT_DIR, f) for f in os.listdir(OUTPUT_DIR) if f.endswith('.pkl')]
+                if pkl_files:
+                    # Sort by modification time, newest first
+                    pkl_files.sort(key=os.path.getmtime, reverse=True)
+                    model_path = pkl_files[0]
+                    pine_log(f"✅ Found latest model: {model_path}")
+                else:
+                    return "Error: No trained model found in output directory. Please train a model first."
+            except Exception as e:
+                return f"Error searching for model: {e}"
+            
+        trained_tuner = joblib.load(model_path)
+        
+        # The tuner object has 'best_model' attribute which is the actual sklearn model
+        # And it stores X used for training in 'x' attribute (sometimes context dependent)
+        # But for SHAP we need to be careful about matching features.
+        
+        # Use simple numeric features from DF for explanation, ensuring match with training
+        # Ideally we should use the same features the model was trained on. 
+        # The tuner object might not store feature names explicitly in a easy way, 
+        # but the passed df should be same as session data.
+        
+        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+        exclude_terms = ['id', 'patient', 'subject', 'code', 'accession', 'date', 'time']
+        features = [c for c in numeric_cols if not any(term in c.lower() for term in exclude_terms)]
+        X = df[features]
+        
+        # Initialize ShapExplainer with the best_model from the tuner
+        # Determine model type for wrapper
+        m_type = "tree"
+        if "Linear" in str(type(trained_tuner.best_model)) or "Logistic" in str(type(trained_tuner.best_model)):
+             m_type = "linear"
+        elif "SVM" in str(type(trained_tuner.best_model)):
+             m_type = "kernel"
+             
+        explainer = ShapExplainer(trained_tuner.best_model, X, model_type=m_type)
+        
+        timestamp = int(datetime.datetime.now().timestamp())
+        filename = f"{OUTPUT_DIR}/shap_{plot_type}_{timestamp}.png"
+        
+        if plot_type == "summary" or plot_type == "bar":
+            explainer.summary_plot(X, plot_type="dot" if plot_type == "summary" else "bar", styling=styling, save_path=filename)
+            
+        elif plot_type == "dependence":
+            # For simplicity, pick top feature or first feature
+            # Ideally user specifies feature, but for now auto-pick
+            # Logic: Calculate mean |shap| per feature to find top one
+            feature_imp = explainer.get_feature_importance(X)
+            top_idx = np.argsort(feature_imp)[-1]
+            top_feature = X.columns[top_idx]
+            
+            explainer.dependence_plot(top_feature, X, styling=styling, save_path=filename)
+            return f"{filename}|||SHAP dependence plot for top feature: {top_feature}"
+
+        return f"{filename}|||SHAP {plot_type} plot generated."
+        
+    except Exception as e:
+        err = f"{e}\n{traceback.format_exc()}"
+        pine_log(f"❌ SHAP Error: {err}")
+        return f"Error explaining model: {e}"
+
+
+@mcp.tool()
+def evaluate_model_performance(
+    target_column: str,
+    predictions_column: str,
+    model_type: str = "Classifier",
+    styling: Union[str, dict] = "{}"
+) -> str:
+    """
+    Generates model performance plots (Confusion Matrix, ROC Curve).
+    
+    Args:
+        target_column: Column with true labels
+        predictions_column: Column with predicted labels (or probabilities for ROC)
+        model_type: Name of the model (for display)
+        styling: Optional JSON string or dictionary with chart styling
+                 Example: '{"title": "My Model ROC", "style": {"theme": "whitegrid"}}'
+    
+    Returns:
+        String with format: "filepath|||description"
+    """
+    try:
+        # Robust handling: Convert dict to string if needed
+        if isinstance(styling, dict):
+            styling = json.dumps(styling)
+        if not os.path.exists(TABULAR_DATA_PATH):
+            return "Error: No data loaded."
+            
+        with open(TABULAR_DATA_PATH, "r") as f:
+            df = pd.read_json(io.StringIO(f.read()))
+            
+        # Clean column names
+        df.columns = [aggressive_clean(c) for c in df.columns]
+        target_col = find_semantic_column(df, target_column)
+        pred_col = find_semantic_column(df, predictions_column)
+        
+        if not target_col or not pred_col:
+            return f"Error: Columns not found. Target: {target_column}, Pred: {predictions_column}"
+            
+        y_true = df[target_col]
+        y_pred = df[pred_col]
+        
+        # Determine if we should plot Confusion Matrix or ROC
+        # If predictions are probabilities (floats between 0-1), prefer ROC
+        # If labels, prefer Confusion Matrix
+        
+        is_proba = False
+        try:
+             if pd.api.types.is_numeric_dtype(y_pred) and y_pred.min() >= 0 and y_pred.max() <= 1 and y_pred.nunique() > 2:
+                 is_proba = True
+        except:
+             pass
+             
+        timestamp = int(datetime.datetime.now().timestamp())
+        
+        if is_proba:
+            # ROC Curve
+            # Need to fake a dataframe for roc_plot input format
+            # roc_plot expects y_pred_prob as DataFrame with columns = classes
+            # Assuming binary classification for simplicity if single prob col
+            
+            # Simple binary ROC
+            from sklearn import metrics
+            fpr, tpr, _ = metrics.roc_curve(y_true, y_pred, pos_label=y_true.max())
+            roc_auc = metrics.auc(fpr, tpr)
+            
+            plt.figure(figsize=(8, 6))
+            plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (area = {roc_auc:.2f})')
+            plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
+            plt.xlabel('False Positive Rate')
+            plt.ylabel('True Positive Rate')
+            plt.title(f'ROC Curve - {model_type}')
+            plt.legend(loc="lower right")
+            
+            # Apply styling
+            if styling:
+                styler = ChartStyler(styling)
+                styler.apply(plt.gcf(), plt.gca())
+                
+            filename = f"{OUTPUT_DIR}/roc_{timestamp}.png"
+            plt.savefig(filename)
+            plt.close()
+            return f"{filename}|||ROC Curve generated. AUC: {roc_auc:.2f}"
+            
+        else:
+            # Confusion Matrix
+            filename = f"{OUTPUT_DIR}/conf_matrix_{timestamp}.png"
+            
+            # Use report_utils class
+            cm_plot = report_utils.confusion_matrix_plot(
+                prefix=model_type,
+                save_path=OUTPUT_DIR + "/",  # util appends filename
+                save_fig=False,
+                show_fig=False,
+                styling=styling
+            )
+            
+            # Manually handle saving/plotting since util expects show/save options
+            # Re-implementing draw logic slightly to control figure
+            plt.figure(figsize=(8, 6))
+            from sklearn.metrics import ConfusionMatrixDisplay
+            ConfusionMatrixDisplay.from_predictions(y_true, y_pred, ax=plt.gca(), cmap='Blues')
+            plt.title(f"Confusion Matrix - {model_type}")
+            
+            if styling:
+                styler = ChartStyler(styling)
+                styler.apply(plt.gcf(), plt.gca())
+                
+            plt.savefig(filename)
+            plt.close()
+            return f"{filename}|||Confusion Matrix generated for {model_type}."
+
+    except Exception as e:
+        return f"Error plotting performance: {e}"
 
 @mcp.tool()
 def generate_data_overview(

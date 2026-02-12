@@ -1,11 +1,7 @@
 import pandas as pd
-from typing import List
-from src.core.patient_profile import PatientProfile
-
-import pandas as pd
 import os
 from typing import List, Optional
-from src.core.patient_profile import PatientProfile
+from .patient import PatientProfile
 
 def load_patient_data(file_path: str) -> List[PatientProfile]:
     """

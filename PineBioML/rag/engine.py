@@ -208,16 +208,24 @@ ANSWER:"""
         
         # 2. Delegate to Pure Orchestrator (NO HARDCODING)
         try:
-            from src.core.orchestrator import PureOrchestrator
+            from PineBioML.rag.orchestrator import PureOrchestrator
             
             orchestrator = PureOrchestrator()
             
-            # Build context dictionary
+            # Build context dictionary with STRICT truncation to avoid 128k token limit
+            # 1 token ~= 4 chars. 128k tokens ~= 500k chars.
+            # We limit specific sections to keep total prompt under ~50k tokens (200k chars)
+            
+            safe_schema = (schema_context or "")[:20000] # Limit schema to ~5k tokens
+            safe_session = session_preview[:50000] # Limit data preview to ~12k tokens
+            safe_knowledge = knowledge_preview[:30000] # Limit knowledge to ~7.5k tokens
+            safe_inventory = inventory_preview[:20000] # Limit inventory to ~5k tokens
+            
             context = {
-                "schema": schema_context or "",
-                "session_preview": session_preview,
-                "knowledge_preview": knowledge_preview,
-                "inventory_preview": inventory_preview,
+                "schema": safe_schema,
+                "session_preview": safe_session,
+                "knowledge_preview": safe_knowledge,
+                "inventory_preview": safe_inventory,
                 "chat_history": chat_history or []
             }
             
@@ -383,7 +391,7 @@ ANSWER:"""
         """
         if method in ["sentence", "auto_merging"]:
             try:
-                from src.hub.advanced_rag import AdvancedRAGTool
+                from .advanced import AdvancedRAGTool
                 # Get all docs from vector store to load into LlamaIndex
                 # (In production, we would persist LlamaIndex directly, but for now we bridge)
                 res = self.vector_store.get()

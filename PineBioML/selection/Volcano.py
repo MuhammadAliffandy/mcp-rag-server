@@ -148,56 +148,126 @@ class Volcano_selection(SelectionPipeline):
     def plotting(self,
                  external=False,
                  external_score=None,
-                 title="Welch t-test volcano",
+                 title="Volcano Plot",
                  show=True,
                  saving=False,
-                 save_path="./output/"):
+                 save_path="./output/",
+                 styling=None):
         """
-        Plotting
+        Enhanced Plotting with custom styling and labeling.
 
         Args:
-            external (bool, optional): True to use external score. Defaults to False.
-            external_score (_type_, optional): External score to be used. Only activate when external == True. Defaults to None.
-            title (str, optional): plot title. Defaults to "Welch t-test volcano".
-            show (bool, optional): True to show the plot. Defaults to True.
-            saving (bool, optional): True to save the plot. Defaults to False.
-            save_path (str, optional): The path to save plot. Only activate when saving == True. Defaults to "./output/images/".
+            styling (dict/str, optional): Styling configuration containing:
+                - colors: {'up': 'red', 'down': 'blue', 'ns': 'gray'}
+                - style: {'theme': 'whitegrid', 'dpi': 300}
+                - labels: {'top_n': 5}
         """
+        import json
+        from PineBioML.visualization.style import ChartStyler
+        
+        # Parse styling
+        config = {}
+        if styling:
+            if isinstance(styling, str):
+                try:
+                    config = json.loads(styling)
+                except:
+                    config = {}
+            else:
+                config = styling
+        
+        # Extract styling parameters
+        colors = config.get('colors', {})
+        up_color = colors.get('up', '#E64B35')  # Default Red-ish
+        down_color = colors.get('down', '#3C5488') # Default Blue-ish
+        ns_color = colors.get('ns', 'gray')
+        
+        style_opts = config.get('style', {})
+        dpi = style_opts.get('dpi', 150)
+        
+        label_opts = config.get('labels', {})
+        top_n_labels = label_opts.get('top_n', 0)
+
         log_fold = self.scores["log_fold_change"]
         log_p = self.scores["log_p_value"]
-        # choose fold change > 2 and p value < 0.05 in log scale
-        significant = np.logical_and(
-            np.abs(log_fold) >= np.log2(self.fc_threshold), log_p
-            > -np.log10(self.p_threshold))
+        
+        # Define masks
+        sig_threshold = -np.log10(self.p_threshold)
+        fc_threshold_log = np.log2(self.fc_threshold)
+        
+        mask_sig = log_p > sig_threshold
+        mask_up = (log_fold >= fc_threshold_log) & mask_sig
+        mask_down = (log_fold <= -fc_threshold_log) & mask_sig
+        mask_ns = ~(mask_up | mask_down)
 
-        if external:
-            selected = pd.Series(False, index=self.scores.index)
-            selected.loc[external_score.index] = True
-        else:
-            selected = pd.Series(False, index=significant.index)
-            selected.loc[self.selected_score.index] = True
+        # Create Plot
+        plt.figure(figsize=config.get('figure', {}).get('figsize', (10, 7)))
+        
+        # Plot Non-Significant
+        plt.scatter(x=log_fold[mask_ns],
+                    y=log_p[mask_ns],
+                    s=10,
+                    alpha=0.5,
+                    color=ns_color,
+                    label='Not Significant')
+        
+        # Plot Up-Regulated
+        plt.scatter(x=log_fold[mask_up],
+                    y=log_p[mask_up],
+                    s=20,
+                    alpha=0.8,
+                    color=up_color,
+                    label=f'Up-regulated (FC > {self.fc_threshold})')
+        
+        # Plot Down-Regulated
+        plt.scatter(x=log_fold[mask_down],
+                    y=log_p[mask_down],
+                    s=20,
+                    alpha=0.8,
+                    color=down_color,
+                    label=f'Down-regulated (FC < -{self.fc_threshold})')
 
-        # silent
-        plt.scatter(x=log_fold[~significant],
-                    y=log_p[~significant],
-                    s=0.5,
-                    color='gray')
-        # not selected
-        plt.scatter(x=log_fold[significant][~selected],
-                    y=log_p[significant][~selected],
-                    s=2)
-        # selected
-        if external:
-            plt.scatter(x=log_fold[selected], y=log_p[selected], s=2)
-        else:
-            plt.scatter(x=log_fold[selected], y=log_p[selected], s=2)
+        # Add Labels for Top N Significant Genes if requested
+        if top_n_labels > 0:
+            # Combine up and down, sort by p-value (descending log_p)
+            # Create a dataframe for easy sorting
+            sig_df = pd.DataFrame({'log_fold': log_fold, 'log_p': log_p})
+            sig_df = sig_df[mask_up | mask_down]
+            top_genes = sig_df.sort_values('log_p', ascending=False).head(top_n_labels)
+            
+            texts = []
+            for gene, row in top_genes.iterrows():
+                texts.append(plt.text(row['log_fold'], row['log_p'], str(gene), fontsize=9))
+            
+            # Simple adjustment to avoid overlap (basic implementation)
+            # For production, adjustText library is better but adds dependency
+            pass
 
+        # Apply ChartStyler for theme/grid/fonts
+        if styling:
+            styler = ChartStyler(styling)
+            styler.apply(plt.gcf(), plt.gca())
+        
+        # Customize Axes if not handled by Styler
         plt.title(title)
-        plt.xlabel("log_2 fold")
-        plt.axvline(1, linestyle="dotted", color="gray")
-        plt.axvline(-1, linestyle="dotted", color="gray")
-        plt.axhline(-np.log10(0.05), linestyle="dotted", color="gray")
-        plt.ylabel("log_10 p")
+        plt.xlabel("Log2 Fold Change")
+        plt.ylabel("-Log10 P-value")
+        
+        # Add Threshold Lines
+        plt.axvline(fc_threshold_log, linestyle="--", color="black", alpha=0.3, linewidth=0.8)
+        plt.axvline(-fc_threshold_log, linestyle="--", color="black", alpha=0.3, linewidth=0.8)
+        plt.axhline(sig_threshold, linestyle="--", color="black", alpha=0.3, linewidth=0.8)
+        
+        plt.legend(loc='best')
+        plt.tight_layout()
+
         if saving:
-            plt.savefig(save_path + title, format="png")
-        plt.show()
+            # Append extension if missing, verify path
+            full_path = save_path if save_path.endswith('.png') else f"{save_path}.png"
+            plt.savefig(full_path, format="png", dpi=dpi, bbox_inches='tight')
+            
+        if show:
+            plt.show() # Note: In Agg backend this does nothing, which is fine
+        
+        # Explicitly close to free memory
+        plt.close()

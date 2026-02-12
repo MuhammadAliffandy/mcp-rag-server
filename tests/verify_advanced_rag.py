@@ -6,7 +6,7 @@ import asyncio
 # Add project root to path
 sys.path.append(os.getcwd())
 
-from src.hub.rag_engine import RAGEngine
+from PineBioML.rag.engine import RAGEngine
 
 def test_retrieval_modes():
     print("🚀 Initializing Advanced RAG Verification...")

@@ -6,7 +6,7 @@ Implements Multi-Axis scoring and Quintile Binning for experience diversity.
 from typing import List, Tuple, Dict, Any
 import math
 from math import ceil
-from src.core.patient_profile import PatientProfile
+from PineBioML.data.patient import PatientProfile
 
 
 def calculate_jaccard(set_a: set, set_b: set) -> float:

@@ -388,10 +388,10 @@ class Basic_tuner(ABC, BaseEstimator):
                              n_startup_trials=self.n_try // 3)
         self.study = optuna.create_study(direction="maximize", sampler=sampler)
 
-        print(
-            "optuna seed {self.optuna_seed}  |  validation seed {self.valid_seed}  |  model seed {self.kernel_seed}"
-            .format(self=self))
-        print("    {} start tuning. it will take a while.".format(self.name()))
+        # print(
+        #     "optuna seed {self.optuna_seed}  |  validation seed {self.valid_seed}  |  model seed {self.kernel_seed}"
+        #     .format(self=self))
+        # print("    {} start tuning. it will take a while.".format(self.name()))
         # using optuna tuning hyper parameter
         self.training = True
         self.default = False
@@ -416,12 +416,12 @@ class Basic_tuner(ABC, BaseEstimator):
         #      format(self.default_performance, self.study.best_trial.value))
         if self.default_performance > self.study.best_trial.value:
             # default better
-            print("    default is better.")
+            # print("    default is better.")
             self.best_model = self.default_model
         else:
             # optuna better
-            print("    optuna is better, best trial: ",
-                  self.study.best_trial.number)
+            # print("    optuna is better, best trial: ",
+            #       self.study.best_trial.number)
             self.best_model = self.optuna_model
             """
             # threshold tuner for binary classification

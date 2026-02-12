@@ -441,6 +441,8 @@ class corr_heatmap_plot(basic_plot):
         plot.set_title("{} {}".format(self.prefix, self.name))
 
 
+from PineBioML.visualization.style import ChartStyler
+
 class confusion_matrix_plot(basic_plot):
     """
     plot confusion matrix of given ground true label and predictions.
@@ -450,7 +452,8 @@ class confusion_matrix_plot(basic_plot):
                  prefix="",
                  save_path="./output/images/",
                  save_fig=True,
-                 show_fig=True):
+                 show_fig=True,
+                 styling=None):
         """
 
         Todo:
@@ -462,6 +465,7 @@ class confusion_matrix_plot(basic_plot):
                          show_fig=show_fig)
         self.name = "Confusion Matrix"
         self.normalize = None
+        self.styling = styling
 
     def draw(self, y_true: pd.Series, y_pred: pd.Series):
         """
@@ -478,6 +482,10 @@ class confusion_matrix_plot(basic_plot):
             normalize=self.normalize,
             xticks_rotation="vertical")
         plot.ax_.set_title("{} {}".format(self.prefix, self.name))
+        
+        if self.styling:
+            styler = ChartStyler(self.styling)
+            styler.apply(plot.figure_, plot.ax_)
 
 
 class roc_plot(basic_plot):
@@ -490,7 +498,8 @@ class roc_plot(basic_plot):
                  prefix="",
                  save_path="./output/images/",
                  save_fig=True,
-                 show_fig=True):
+                 show_fig=True,
+                 styling=None):
         """
 
         Args:
@@ -502,6 +511,7 @@ class roc_plot(basic_plot):
                          show_fig=show_fig)
         self.name = "ROC Curve"
         self.pos_label = pos_label
+        self.styling = styling
 
     def draw(self, y_true: pd.Series, y_pred_prob: pd.DataFrame):
         """
@@ -541,6 +551,10 @@ class roc_plot(basic_plot):
         plt.ylabel('True Positive Rate')
         plt.xlabel('False Positive Rate')
         plt.legend(loc='lower right')
+        
+        if self.styling:
+            styler = ChartStyler(self.styling)
+            styler.apply(plt.gcf(), plt.gca())
 
 
 def data_overview(input_x: pd.DataFrame,

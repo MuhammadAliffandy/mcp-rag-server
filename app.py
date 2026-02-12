@@ -341,14 +341,19 @@ def render_tool_result(m_res, t_name, step_idx):
         
         valid_images = []
         for path in paths:
-            if os.path.exists(path):
+            # Fix: Check if file is actually an image before rendering
+            is_image = path.lower().endswith(('.png', '.jpg', '.jpeg'))
+            
+            if os.path.exists(path) and is_image:
                 st.image(path)
                 valid_images.append(path)
-            else:
-                # Some versions of PineBioML might not add .png
-                if os.path.exists(path + ".png"):
-                    st.image(path + ".png")
-                    valid_images.append(path + ".png")
+            elif os.path.exists(path + ".png"):
+                 # Handle implicit png extensions
+                 st.image(path + ".png")
+                 valid_images.append(path + ".png")
+            elif os.path.exists(path):
+                # Non-image file (like .pkl model) -> Just mention it
+                st.caption(f"📁 Generated file: `{os.path.basename(path)}`")
         
         # Display Markdown summary
         st.markdown(summary)
@@ -618,6 +623,13 @@ if st.session_state.get("processing_pending", False):
                 st.markdown(step_header)
                 res += f"\n\n{step_header}"
                 
+                # GLOBAL FIX: Ensure 'styling' is always a JSON string if present
+                if "styling" in t_args:
+                    if isinstance(t_args["styling"], dict):
+                        t_args["styling"] = json.dumps(t_args["styling"])
+                    elif not isinstance(t_args["styling"], str):
+                        t_args["styling"] = "{}"
+                
                 if t_name in ["clean", "clean_medical_data"]:
                     with st.spinner("Cleaning medical data..."):
                         m_res = asyncio.run(call_mcp_tool("clean_medical_data", t_args))
@@ -637,9 +649,7 @@ if st.session_state.get("processing_pending", False):
                         p_args = {k: v for k, v in t_args.items() if v is not None}
                         p_args["patient_ids"] = patient_filter
                         if "plot_type" not in p_args: p_args["plot_type"] = "pca"
-                        if "styling" in p_args and isinstance(p_args["styling"], dict):
-                            p_args["styling"] = json.dumps(p_args["styling"])
-                        elif "styling" not in p_args: p_args["styling"] = "{}"
+                        # Styling handled globally now
                         p_args["data_source"] = "session"
                         for opt_col in ["x_column", "y_column", "target_column"]:
                             if opt_col not in p_args or p_args[opt_col] is None: p_args[opt_col] = ""
@@ -677,6 +687,14 @@ if st.session_state.get("processing_pending", False):
                         res += update_res
                         tool_outputs.append(f"Training Results: {tool_findings}")
                 
+                elif t_name == "explain_model_predictions":
+                    with st.spinner("Explaining model predictions..."):
+                        # Styling handled globally
+                        m_res = asyncio.run(call_mcp_tool("explain_model_predictions", t_args))
+                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        res += update_res
+                        tool_outputs.append(f"Model Explanation: {tool_findings}")
+
                 elif t_name == "inspect_knowledge_base":
                     with st.spinner("Inspecting knowledge base..."):
                         m_res = asyncio.run(call_mcp_tool("inspect_knowledge_base", {}))
@@ -708,6 +726,27 @@ if st.session_state.get("processing_pending", False):
                 elif t_name in ["rag", "query_medical_rag"]:
                     with st.spinner("Consulting clinical records..."):
                         m_res = asyncio.run(call_mcp_tool("query_medical_rag", t_args))
+                        
+                        # Try parsing JSON to show clean answer
+                        try:
+                            res_json = json.loads(m_res)
+                            if "answer" in res_json:
+                                answer = res_json["answer"]
+                                sources = res_json.get("sources", [])
+                                method = res_json.get("method_used", "unknown")
+                                
+                                st.markdown(f"### 🩺 Clinical Insight ({method})\n{answer}")
+                                with st.expander("📚 View Sources"):
+                                    for s in sources:
+                                        st.caption(f"- {s}")
+                                
+                                # Update chat history with just the answer
+                                res += f"\n- {answer}"
+                                tool_outputs.append(f"RAG Answer: {answer}")
+                                continue # Skip default render_tool_result
+                        except:
+                            pass # Fallback to default render if not valid JSON
+                            
                         update_res, tool_findings = render_tool_result(m_res, t_name, i)
                         res += update_res
                         tool_outputs.append(f"RAG Knowledge: {tool_findings}")
@@ -715,9 +754,13 @@ if st.session_state.get("processing_pending", False):
                 elif t_name == "exact_identifier_search":
                     with st.spinner("Searching for identifiers..."):
                         m_res = asyncio.run(call_mcp_tool("exact_identifier_search", t_args))
-                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
-                        res += update_res
-                        tool_outputs.append(f"Exact Search: {tool_findings}")
+                        # User Request: Hide raw search results ("by service aja")
+                        # update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        # res += update_res
+                        
+                        # Just append to tool outputs for synthesis
+                        tool_outputs.append(f"Exact Search: {m_res}")
+                        st.caption("✅ Patient record search completed (background).")
 
                 elif t_name in ["describe", "get_data_context"]:
                     with st.spinner("Analyzing data context..."):

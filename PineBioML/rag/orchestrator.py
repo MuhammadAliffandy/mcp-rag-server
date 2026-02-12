@@ -13,7 +13,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from src.prompts.orchestration import get_orchestration_prompt
+from PineBioML.prompts.orchestration import get_orchestration_prompt
 
 
 class ToolCall(BaseModel):

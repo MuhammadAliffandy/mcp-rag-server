@@ -128,9 +128,22 @@ Your goal is to map user intent to specific Tools or RAG queries without halluci
 # AVAILABLE TOOLS (API):
 
 ## A. VISUALIZATION & PLOTTING (PineBioML)
+- styling: Optional JSON string with chart styling
+    Example: `{{"style": {{"theme": "dark"}}, "title": "Custom Title", "xtick_labels": {{"Control": "Kontrol", "Treatment": "Obat abcd"}}}}`
 - **generate_medical_plot**(plot_type, data_source, x_column, y_column, target_column, hue_column, patient_ids, styling)
   - Types: "pca", "scatter", "line", "distribution", "box", "violin", "boxen", "bar", "histogram"
-  - Use when: User asks for plots, charts, visualizations
+  - Use when: "plot data", "visualize", "show graph"
+  - styling: JSON string for theme, colors, **custom labels**, and **renaming ticks**.
+    - Example: `{{"title": "Analysis", "xtick_labels": {{"0": "No", "1": "Yes"}}}}`
+  - Examples: "plot distribution of Group", "rename x axis ticks to 'Control' and 'Treated'"
+- **evaluate_model_performance**(target_column, predictions_column, model_type, styling)
+  - Use when: "show confusion matrix", "plot ROC curve", "evaluate model predictions"
+  - styling: Use for custom titles/themes.
+  - Examples: "show confusion matrix for Disease vs Prediction", "plot ROC for Random Forest model"
+- **explain_model_predictions**(data_source, plot_type, model_path, styling)
+  - Use when: "explain model", "show SHAP plot", "feature importance", "why did the model predict this"
+  - plot_type: "summary", "bar", or "dependence"
+  - Examples: "explain model predictions with SHAP", "show feature importance bar plot", "SHAP analysis for Disease model"
   - **hue_column**: Use for grouping/comparing (e.g. "by Sex", "grouped by Age").
   - **data_source**: Default to "session" unless user specified a file name found in inventory.
   - **patient_ids**: Use to filter the plot to a specific cohort (e.g. results from EXPRAG).
@@ -155,9 +168,11 @@ Your goal is to map user intent to specific Tools or RAG queries without halluci
   - Examples: "clean my data", "impute missing CRP values"
 
 ## C. BIOMARKER DISCOVERY (PineBioML)
-- **discover_markers**(target_column, p_value_threshold, fold_change_threshold, top_k, strategy)
+- **discover_markers**(target_column, p_value_threshold, fold_change_threshold, top_k, strategy, styling)
   - Use when: "find biomarkers", "significant features", "volcano plot"
-  - Examples: "find markers for Disease", "which biomarkers distinguish groups"
+  - **styling**: Use to customize colors and labels.
+    - Example: `{{"colors": {{"up": "red", "down": "blue", "ns": "gray"}}, "labels": {{"top_n": 5}}}}`
+  - Examples: "find markers for Disease", "make a red/blue volcano plot"
 
 ## D. MACHINE LEARNING (PineBioML)
 - **train_medical_model**(target_column, model_type, n_trials)
@@ -213,11 +228,16 @@ You must return ONLY a JSON object. No markdown formatting (```json), no convers
       "tool": "tool_name",
       "args": {{
         "arg1": "value",
-        "styling": {{ "key": "value" }} 
+        "styling": "{{\\"title\\": \\"My Title\\", \\"style\\": {{\\"theme\\": \\"medical\\"}}}}"
       }}
     }}
   ]
 }}
+
+CRITICAL STYLING RULE:
+- The "styling" argument MUST be a JSON STRING (escaped quotes), NOT a nested object.
+- ✅ CORRECT: "styling": "{{\\"title\\": \\"Analysis\\"}}"
+- ❌ WRONG: "styling": {{"title": "Analysis"}}
 
 CRITICAL:
 1. "tasks" MUST be an array.

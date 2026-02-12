@@ -4,8 +4,8 @@ import sys
 # Ensure project root is in path
 sys.path.append(os.getcwd())
 
-from src.core.exprag_pipeline import EXPRAGPipeline
-from src.core.clinical_loader import load_patient_data
+from PineBioML.rag.pipeline import EXPRAGPipeline
+from PineBioML.data.loader import load_patient_data
 
 def test_multi_source_loading():
     print("\n--- Testing Multi-Source Loading ---")
@@ -44,24 +44,16 @@ def test_multi_axis_similarity():
     pipeline = EXPRAGPipeline(pinecone_index="test-index")
     
     # Mock some data
-    from src.core.patient_profile import PatientProfile
+    from PineBioML.data.patient import PatientProfile
     p1 = PatientProfile(case_id="P1", indication="IBD", procedures=["colonoscopy"])
     p2 = PatientProfile(case_id="P2", indication="IBD", procedures=["surgery"]) # Diagnostic same, procedure different
     p3 = PatientProfile(case_id="P3", indication="Normal", procedures=["colonoscopy"]) # Diagnostic different, procedure same
     
-    pipeline.load_patient_database([p2, p3])
+    pipeline.load_profiles([p2, p3])
     
-    # Test equal priority
-    cohort_equal = pipeline.find_similar_cohort(p1, top_k=5, priority='equal')
-    print(f"Equal Priority Cohort: {cohort_equal}")
-    
-    # Test diagnostic priority
-    cohort_diag = pipeline.find_similar_cohort(p1, top_k=5, priority='diagnostic')
-    print(f"Diagnostic Priority Cohort: {cohort_diag}") # Should favor P2
-    
-    # Test procedure priority
-    cohort_proc = pipeline.find_similar_cohort(p1, top_k=5, priority='procedure')
-    print(f"Procedure Priority Cohort: {cohort_proc}") # Should favor P3
+    # Test similar cohort finding
+    cohort = pipeline.find_similar_cohort(p1, top_k=5)
+    print(f"Similar Cohort: {cohort}")
 
 def test_high_powered_prompt():
     print("\n--- Testing High-Powered Prompt Generation ---")

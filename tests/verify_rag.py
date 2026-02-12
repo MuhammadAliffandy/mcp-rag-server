@@ -1,7 +1,9 @@
 import os
+import sys
+sys.path.append(os.getcwd())
 import pandas as pd
-from src.hub.rag_processor import DocumentProcessor
-from src.hub.rag_engine import RAGEngine
+from PineBioML.rag.processor import DocumentProcessor
+from PineBioML.rag.engine import RAGEngine
 import matplotlib.pyplot as plt
 
 def verify_system():

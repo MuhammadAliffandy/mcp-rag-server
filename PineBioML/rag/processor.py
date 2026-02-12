@@ -10,7 +10,7 @@ from langchain_core.documents import Document as LangChainDocument
 # Helper log agar tidak crash
 def log_safe(msg):
     try:
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         log_dir = os.path.join(project_root, "logs")
         os.makedirs(log_dir, exist_ok=True)
         with open(os.path.join(log_dir, "server_debug.log"), "a") as f:
@@ -143,12 +143,18 @@ Statistical Highlights:
 {df.describe().to_string() if not df.select_dtypes('number').empty else "No numeric columns."}
             """.strip()
             
+            # Extract all unique patient IDs for summary
+            all_ids = []
+            if patient_id_cols:
+                all_ids = df[patient_id_cols[0]].dropna().unique().tolist()
+            
             documents.append(LangChainDocument(
                 page_content=summary_content,
                 metadata={
                     "source": file_path,
                     "type": "file_summary",
                     "doc_type": doc_type,
+                    "patient_ids": ",".join(map(str, all_ids)),
                     "df_json": df.to_json() # Keep for server data sync
                 }
             ))

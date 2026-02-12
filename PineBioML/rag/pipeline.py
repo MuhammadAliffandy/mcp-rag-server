@@ -1,11 +1,11 @@
 from typing import List, Dict, Any, Optional
 import pandas as pd
-from src.core.patient_profile import PatientProfile
-from src.core.similarity import get_cohort_ids
-from src.hub.pinecone_connector import PineconeRetriever
-from src.core.prompt_engine import EXPRAGPromptEngine
-from src.core.clinical_loader import load_patient_data
-from src.hub.database import EHRDatabase
+from PineBioML.data.patient import PatientProfile
+from PineBioML.analysis.similarity import get_cohort_ids
+from .connector import PineconeRetriever
+from PineBioML.rag.prompt_engine import EXPRAGPromptEngine
+from PineBioML.data.loader import load_patient_data
+from PineBioML.data.database import EHRDatabase
 
 
 class EXPRAGPipeline:

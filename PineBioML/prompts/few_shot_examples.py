@@ -16,7 +16,7 @@ Output: {
       "args": {
         "plot_type": "distribution",
         "target_column": "age",
-        "styling": { "theme": "dark" }
+        "styling": { "style": { "theme": "dark" } }
       }
     }
   ]
@@ -86,8 +86,8 @@ Output: {
         "x": "Age",
         "y": "BMI",
         "styling": {
-            "bar_color": "red",
-            "title_size": 18
+            "colors": { "primary": "red" },
+            "style": { "title_size": 18 }
         }
       }
     }
@@ -325,7 +325,7 @@ Output: {
       "args": {
         "plot_type": "distribution",
         "target_column": "age",
-        "styling": { "bar_color": "blue" }
+        "styling": { "colors": { "primary": "blue" } }
       }
     }
   ]

@@ -44,7 +44,19 @@ dependencies = [
   "lightgbm==4.6.0",
   "catboost==1.2.8",
   "pyarrow",
-  "shap"
+  "shap",
+  "langchain",
+  "langchain-openai",
+  "langchain-community",
+  "chromadb",
+  "pinecone-client",
+  "python-dotenv",
+  "pydantic",
+  "PyPDF2",
+  "python-docx",
+  "pillow",
+  "pytesseract",
+  "mcp"
 ]
 
 

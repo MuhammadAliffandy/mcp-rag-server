@@ -6,8 +6,8 @@ import pandas as pd
 # Ensure project root is in path
 sys.path.append(os.getcwd())
 
-from src.core.exprag_pipeline import EXPRAGPipeline
-from src.core.patient_profile import PatientProfile
+from PineBioML.rag.pipeline import EXPRAGPipeline
+from PineBioML.data.patient import PatientProfile
 
 def seed_test_database(db_path):
     print(f"--- Seeding Test Database: {db_path} ---")
