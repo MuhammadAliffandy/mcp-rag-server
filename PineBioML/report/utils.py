@@ -25,7 +25,8 @@ class basic_plot(ABC):
                  prefix: str = "",
                  save_path: str = "./",
                  save_fig: bool = False,
-                 show_fig: bool = True):
+                 show_fig: bool = True,
+                 styling=None):
         """
 
         Args:
@@ -33,12 +34,21 @@ class basic_plot(ABC):
             save_path (str, optional): the path to export the figure. Defaults to "./".
             save_fig (bool, optional): whether to export the figure or not. Defaults to False.
             show_fig (bool, optional): whether to show the figure or not. Defaults to True.
+            styling (Union[dict, str], optional): Styling configuration json/dict. Defaults to None.
         """
 
         self.prefix = prefix
         self.save_path = save_path
         self.save_fig = save_fig
         self.show_fig = show_fig
+        self.styling = styling
+
+    def apply_style(self, fig, ax):
+        """Apply styling if configured."""
+        if self.styling:
+            from PineBioML.visualization.style import ChartStyler
+            styler = ChartStyler(self.styling)
+            styler.apply(fig, ax)
 
     def save_name(self):
         """
@@ -107,7 +117,8 @@ class pca_plot(basic_plot):
                  prefix: str = "",
                  save_path: str = "./output/images/",
                  save_fig: bool = True,
-                 show_fig: bool = True):
+                 show_fig: bool = True,
+                 styling=None):
         """
 
         Args:
@@ -117,7 +128,8 @@ class pca_plot(basic_plot):
         super().__init__(prefix=prefix,
                          save_path=save_path,
                          save_fig=save_fig,
-                         show_fig=show_fig)
+                         show_fig=show_fig,
+                         styling=styling)
         self.n_pc = n_pc
         self.discrete_legend = discrete_legend
         self.name = "PCA plot"
@@ -181,6 +193,8 @@ class pca_plot(basic_plot):
         plot.figure.suptitle("{} {} Scatter plot".format(
             self.prefix, self.name),
                              y=1.01)
+        
+        self.apply_style(plot.figure, plot.axes.flatten()[0] if hasattr(plot.axes, 'flatten') else plot.axes)
 
 
 class pls_plot(basic_plot):
@@ -200,7 +214,8 @@ class pls_plot(basic_plot):
                  prefix: str = "",
                  save_path: str = "./output/images/",
                  save_fig: bool = True,
-                 show_fig: bool = True):
+                 show_fig: bool = True,
+                 styling=None):
         """
 
         Args:
@@ -210,7 +225,8 @@ class pls_plot(basic_plot):
         super().__init__(prefix=prefix,
                          save_path=save_path,
                          save_fig=save_fig,
-                         show_fig=show_fig)
+                         show_fig=show_fig,
+                         styling=styling)
         self.discrete_legend = discrete_legend
         self.is_classification = is_classification
         self.name = "PLS plot"
@@ -296,6 +312,7 @@ class pls_plot(basic_plot):
                                y=self.name + " componet 2")
 
         plot.set_title("{} {} Scatter plot".format(self.prefix, self.name))
+        self.apply_style(plt.gcf(), plt.gca())
 
 
 class umap_plot(basic_plot):
@@ -312,7 +329,8 @@ class umap_plot(basic_plot):
                  prefix="",
                  save_path="./output/images/",
                  save_fig=True,
-                 show_fig=True):
+                 show_fig=True,
+                 styling=None):
         """
 
         Args:
@@ -321,7 +339,8 @@ class umap_plot(basic_plot):
         super().__init__(prefix=prefix,
                          save_path=save_path,
                          save_fig=save_fig,
-                         show_fig=show_fig)
+                         show_fig=show_fig,
+                         styling=styling)
         self.discrete_legend = discrete_legend
         self.name = "UMAP plot"
 
@@ -396,6 +415,7 @@ class umap_plot(basic_plot):
                                y=self.name + " dimension 2")
 
         plot.set_title("{} {} Scatter plot".format(self.prefix, self.name))
+        self.apply_style(plt.gcf(), plt.gca())
 
 
 class corr_heatmap_plot(basic_plot):
@@ -409,11 +429,13 @@ class corr_heatmap_plot(basic_plot):
                  prefix="",
                  save_path="./output/images/",
                  save_fig=True,
-                 show_fig=True):
+                 show_fig=True,
+                 styling=None):
         super().__init__(prefix=prefix,
                          save_path=save_path,
                          save_fig=save_fig,
-                         show_fig=show_fig)
+                         show_fig=show_fig,
+                         styling=styling)
         self.name = "Correlation Heatmap plot"
 
     def draw(self, x: pd.DataFrame, y: pd.Series = None):
@@ -436,9 +458,10 @@ class corr_heatmap_plot(basic_plot):
             y_name = "y" if y.name is None else y.name
             data[y_name] = y
 
-        plot = heatmap(data.corr(), vmin=-1, vmax=1, cmap='RdBu')
+        plot = heatmap(data.corr(), vmin=-1, vmax=1, cmap='RdBu', annot=True, fmt=".2f")
 
-        plot.set_title("{} {}".format(self.prefix, self.name))
+        plot.set_title("{} {} {}".format(self.prefix, self.name, "(Correlation)"))
+        self.apply_style(plt.gcf(), plt.gca())
 
 
 from PineBioML.visualization.style import ChartStyler
@@ -462,7 +485,8 @@ class confusion_matrix_plot(basic_plot):
         super().__init__(prefix=prefix,
                          save_path=save_path,
                          save_fig=save_fig,
-                         show_fig=show_fig)
+                         show_fig=show_fig,
+                         styling=styling)
         self.name = "Confusion Matrix"
         self.normalize = None
         self.styling = styling
@@ -483,9 +507,7 @@ class confusion_matrix_plot(basic_plot):
             xticks_rotation="vertical")
         plot.ax_.set_title("{} {}".format(self.prefix, self.name))
         
-        if self.styling:
-            styler = ChartStyler(self.styling)
-            styler.apply(plot.figure_, plot.ax_)
+        self.apply_style(plot.figure_, plot.ax_)
 
 
 class roc_plot(basic_plot):
@@ -552,9 +574,7 @@ class roc_plot(basic_plot):
         plt.xlabel('False Positive Rate')
         plt.legend(loc='lower right')
         
-        if self.styling:
-            styler = ChartStyler(self.styling)
-            styler.apply(plt.gcf(), plt.gca())
+        self.apply_style(plt.gcf(), plt.gca())
 
 
 def data_overview(input_x: pd.DataFrame,
@@ -605,19 +625,22 @@ def data_overview(input_x: pd.DataFrame,
               prefix=prefix,
               save_path=save_path,
               save_fig=save_fig,
-              show_fig=show_fig).make_figure(x, y)
+              show_fig=show_fig,
+              styling=styling).make_figure(x, y)
 
     # Correlation heatmap
     if y.dtype == "O":
         corr_heatmap_plot(prefix=prefix,
                           save_path=save_path,
                           save_fig=save_fig,
-                          show_fig=show_fig).make_figure(x)
+                          show_fig=show_fig,
+                          styling=styling).make_figure(x)
     else:
         corr_heatmap_plot(prefix=prefix,
                           save_path=save_path,
                           save_fig=save_fig,
-                          show_fig=show_fig).make_figure(x, y)
+                          show_fig=show_fig,
+                          styling=styling).make_figure(x, y)
 
 
 def classification_summary(y_true,

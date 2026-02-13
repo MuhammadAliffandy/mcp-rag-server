@@ -930,7 +930,7 @@ def run_umap_analysis(target_column: Optional[str] = None, patient_ids: Optional
     except Exception as e: return f"UMAP error: {e}"
 
 @mcp.tool()
-def run_correlation_heatmap(patient_ids: Optional[str] = None, styling: Optional[Union[str, dict]] = None) -> str:
+def run_correlation_heatmap(patient_ids: Optional[str] = None, feature_columns: Optional[str] = None, styling: Optional[Union[str, dict]] = None) -> str:
     """
     Generates Feature Correlation Heatmap.
     
@@ -941,6 +941,7 @@ def run_correlation_heatmap(patient_ids: Optional[str] = None, styling: Optional
     
     Args:
         patient_ids: Optional comma-separated patient IDs for filtering
+        feature_columns: Optional comma-separated list of columns to include
         styling: Optional JSON string or dictionary with chart styling
     """
     # Robust handling: Convert dict to string if needed
@@ -969,19 +970,54 @@ def run_correlation_heatmap(patient_ids: Optional[str] = None, styling: Optional
             except:
                 pass
 
-        # Get numeric columns FIRST
-        num_cols = df.select_dtypes(include=['number'])
-        pine_log(f"🔢 Heatmap: Found {len(num_cols.columns)} numeric columns: {num_cols.columns.tolist()[:10]}...")
+        # Feature Selection Logic
+        if feature_columns:
+            requested_features = [c.strip() for c in feature_columns.split(',')]
+            # Fuzzy match requested features to existing columns
+            matched_columns = []
+            for req in requested_features:
+                 # Direct match
+                if req in df.columns:
+                    matched_columns.append(req)
+                else:
+                    # Case insensitive match
+                    found = False
+                    for col in df.columns:
+                        if req.lower() == col.lower() or req.lower() in col.lower():
+                            matched_columns.append(col)
+                            found = True
+                            break
+                    if not found:
+                        pine_log(f"⚠️ Heatmap: Could not find column matching '{req}'")
+            
+            if matched_columns:
+                num_cols = df[matched_columns].select_dtypes(include=['number'])
+                pine_log(f"🔢 Heatmap: Using requested columns: {num_cols.columns.tolist()}")
+            else:
+                 pine_log("❌ Heatmap: No requested columns found, falling back to all numeric.")
+                 num_cols = df.select_dtypes(include=['number'])
+        else:
+            # Default: Get numeric columns
+            num_cols = df.select_dtypes(include=['number'])
+            pine_log(f"🔢 Heatmap: Found {len(num_cols.columns)} numeric columns: {num_cols.columns.tolist()[:10]}...")
+        
         if num_cols.empty: 
             pine_log("❌ Heatmap: No numeric data found!")
             return "No numeric data."
         
-        # Exclude Metadata
-        exclude_terms = ['id', 'date', 'image', 'scan', 'time', 'index', 'code', 'accession']
-        numeric_valid = [c for c in num_cols.columns if not any(term in c.lower() for term in exclude_terms)]
-        if not numeric_valid: numeric_valid = num_cols.columns.tolist()
+        # Exclude Metadata (Only if NOT using granular feature selection)
+        if not feature_columns:
+            exclude_terms = ['id', 'date', 'image', 'scan', 'time', 'index', 'code', 'accession']
+            numeric_valid = [c for c in num_cols.columns if not any(term in c.lower() for term in exclude_terms)]
+            if not numeric_valid: numeric_valid = num_cols.columns.tolist()
+            X = num_cols[numeric_valid]
+        else:
+             X = num_cols # Trust the user's selection
         
-        X = num_cols[numeric_valid]
+        # Calculate missing data stats
+        missing_count = df[X.columns].isna().sum().sum()
+        total_cells = df[X.columns].size
+        missing_pct = (missing_count / total_cells) * 100 if total_cells > 0 else 0
         
         from PineBioML.report.utils import corr_heatmap_plot
         hp = corr_heatmap_plot()
@@ -1001,7 +1037,9 @@ def run_correlation_heatmap(patient_ids: Optional[str] = None, styling: Optional
         patient_list = ", ".join(df[id_cols[0]].unique().astype(str).tolist()[:5]) if 'id_cols' in locals() and id_cols else f"{n_unique_patients} IDs"
         if n_unique_patients > 5: patient_list += "..."
         
-        return f"{filename}|||Correlation Heatmap generated for {n_unique_patients} patients ({patient_list}). Showing relationships between {len(numeric_valid)} features (excluding metadata)."
+        data_quality_msg = f"Data Quality: {missing_pct:.1f}% missing values (imputed/handled by correlation)." if missing_pct > 0 else "Data Quality: 100% complete (0% missing)."
+        
+        return f"{filename}|||Correlation Heatmap generated for {n_unique_patients} patients ({patient_list}). Showing relationships between {len(X.columns)} features.\n{data_quality_msg}"
     except Exception as e: return f"Heatmap error: {e}"
 
 @mcp.tool()
@@ -1763,6 +1801,110 @@ def generate_data_overview(
         pine_log(f"❌ Data overview error: {err}")
         return f"Error: {e}"
 
+
+@mcp.tool()
+def calculate_descriptive_stats(
+    group_by: str,
+    target_columns: str,
+    styling: Union[str, dict] = "{}"
+) -> str:
+    """
+    Calculates descriptive statistics (mean, median, std) for groups.
+    
+    Args:
+        group_by: Column to group by (e.g. "Treatment", "Sex")
+        target_columns: Comma-separated numerical columns to analyze (e.g. "CRP, Age")
+        styling: Optional chart styling for the box plot
+        
+    Returns:
+        String with format: "filepath|||markdown_table"
+    """
+    try:
+        # Robust handling: Convert dict to string if needed
+        if isinstance(styling, dict):
+            styling = json.dumps(styling)
+            
+        if not os.path.exists(TABULAR_DATA_PATH):
+            return "Error: No data loaded."
+            
+        with open(TABULAR_DATA_PATH, "r") as f:
+            df = pd.read_json(io.StringIO(f.read()))
+            
+        # Clean column names
+        df.columns = [aggressive_clean(c) for c in df.columns]
+        
+        # Find group column
+        group_col = find_semantic_column(df, group_by)
+        if not group_col:
+             return f"Error: Group column '{group_by}' not found."
+             
+        # Parse target columns
+        targets = [t.strip() for t in target_columns.split(',')]
+        valid_targets = []
+        for t in targets:
+            col = find_semantic_column(df, t)
+            if col:
+                valid_targets.append(col)
+                # Ensure numeric
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+        if not valid_targets:
+            return f"Error: No valid target columns found from '{target_columns}'"
+            
+        # Calculate Stats
+        stats = df.groupby(group_col)[valid_targets].agg(['count', 'mean', 'std', 'median', 'min', 'max'])
+        
+        # Determine strict numeric format
+        pd.options.display.float_format = '{:.2f}'.format
+        
+        # Create Markdown Table manually for better control
+        md_table = f"### Descriptive Statistics by {group_col}\n\n"
+        
+        for target in valid_targets:
+            md_table += f"#### {target}\n"
+            sub_stats = stats[target]
+            
+            # Manual Markdown Table Generation (No tabulate dependency)
+            # sub_stats is a DataFrame with cols: count, mean, std, median, min, max
+            headers = ["Group"] + sub_stats.columns.tolist()
+            md_table += "| " + " | ".join(headers) + " |\n"
+            md_table += "| " + " | ".join(["---"] * len(headers)) + " |\n"
+            
+            for index, row in sub_stats.iterrows():
+                # Format row: Index (Group) + values
+                row_str = f"| {index} | " + " | ".join([f"{x:.2f}" for x in row]) + " |"
+                md_table += row_str + "\n"
+            
+            md_table += "\n"
+            
+        # Generate Box Plot for visual consistency
+        # We use the first target for the primary plot, or all if feasible?
+        # Let's generate a box plot for the FIRST target column to verify visual
+        timestamp = int(datetime.datetime.now().timestamp())
+        filename = f"{OUTPUT_DIR}/boxplot_{timestamp}.png"
+        
+        # Use existing generate_medical_plot logic via direct call or reimplement simple box
+        # Re-implementing for speed and specificity
+        plt.figure(figsize=(10, 6))
+        
+        # Prepare data for plotting (melt if multiple targets?)
+        # For now, plot the FIRST target as the primary visual
+        primary_target = valid_targets[0]
+        
+        sns.boxplot(x=group_col, y=primary_target, data=df)
+        plt.title(f"Distribution of {primary_target} by {group_col}")
+        
+        if styling:
+            styler = ChartStyler(styling)
+            styler.apply(plt.gcf(), plt.gca())
+            
+        plt.savefig(filename)
+        plt.close()
+        
+        return f"{filename}|||{md_table}"
+        
+    except Exception as e:
+        return f"Error calculating stats: {e}\n{traceback.format_exc()}"
 
 if __name__ == "__main__":
     mcp.run()

@@ -351,7 +351,10 @@ ANSWER:"""
                     window = []
                     for idx in range(start, end):
                         prefix = ">> " if idx == i else "   "
-                        window.append(f"{prefix}L{idx+1}: {lines[idx]}")
+                        line_content = lines[idx]
+                        if len(line_content) > 300:
+                            line_content = line_content[:300] + "..."
+                        window.append(f"{prefix}L{idx+1}: {line_content}")
                     
                     snippets.append("\n".join(window))
             
@@ -442,14 +445,18 @@ You must provide a COMPREHENSIVE analysis. Do not ignore any clinical details pr
 {rag_context or "No specific documentation context provided."}
 
 [TECHNICAL ANALYSIS FINDINGS]:
-{tool_outputs}
+{tool_outputs[:50000] if tool_outputs else "No findings."}
 
-INSTRUCTIONS:
+[INSTRUCTIONS & CONSTRAINTS]:
 1. {instr}
-2. INTEGRATE the [TECHNICAL ANALYSIS FINDINGS] with the [RAG CONTEXT] deeply. For example, explain how the analysis results compare to clinical norms or specific patient history mentioned in the context.
-3. Be EXHAUSTIVE yet concise. Mention relevant biomarkers, medications, and clinical observations from the context.
-4. Respond in the EXACT SAME language as the User Request. This is the Mirroring Rule.
-5. Professional Markdown formatting.
+2. **NO REPETITION**: The user has ALREADY seen the [TECHNICAL ANALYSIS FINDINGS]. **DO NOT** repeat tables, lists of numbers, or raw statistics.
+3. **INTERPRETATION ONLY**: Focus entirely on the **clinical implications** of the findings. What does the data *mean* for the patient?
+    - Instead of: "The mean CRP is 5.2 vs 1.2" (Redundant)
+    - Say: "The significantly elevated CRP in the Biologics group suggests active inflammation despite treatment." (Insight)
+4. **INTEGRATE RAG CONTEXT**: Use the [RAG CONTEXT] to explain *why* these findings matter based on similar cases or guidelines.
+5. Respond in the EXACT SAME language as the User Request.
+6. **FORMATTING**: Use **Professional Markdown** (bullet points, bold key terms) for readability.
+7. Short and concise. Do not summarize what was just shown. Start directly with the insight.
             """
             return llm.invoke([("system", sys_msg), ("human", user_prompt)]).content
         except Exception as e: return f"Synthesis error: {e}"

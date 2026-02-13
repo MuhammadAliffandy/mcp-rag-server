@@ -769,6 +769,13 @@ if st.session_state.get("processing_pending", False):
                         res += update_res
                         tool_outputs.append(f"Data Summary: {tool_findings}")
 
+                elif t_name in ["calculate_descriptive_stats", "descriptive_stats", "stats"]:
+                    with st.spinner("Calculating descriptive statistics..."):
+                        m_res = asyncio.run(call_mcp_tool("calculate_descriptive_stats", t_args))
+                        update_res, tool_findings = render_tool_result(m_res, t_name, i)
+                        res += update_res
+                        tool_outputs.append(f"Descriptive Statistics: {tool_findings}")
+
                 elif t_name == "query_exprag_hybrid":
                     with st.spinner("Finding similar cases..."):
                         # ... preserved exprag logic ...

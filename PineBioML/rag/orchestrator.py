@@ -109,7 +109,9 @@ class PureOrchestrator:
         # Format chat history
         chat_history_list = context.get("chat_history", [])
         history_str = "\n".join([
-            f"{msg.get('role', '').upper()}: {msg.get('content', '')}"
+            f"{msg.get('role', '').upper()}: {str(msg.get('content', ''))[:1000]}..." 
+            if len(str(msg.get('content', ''))) > 1000 
+            else f"{msg.get('role', '').upper()}: {msg.get('content', '')}"
             for msg in chat_history_list[-5:]  # Last 5 messages
         ])
         

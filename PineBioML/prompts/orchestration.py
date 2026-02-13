@@ -150,32 +150,45 @@ Your goal is to map user intent to specific Tools or RAG queries without halluci
   - Examples: "plot X vs Y", "show distribution", "make PCA plot"
 
 - **run_pls_analysis**(target_column, patient_ids, styling)
-  - Use when: Supervised separation, "find differences between groups"
-  - Examples: "PLS-DA for Disease", "separate healthy vs sick"
+  - Use when: "multivariate separation", "classify groups based on MANY features", "separation score"
+  - **DO NOT USE** for simple group comparisons (e.g. "Is CRP higher in Group A?") -> Use `calculate_descriptive_stats` or `generate_medical_plot` (box/violin) instead.
+  - Examples: "PLS-DA to see if metabolome distinguishes groups", "multivariate classification of Disease"
+
+- **calculate_descriptive_stats**(group_by, target_columns, styling)
+  - Use when: "compare groups", "average/mean", "statistics table", "is X different in Y?"
+  - Returns: Markdown table of Mean, Median, Std + Box Plot.
+  - Examples: "compare average CRP between Biologics and 5-ASA", "table of statistics for Age by Sex", "box plot of FC by Disease"
 
 - **run_umap_analysis**(target_column, patient_ids, styling)
-  - Use when: Unsupervised clustering, "find patterns", "group similar patients"
+  - Use when: Unsupervised clustering, "find patterns", "group similar patients", "dimensionality reduction"
+  - **DO NOT USE** for simple plotting -> Use `generate_medical_plot`.
   - Examples: "UMAP clustering", "find patient groups"
 
-- **run_correlation_heatmap**(patient_ids, styling)
+- **run_correlation_heatmap**(patient_ids, feature_columns, styling)
   - Use when: "correlations", "relationships between features"
-  - Examples: "heatmap", "which features are related"
+  - **feature_columns**: Optional comma-separated list of columns to include (e.g. "CRP, Fecal Calprotectin").
+  - **patient_ids**: Use to filter the heatmap to specific patients (e.g. "for Patient 1").
+  - Examples: "heatmap of CRP and FC", "correlation of features for this group"
 
 ## B. DATA PREPROCESSING (PineBioML)
 - **clean_medical_data**(imputation_method, outlier_removal, outlier_method, missing_threshold)
   - Use when: "clean data", "fill missing values", "remove outliers"
+  - **Note**: Outlier removal follows imputation and replaces values with NaN (may re-introduce missing values).
   - Methods: "knn", "median", "mean", "iterative" (MICE)
   - Examples: "clean my data", "impute missing CRP values"
 
 ## C. BIOMARKER DISCOVERY (PineBioML)
 - **discover_markers**(target_column, p_value_threshold, fold_change_threshold, top_k, strategy, styling)
-  - Use when: "find biomarkers", "significant features", "volcano plot"
+  - Use when: "find biomarkers", "significant features", "volcano plot", "differential expression"
+  - **DO NOT USE** if user just asks to "compare" two groups -> Use `calculate_descriptive_stats`.
   - **styling**: Use to customize colors and labels.
     - Example: `{{"colors": {{"up": "red", "down": "blue", "ns": "gray"}}, "labels": {{"top_n": 5}}}}`
   - Examples: "find markers for Disease", "make a red/blue volcano plot"
 
 ## D. MACHINE LEARNING (PineBioML)
 - **train_medical_model**(target_column, model_type, n_trials)
+  - Use when: "train model", "predict outcome", "build classifier"
+  - **DO NOT USE** for analysis/explanation -> Use `explain_model_predictions` AFTER training.
   - Use when: "train model", "predict", "build classifier"
   - Models: "RandomForest", "SVM", "LogisticRegression"
   - Examples: "train model for Disease", "predict outcomes"

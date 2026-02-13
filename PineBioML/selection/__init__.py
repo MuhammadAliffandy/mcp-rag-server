@@ -3,6 +3,7 @@ from pandas import concat
 import warnings
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.model_selection import KFold
+from PineBioML.visualization.style import ChartStyler
 # Suppress only ConvergenceWarning
 warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
@@ -104,18 +105,22 @@ class SelectionPipeline:
     def what_matters(self):
         return self.selected_score
 
-    def Plotting(self):
+    def Plotting(self, styling=None):
         """
         plot hist graph of selectied feature importance
         """
-        plt.rcParams['font.family'] = 'Arial'
-        plt.rcParams['font.size'] = 14
+        # plt.rcParams['font.family'] = 'Arial'
+        # plt.rcParams['font.size'] = 14
         fig, ax = plt.subplots(1, 1)
         ax.bar(self.selected_score.index, self.selected_score)
         for label in ax.get_xticklabels(which='major'):
             label.set(rotation=45, horizontalalignment='right')
         ax.set_title(self.name + " score")
         ax.set_ylabel("Importance")
+        
+        if styling:
+            styler = ChartStyler(styling)
+            styler.apply(fig, ax)
 
         plt.show()
 

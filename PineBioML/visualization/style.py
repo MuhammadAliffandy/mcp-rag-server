@@ -285,7 +285,10 @@ class ChartStyler:
         if 'grid' in style_config:
             grid_conf = style_config['grid']
             if isinstance(grid_conf, bool):
-                ax.grid(grid_conf, alpha=0.3)
+                if grid_conf:
+                    ax.grid(True, alpha=0.3)
+                else:
+                    ax.grid(False)
             elif isinstance(grid_conf, dict):
                 ax.grid(True, **grid_conf)
         
@@ -369,4 +372,35 @@ class ChartStyler:
         if linewidth:
              config.setdefault("plot", {})["linewidth"] = linewidth
         
+        return json.dumps(config)
+
+    @staticmethod
+    def create_publication_style(
+        theme: str = 'white',
+        font_family: str = 'Arial',
+        font_size: int = 12,
+        dpi: int = 300
+    ) -> str:
+        """
+        Create a publication-ready styling configuration (Nature/Science style).
+        Features: High DPI, Arial font, minimal grid, no top/right spines.
+        """
+        config = {
+            "style": {
+                "theme": theme,
+                "font_family": font_family,
+                "title_size": font_size,
+                "label_size": font_size,
+                "tick_size": int(font_size * 0.8),
+                "grid": False,
+                "spines": {"top": False, "right": False},
+                "dpi": dpi
+            },
+            "figure": {
+                "figsize": [4, 4] # Standard single column width
+            },
+            "legend": {
+                "show": True
+            }
+        }
         return json.dumps(config)
