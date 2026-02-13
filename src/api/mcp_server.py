@@ -217,6 +217,160 @@ def find_semantic_column(df, user_term):
             
     return None
 
+# ============================================================================
+# VALIDATION & SANITIZATION UTILITIES (Security + Anti-Hallucination)
+# ============================================================================
+
+def sanitize_patient_ids(patient_ids: str) -> str:
+    """
+    Validate and sanitize patient IDs to prevent injection attacks.
+    
+    Args:
+        patient_ids: Comma-separated patient IDs
+    
+    Returns:
+        Sanitized patient IDs string
+    
+    Raises:
+        ValueError: If format is invalid
+    """
+    if not patient_ids or not patient_ids.strip():
+        return ""
+    
+    # Only allow: digits, commas, hyphens, and spaces
+    if not re.match(r'^[\d,\-\s]+$', patient_ids):
+        raise ValueError("Invalid patient_ids format. Only digits, commas, and hyphens allowed.")
+    
+    return patient_ids.strip()
+
+def normalize_tool_args(args: dict) -> dict:
+    """
+    Normalize common parameter types for tools.
+    Ensures type consistency (e.g., styling must be JSON string).
+    
+    Args:
+        args: Tool arguments dictionary
+    
+    Returns:
+        Normalized arguments
+    """
+    normalized = args.copy()
+    
+    # Force styling to be JSON string (LLM often outputs dict)
+    if "styling" in normalized:
+        if isinstance(normalized["styling"], dict):
+            normalized["styling"] = json.dumps(normalized["styling"])
+        elif normalized["styling"] is None:
+            normalized["styling"] = "{}"
+        elif not isinstance(normalized["styling"], str):
+            normalized["styling"] = "{}"
+    
+    # Sanitize patient_ids
+    if "patient_ids" in normalized and normalized["patient_ids"]:
+        try:
+            normalized["patient_ids"] = sanitize_patient_ids(str(normalized["patient_ids"]))
+        except ValueError as e:
+            pine_log(f"⚠️ Patient ID sanitization failed: {e}")
+            normalized["patient_ids"] = ""
+    
+    return normalized
+
+def validate_column_args(args: dict, df: pd.DataFrame, tool_name: str) -> tuple[dict, list[str]]:
+    """
+    Validate column arguments against actual data schema.
+    CRITICAL: Prevents LLM hallucination of non-existent columns.
+    
+    Args:
+        args: Tool arguments containing column references
+        df: DataFrame with actual data
+        tool_name: Name of the tool (for error messages)
+    
+    Returns:
+        Tuple of (normalized_args, warning_messages)
+    
+    Example:
+        >>> args = {"target_column": "inflammation", "x_column": "age"}
+        >>> df = pd.DataFrame({"crp_level": [1,2], "age_at_cpy": [30,40]})
+        >>> validated, warnings = validate_column_args(args, df, "plot")
+        >>> print(warnings)
+        ["⚠️ Target column 'inflammation' not found. Did you mean 'crp_level'?"]
+    """
+    warnings = []
+    normalized = args.copy()
+    
+    column_params = {
+        "target_column": "Target",
+        "x_column": "X-axis",
+        "y_column": "Y-axis",
+        "hue_column": "Grouping",
+        "group_by": "Group",
+    }
+    
+    for param, display_name in column_params.items():
+        if param not in args or not args[param]:
+            continue
+        
+        requested = str(args[param]).strip()
+        if not requested:
+            continue
+        
+        # Try semantic matching
+        actual = find_semantic_column(df, requested)
+        
+        if not actual:
+            # Column not found - this is CRITICAL
+            available_clean = [aggressive_clean(c) for c in df.columns[:15]]
+            available_raw = df.columns[:15].tolist()
+            
+            pine_log(f"❌ {tool_name}: Column '{requested}' not found in data")
+            
+            warnings.append(
+                f"⚠️ **{display_name} column '{requested}' not found** in data. "
+                f"Available columns: {', '.join(available_clean)}"
+            )
+            
+            # Conservative fallback (only for target_column)
+            if param == "target_column":
+                # Try to pick best guess
+                cat_cols = df.select_dtypes(exclude=['number']).columns
+                if len(cat_cols) > 0:
+                    actual = cat_cols[0]
+                    warnings.append(f"→ Using fallback: **{aggressive_clean(actual)}**")
+                    normalized[param] = actual
+                    pine_log(f"  ↳ Fallback to: {actual}")
+                else:
+                    # No good fallback
+                    warnings.append(f"→ **Please specify a valid column name.**")
+                    # Keep original (will likely fail, but explicit)
+                    normalized[param] = requested
+        
+        elif actual != requested:
+            # Column found via fuzzy matching
+            pine_log(f"✓ {tool_name}: Mapped '{requested}' → '{actual}'")
+            warnings.append(f"ℹ️ Mapped '{requested}' → **{aggressive_clean(actual)}**")
+            normalized[param] = actual
+        else:
+            # Exact match - no warning needed
+            normalized[param] = actual
+    
+    return normalized, warnings
+
+def format_warnings(warnings: list[str]) -> str:
+    """
+    Format validation warnings for user-facing output.
+    
+    Args:
+        warnings: List of warning messages
+    
+    Returns:
+        Formatted string to append to tool result
+    """
+    if not warnings:
+        return ""
+    
+    warning_block = "\n\n**⚠️ Validation Notes:**\n" + "\n".join([f"- {w}" for w in warnings])
+    return warning_block
+
 @mcp.tool()
 def ingest_medical_files(directory_path: str, doc_type: str = "internal_patient") -> str:
     """Ingests medical documents and updates internal data state."""
@@ -441,12 +595,7 @@ def generate_medical_plot(
         - PCA: plot_type='pca' (automatic dimensionality reduction)
     """
     try:
-        # Robust handling: Convert dict to string if needed
-        if isinstance(styling, dict):
-            styling = json.dumps(styling)
-        pine_log(f"📉 Generating Plot: {plot_type}, X={x_column}, Y={y_column}, Target={target_column}, Hue={hue_column}")
-        
-        # Load data from specified source
+        # Load data from specified source FIRST (needed for validation)
         if data_source == "session":
             # Use session uploaded data
             with open(TABULAR_DATA_PATH, "r") as f:
@@ -459,6 +608,34 @@ def generate_medical_plot(
             df = pd.read_csv(data_source)
         else:
             return f"Error: Unsupported data source format. Use 'session', .xlsx, or .csv files."
+        
+        # VALIDATION LAYER: Normalize and validate arguments
+        raw_args = {
+            "target_column": target_column,
+            "x_column": x_column,
+            "y_column": y_column,
+            "hue_column": hue_column,
+            "patient_ids": patient_ids,
+            "styling": styling
+        }
+        
+        # Normalize types (styling dict→str, sanitize IDs)
+        norm_args = normalize_tool_args(raw_args)
+        
+        # Validate column names against schema
+        validated_args, validation_warnings = validate_column_args(
+            norm_args, df, "generate_medical_plot"
+        )
+        
+        # Extract validated parameters
+        target_column = validated_args.get("target_column", "")
+        x_column = validated_args.get("x_column", "")
+        y_column = validated_args.get("y_column", "")
+        hue_column = validated_args.get("hue_column", "")
+        patient_ids = validated_args.get("patient_ids", "")
+        styling = validated_args.get("styling", "{}")
+        
+        pine_log(f"📉 Plot: {plot_type}, Target={target_column}, X={x_column}, Y={y_column}, Hue={hue_column}")
         
         # Filter by patient IDs if specified
         if patient_ids:
@@ -533,7 +710,7 @@ def generate_medical_plot(
                 
                 plt.savefig(filename)
                 plt.close()
-                return f"{filename}|||Scatter plot created: {x_col} vs {y_col}. {len(df)} data points plotted."
+                return f"{filename}|||Scatter plot created: {x_col} vs {y_col}. {len(df)} data points plotted.{format_warnings(validation_warnings)}"
             
             elif plot_type in ['line', 'lineplot', 'line plot']:
                 # Find columns using semantic finder
@@ -567,7 +744,7 @@ def generate_medical_plot(
                     styler.apply(plt.gcf(), plt.gca())
                 
                 plt.savefig(filename)
-                return f"{filename}|||Line plot created: {x_col} vs {y_col}. {len(df)} data points."
+                return f"{filename}|||Line plot created: {x_col} vs {y_col}. {len(df)} data points.{format_warnings(validation_warnings)}"
             
             # PCA and Clustering
             elif plot_type in ['pca', 'clustering']:
@@ -647,7 +824,7 @@ def generate_medical_plot(
                 if target_col:
                     desc += f" Groups separated by {target_col}."
                     
-                return f"{filename}|||{desc}"
+                return f"{filename}|||{desc}{format_warnings(validation_warnings)}"
 
             elif plot_type in ['box', 'boxplot', 'violin', 'violinplot', 'boxen', 'boxenplot']:
                 # Semantic find for target (numerical Y) and hue (categorical X or Legend)
@@ -688,7 +865,7 @@ def generate_medical_plot(
                 
                 plt.savefig(filename)
                 plt.close()
-                return f"{filename}|||{plot_type.title()} completed for {val_col}."
+                return f"{filename}|||{plot_type.title()} completed for {val_col}.{format_warnings(validation_warnings)}"
 
             elif plot_type in ['distribution', 'bar', 'bar chart', 'histogram', 'count', 'frequency']:
                 if target_column:
@@ -752,7 +929,7 @@ def generate_medical_plot(
                 if is_numeric:
                     stats = f" Mean: {df[col].mean():.2f}, Std: {df[col].std():.2f}."
                 
-                res = f"{filename}|||{desc} generated. {stats} Non-null count: {df[col].count()}."
+                res = f"{filename}|||{desc} generated. {stats} Non-null count: {df[col].count()}.{format_warnings(validation_warnings)}"
                 return res
         return "Error: Unsupported or invalid plot configuration."
     except Exception as e:

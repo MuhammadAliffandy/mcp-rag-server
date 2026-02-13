@@ -212,14 +212,42 @@ ANSWER:"""
             
             orchestrator = PureOrchestrator()
             
-            # Build context dictionary with STRICT truncation to avoid 128k token limit
+            # Smart Truncation Helper (avoids cutting mid-sentence)
+            def smart_truncate(text: str, max_chars: int) -> str:
+                """Truncate at sentence boundary to preserve context integrity."""
+                if len(text) <= max_chars:
+                    return text
+                
+                # Truncate at max
+                truncated = text[:max_chars]
+                
+                # Find last sentence boundary
+                last_boundary = max(
+                    truncated.rfind('. '),
+                    truncated.rfind('.\n'),
+                    truncated.rfind('\n\n'),
+                    truncated.rfind('| ')  # Table row end
+                )
+                
+                # If we found a boundary in the last 20% of truncated text, use it
+                if last_boundary > max_chars * 0.8:
+                    return truncated[:last_boundary + 1]
+                
+                # Otherwise, cut at word boundary
+                last_space = truncated.rfind(' ')
+                if last_space > max_chars * 0.9:
+                    return truncated[:last_space] + "..."
+                
+                return truncated + "..."
+            
+            # Build context dictionary with SMART truncation (sentence-boundary aware)
             # 1 token ~= 4 chars. 128k tokens ~= 500k chars.
             # We limit specific sections to keep total prompt under ~50k tokens (200k chars)
             
-            safe_schema = (schema_context or "")[:20000] # Limit schema to ~5k tokens
-            safe_session = session_preview[:50000] # Limit data preview to ~12k tokens
-            safe_knowledge = knowledge_preview[:30000] # Limit knowledge to ~7.5k tokens
-            safe_inventory = inventory_preview[:20000] # Limit inventory to ~5k tokens
+            safe_schema = smart_truncate(schema_context or "", 20000)      # ~5k tokens
+            safe_session = smart_truncate(session_preview, 50000)         # ~12k tokens
+            safe_knowledge = smart_truncate(knowledge_preview, 30000)     # ~7.5k tokens
+            safe_inventory = smart_truncate(inventory_preview, 20000)     # ~5k tokens
             
             context = {
                 "schema": safe_schema,
