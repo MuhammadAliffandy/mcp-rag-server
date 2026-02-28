@@ -776,6 +776,31 @@ if st.session_state.get("processing_pending", False):
                         res += update_res
                         tool_outputs.append(f"Descriptive Statistics: {tool_findings}")
 
+                elif t_name == "query_external_guidelines":
+                    with st.spinner("🌐 Fetching live medical guidelines (ACG, ECCO, WHO, NICE...)"):
+                        # Collect patient context from args or use a summary from session
+                        p_ctx = t_args.get("patient_context", "")
+                        q = t_args.get("question", last_user_prompt)
+                        m_res = asyncio.run(call_mcp_tool("query_external_guidelines", {
+                            "question": q,
+                            "patient_context": p_ctx
+                        }))
+                        
+                        # Display with guideline header
+                        st.markdown("### 🌐 External Medical Guidelines")
+                        st.markdown(m_res)
+                        
+                        # Auto-detect and show source links in expander
+                        import re as _re
+                        urls = _re.findall(r'https?://[^\s\)>\]]+', m_res)
+                        if urls:
+                            with st.expander("📚 Guideline Sources"):
+                                for u in set(urls):
+                                    st.markdown(f"- [{u}]({u})")
+                        
+                        res += f"\n\n{m_res}"
+                        tool_outputs.append(f"External Guidelines: {m_res[:500]}")
+
                 elif t_name == "query_exprag_hybrid":
                     with st.spinner("Finding similar cases..."):
                         # ... preserved exprag logic ...

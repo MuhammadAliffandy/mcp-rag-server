@@ -1,332 +1,202 @@
 """Few-shot examples for orchestration to teach LLM proper tool selection."""
 
+
 def get_few_shot_examples() -> str:
     """Returns comprehensive few-shot examples for agentic routing with reasoning."""
-    return """
-# FEW-SHOT EXAMPLES (Mental Models for the Agent):
+    # NOTE: Using a regular string (not triple-quoted) to avoid f-string nesting issues
+    # when this content is injected into orchestration.py's f-string.
+    return (
+        "# FEW-SHOT EXAMPLES (Mental Models for the Agent):\n\n"
 
-## Example 1: Basic Distribution Plot (Styling Extraction)
-User: "plot distribution of age with dark theme"
-Output: {
-  "answer": "Generating distribution plot for age using the dark theme.",
-  "thoughts": "User wants a visualization. Detected 'age' as target and 'dark theme' as style.",
-  "tasks": [
-    {
-      "tool": "generate_medical_plot",
-      "args": {
-        "plot_type": "distribution",
-        "target_column": "age",
-        "styling": { "style": { "theme": "dark" } }
-      }
-    }
-  ]
-}
+        "## Example 1: Basic Distribution Plot (Styling Extraction)\n"
+        'User: "plot distribution of age with dark theme"\n'
+        "Output: {\n"
+        '  "answer": "Generating distribution plot for age using the dark theme.",\n'
+        '  "thoughts": "User wants a visualization. Detected \'age\' as target and \'dark theme\' as style.",\n'
+        '  "tasks": [{ "tool": "generate_medical_plot", "args": { "plot_type": "distribution", "target_column": "age", "styling": "{\\"style\\": {\\"theme\\": \\"dark\\"}}" } }]\n'
+        "}\n\n"
 
-## Example 2: Indonesian + Specific ID Analysis (Hybrid Search)
-User: "Coba analisis kenapa pasien ID 123 bisa sakit?"
-Output: {
-  "answer": "Saya akan mencari data klinis pasien 123 dan menganalisisnya berdasarkan referensi medis.",
-  "thoughts": "User asking for specific patient (ID 123) analysis. Requires exact data lookup AND medical reasoning (RAG).",
-  "tasks": [
-    { "tool": "exact_identifier_search", "args": { "query": "123" } },
-    { "tool": "query_medical_rag", "args": { "question": "Kenapa pasien 123 sakit? Analisis indikator klinisnya." } }
-  ]
-}
+        "## Example 2: Indonesian + Specific ID Analysis (Hybrid Search)\n"
+        'User: "Coba analisis kenapa pasien ID 123 bisa sakit?"\n'
+        "Output: {\n"
+        '  "answer": "Saya akan mencari data klinis pasien 123 dan menganalisisnya berdasarkan referensi medis.",\n'
+        '  "thoughts": "User asking for specific patient (ID 123) analysis. Requires exact data lookup AND medical reasoning (RAG).",\n'
+        '  "tasks": [\n'
+        '    { "tool": "exact_identifier_search", "args": { "query": "123" } },\n'
+        '    { "tool": "query_medical_rag", "args": { "question": "Kenapa pasien 123 sakit?" } }\n'
+        "  ]\n"
+        "}\n\n"
 
-## Example 3: Internal Knowledge Query (SOP/Guidelines)
-User: "what are the standard protocols for sample handling?"
-Output: {
-  "answer": "I will search our internal SOPs for sample handling protocols.",
-  "thoughts": "Question is about general procedures/SOPs, not specific session data. Routing to RAG.",
-  "tasks": [
-    { "tool": "query_medical_rag", "args": { "question": "standard protocols for sample handling" } }
-  ]
-}
+        "## Example 3: Internal SOP Query (ONLY for docs stored in the system)\n"
+        'User: "what are the procedures in our internal SOP document?"\n'
+        "Output: {\n"
+        '  "answer": "I will search our internal SOP documents for the procedures.",\n'
+        '  "thoughts": "Question is about OUR INTERNAL uploaded SOP docs. Use query_medical_rag for internal docs.",\n'
+        '  "tasks": [{ "tool": "query_medical_rag", "args": { "question": "internal SOP procedures" } }]\n'
+        "}\n\n"
 
-## Example 4: Session Data Overview (External Data)
-User: "jelaskan isi file yang baru saya upload"
-Output: {
-  "answer": "Baik, saya akan membuat ringkasan statistik dari data yang Anda unggah.",
-  "thoughts": "User refers to 'uploaded file' (session data). calling get_data_context for summary.",
-  "tasks": [
-    { "tool": "get_data_context", "args": {} }
-  ]
-}
+        "## Example 4: Session Data Overview\n"
+        'User: "jelaskan isi file yang baru saya upload"\n'
+        "Output: {\n"
+        '  "answer": "Baik, saya akan membuat ringkasan statistik dari data yang Anda unggah.",\n'
+        '  "thoughts": "User refers to uploaded file (session data). Calling get_data_context.",\n'
+        '  "tasks": [{ "tool": "get_data_context", "args": {} }]\n'
+        "}\n\n"
 
-## Example 5: Clustering Request (Implicit Keyword)
-User: "bisa tolong kelompokkan pasien berdasarkan kemiripan?"
-Output: {
-  "answer": "Saya akan menjalankan analisis UMAP untuk melihat pola pengelompokan (clustering) pasien.",
-  "thoughts": "User said 'kelompokkan' (grouping/clustering). The correct statistical tool for unsupervised clustering is UMAP.",
-  "tasks": [
-    { "tool": "run_umap_analysis", "args": {} }
-  ]
-}
+        "## Example 5: Clustering Request\n"
+        'User: "bisa tolong kelompokkan pasien berdasarkan kemiripan?"\n'
+        "Output: {\n"
+        '  "answer": "Saya akan menjalankan analisis UMAP untuk melihat pola pengelompokan pasien.",\n'
+        '  "thoughts": "User said kelompokkan (clustering). UMAP is the correct tool.",\n'
+        '  "tasks": [{ "tool": "run_umap_analysis", "args": {} }]\n'
+        "}\n\n"
 
-## Example 6: Separation/Classification Request (Implicit Keyword)
-User: "show me separation between healthy and sick groups"
-Output: {
-  "answer": "I'll run PLS-DA to visualize the separation between the healthy and sick classes.",
-  "thoughts": "User asks for 'separation' between groups. This implies supervised analysis. PLS-DA is the correct tool.",
-  "tasks": [
-    { "tool": "run_pls_analysis", "args": {} }
-  ]
-}
+        "## Example 6: PLS-DA Separation\n"
+        'User: "show me separation between healthy and sick groups"\n'
+        "Output: {\n"
+        '  "answer": "I\'ll run PLS-DA to visualize the separation between the healthy and sick classes.",\n'
+        '  "thoughts": "User asks for separation between groups. PLS-DA is the correct tool.",\n'
+        '  "tasks": [{ "tool": "run_pls_analysis", "args": {} }]\n'
+        "}\n\n"
 
-## Example 7: Complex Styling (Custom JSON Construction)
-User: "buat scatter plot Age vs BMI, warnanya merah, judul font 18"
-Output: {
-  "answer": "Siap, membuat scatter plot Age vs BMI dengan warna merah dan judul ukuran besar.",
-  "thoughts": "Visualization request with multiple styles. Mapping 'merah'->'bar_color': 'red', 'font 18'->'title_size': 18.",
-  "tasks": [
-    {
-      "tool": "generate_medical_plot",
-      "args": {
-        "plot_type": "scatter",
-        "x": "Age",
-        "y": "BMI",
-        "styling": {
-            "colors": { "primary": "red" },
-            "style": { "title_size": 18 }
-        }
-      }
-    }
-  ]
-}
+        "## Example 7: Biomarker Discovery\n"
+        'User: "what are the most significant markers?"\n'
+        "Output: {\n"
+        '  "answer": "Running a Volcano Plot analysis to discover significant biomarkers.",\n'
+        '  "thoughts": "User asking for significant markers. Volcano Plot (discover_markers) is designed for this.",\n'
+        '  "tasks": [{ "tool": "discover_markers", "args": {} }]\n'
+        "}\n\n"
 
-## Example 8: Multi-Patient Specific Lookup (Not Statistics)
-User: "bandingkan data klinis pasien 1, 2, dan 3"
-Output: {
-  "answer": "Saya akan mengambil data untuk pasien 1, 2, dan 3 untuk dibandingkan.",
-  "thoughts": "User lists specific IDs (small number). This is a retrieval task, not a statistical group analysis.",
-  "tasks": [
-    { "tool": "query_medical_rag", "args": { "question": "Compare clinical data for patients 1, 2, and 3" } }
-  ]
-}
+        "## Example 8: Data Cleaning\n"
+        'User: "Clean data pakai KNN imputation"\n'
+        "Output: {\n"
+        '  "answer": "Saya akan membersihkan data menggunakan KNN imputation.",\n'
+        '  "thoughts": "User wants data cleaning in Indonesian.",\n'
+        '  "tasks": [\n'
+        '    { "tool": "extract_data_from_rag", "args": { "query": "clinical data", "save_to_session": true } },\n'
+        '    { "tool": "clean_medical_data", "args": { "imputation_method": "knn", "outlier_removal": true } }\n'
+        "  ]\n"
+        "}\n\n"
 
-## Example 9: Confirmation / Follow-up (Context Aware)
-User: "oke jalankan itu"
-Output: {
-  "answer": "Baik, segera saya proses.",
-  "thoughts": "User confirmed previous suggestion. Checking history... Previous turn suggested PCA. Executing PCA.",
-  "tasks": [
-    { "tool": "generate_medical_plot", "args": { "plot_type": "pca" } }
-  ]
-}
+        "## Example 9: Data Overview (English)\n"
+        'User: "Show me a data overview"\n'
+        "Output: {\n"
+        '  "answer": "I will prepare a comprehensive data overview including PCA, PLS-DA, and UMAP analysis.",\n'
+        '  "thoughts": "User wants data overview.",\n'
+        '  "tasks": [\n'
+        '    { "tool": "extract_data_from_rag", "args": { "query": "clinical data", "save_to_session": true } },\n'
+        '    { "tool": "generate_data_overview", "args": { "is_classification": true } }\n'
+        "  ]\n"
+        "}\n\n"
 
-## Example 10: General Chat (No Tool Needed)
-User: "halo, kamu siapa?"
-Output: {
-  "answer": "Halo! Saya adalah asisten analisis medis PineBioML. Saya bisa membantu Anda menganalisis data pasien, visualisasi, atau mencari info SOP.",
-  "thoughts": "General greeting. No data task required.",
-  "tasks": []
-}
+        "## Example 10: General Chat\n"
+        'User: "halo, kamu siapa?"\n'
+        "Output: {\n"
+        '  "answer": "Halo! Saya asisten analisis medis PineBioML.",\n'
+        '  "thoughts": "General greeting. No data task required.",\n'
+        '  "tasks": []\n'
+        "}\n\n"
 
-## Example 11: Error Correction / Refinement
-User: "bukan, maksud saya yang heatmap"
-Output: {
-  "answer": "Maaf atas kekeliruan sebelumnya. Saya akan buatkan Heatmap korelasinya.",
-  "thoughts": "User corrected intent. Switching tool from previous (likely PCA/Scatter) to Heatmap.",
-  "tasks": [
-    { "tool": "run_correlation_heatmap", "args": {} }
-  ]
-}
+        "## Example 11: Exact Code Search\n"
+        'User: "cari sample dengan kode ACC-2024-X"\n'
+        "Output: {\n"
+        '  "answer": "Mencari sampel dengan kode spesifik ACC-2024-X.",\n'
+        '  "thoughts": "User provided a specific alphanumeric code. Using exact identifier search.",\n'
+        '  "tasks": [{ "tool": "exact_identifier_search", "args": { "query": "ACC-2024-X" } }]\n'
+        "}\n\n"
 
-## Example 12: Exact Code Search (Accession ID)
-User: "cari sample dengan kode ACC-2024-X"
-Output: {
-  "answer": "Mencari sampel dengan kode spesifik ACC-2024-X.",
-  "thoughts": "User provided a specific alphanumeric code. Using exact identifier search.",
-  "tasks": [
-    { "tool": "exact_identifier_search", "args": { "query": "ACC-2024-X" } }
-  ]
-}
+        "## Example 12: Clinical Experience Reasoning (EXPRAG Hybrid)\n"
+        'User: "Pasien 60 tahun dengan Mayo Score 9 dan riwayat UC. Apa rekomendasi follow-up berdasarkan pengalaman pasien serupa?"\n'
+        "Output: {\n"
+        '  "answer": "Saya akan mencari pasien dengan profil klinis serupa untuk membandingkan tindakan medis.",\n'
+        '  "thoughts": "User asks for treatment based on similar patients. Priority for query_exprag_hybrid.",\n'
+        '  "tasks": [{ "tool": "query_exprag_hybrid", "args": { "question": "rekomendasi follow-up", "patient_data": "{\\"age\\": 60, \\"sum_pmayo\\": 9}" } }]\n'
+        "}\n\n"
 
-## Example 13: Feature Discovery (Biomarkers)
-User: "what are the most significant markers?"
-Output: {
-  "answer": "Running a Volcano Plot analysis to discover significant biomarkers in the dataset.",
-  "thoughts": "User asking for 'significant markers'. The Volcano Plot tool (discover_markers) is designed for this.",
-  "tasks": [
-    { "tool": "discover_markers", "args": {} }
-  ]
-}
+        "## Example 13: PCA Plot\n"
+        'User: "Buat PCA plot warnai Disease"\n'
+        "Output: {\n"
+        '  "answer": "Saya akan membuat PCA plot dengan pewarnaan berdasarkan Disease.",\n'
+        '  "thoughts": "User wants PCA in Indonesian.",\n'
+        '  "tasks": [{ "tool": "generate_medical_plot", "args": { "plot_type": "pca", "target_column": "Disease" } }]\n'
+        "}\n\n"
 
-## Example 14: Data Cleaning Request
-User: "datanya banyak yang kosong, tolong perbaiki"
-Output: {
-  "answer": "Saya akan melakukan pembersihan data (imputasi) untuk mengisi nilai yang kosong.",
-  "thoughts": "User mentions missing data/empty values. Calling cleaning tool.",
-  "tasks": [
-    { "tool": "clean_medical_data", "args": {} }
-  ]
-}
+        "## Example 14: Model Training\n"
+        'User: "Train a RandomForest model to predict Disease"\n'
+        "Output: {\n"
+        '  "answer": "I will train a RandomForest model to predict Disease.",\n'
+        '  "thoughts": "User wants ML training.",\n'
+        '  "tasks": [\n'
+        '    { "tool": "extract_data_from_rag", "args": {} },\n'
+        '    { "tool": "train_medical_model", "args": { "target_column": "Disease", "model_type": "RandomForest" } }\n'
+        "  ]\n"
+        "}\n\n"
 
-## Example 15: Data Cleaning with RAG Extraction (Indonesian)
-User: "Clean data pakai KNN imputation"
-Output: {
-  "answer": "Saya akan membersihkan data menggunakan KNN imputation untuk menangani missing values.",
-  "thoughts": "User wants data cleaning in Indonesian. Mirroring language.",
-  "tasks": [
-    { "tool": "extract_data_from_rag", "args": {"query": "clinical data", "save_to_session": true} },
-    { "tool": "clean_medical_data", "args": {"imputation_method": "knn", "outlier_removal": true} }
-  ]
-}
+        "## Example 15: Grouped Distribution\n"
+        'User: "tampilkan distribusi umur berdasarkan jenis kelamin"\n'
+        "Output: {\n"
+        '  "answer": "Saya akan membuat plot distribusi umur yang dikelompokkan berdasarkan jenis kelamin.",\n'
+        '  "thoughts": "User wants distribution by category. Using hue_column for grouping.",\n'
+        '  "tasks": [{ "tool": "generate_medical_plot", "args": { "plot_type": "distribution", "target_column": "age", "hue_column": "sex" } }]\n'
+        "}\n\n"
 
-## Example 16: Data Overview (English)
-User: "Show me a data overview"
-Output: {
-  "answer": "I will prepare a comprehensive data overview including PCA, PLS-DA, and UMAP analysis.",
-  "thoughts": "User wants data overview in English. Mirroring language.",
-  "tasks": [
-    { "tool": "extract_data_from_rag", "args": {"query": "clinical data", "save_to_session": true} },
-    { "tool": "generate_data_overview", "args": {"target_column": null, "is_classification": true} }
-  ]
-}
+        "## Example 16: Box Plot for Comparison\n"
+        'User: "compare CRP levels between disease groups using a box plot"\n'
+        "Output: {\n"
+        '  "answer": "I will generate a box plot to compare CRP levels across different disease groups.",\n'
+        '  "thoughts": "User explicitly requested a box plot for comparison.",\n'
+        '  "tasks": [{ "tool": "generate_medical_plot", "args": { "plot_type": "box", "target_column": "crp", "hue_column": "disease" } }]\n'
+        "}\n\n"
 
-## Example 17: Biomarker Discovery (Indonesian)
-User: "Cari biomarkers untuk Disease vs Healthy"
-Output: {
-  "answer": "Saya akan menjalankan analisis Volcano Plot untuk mengidentifikasi biomarker yang signifikan membedakan kelompok Disease dan Healthy.",
-  "thoughts": "User wants biomarker discovery in Indonesian. Mirroring language.",
-  "tasks": [
-    { "tool": "extract_data_from_rag", "args": {"query": "clinical data"} },
-    { "tool": "discover_markers", "args": {"target_column": "Disease", "p_value_threshold": 0.05} }
-  ]
-}
+        "## ==================================================================\n"
+        "## CRITICAL: EXTERNAL GUIDELINES ROUTING (Examples 17-21)\n"
+        "## RULE: If user mentions ANY guideline body OR asks for treatment protocol/escalation,\n"
+        "## ALWAYS use query_external_guidelines — NEVER query_medical_rag for these!\n"
+        "## ==================================================================\n\n"
 
-## Example 18: Model Training (English)
-User: "Train a RandomForest model to predict Disease"
-Output: {
-  "answer": "I will train a RandomForest model to predict Disease using hyperparameter optimization.",
-  "thoughts": "User wants ML training in English. Mirroring language.",
-  "tasks": [
-    { "tool": "extract_data_from_rag", "args": {} },
-    { "tool": "train_medical_model", "args": {"target_column": "Disease", "model_type": "RandomForest"} }
-  ]
-}
+        "## Example 17: External Guideline — ACG Named\n"
+        'User: "Patient P-045 has MES 3 Severe Activity. What is the recommended escalation per ACG guidelines?"\n'
+        "Output: {\n"
+        '  "answer": "I will fetch the latest ACG guidelines for severe ulcerative colitis (MES 3) and provide the recommended escalation protocol.",\n'
+        '  "thoughts": "User explicitly mentions ACG (external guideline body). MUST use query_external_guidelines. query_medical_rag only searches internal docs and would return nothing for ACG web content.",\n'
+        '  "tasks": [{ "tool": "query_external_guidelines", "args": { "question": "recommended escalation for severe ulcerative colitis MES 3 per ACG guidelines", "patient_context": "MES 3, Severe Activity" } }]\n'
+        "}\n\n"
 
-## Example 19: PCA Plot (Indonesian)
-User: "Buat PCA plot warnai Disease"
-Output: {
-  "answer": "Saya akan membuat PCA plot dengan pewarnaan berdasarkan Disease untuk melihat pola sebaran data.",
-  "thoughts": "User wants PCA in Indonesian. Mirroring language.",
-  "tasks": [
-    { "tool": "extract_data_from_rag", "args": {"query": "clinical data"} },
-    { "tool": "generate_medical_plot", "args": {"plot_type": "pca", "target_column": "Disease", "data_source": "session"} }
-  ]
-}
+        "## Example 18: External Guideline — ECCO Named\n"
+        'User: "What are ECCO recommendations for induction therapy in moderate-to-severe UC?"\n'
+        "Output: {\n"
+        '  "answer": "I will retrieve the ECCO guidelines for induction therapy in moderate-to-severe ulcerative colitis from the web.",\n'
+        '  "thoughts": "ECCO is an external guideline body. Must use query_external_guidelines.",\n'
+        '  "tasks": [{ "tool": "query_external_guidelines", "args": { "question": "ECCO recommendations induction therapy moderate-to-severe ulcerative colitis" } }]\n'
+        "}\n\n"
 
-## Example 20: Medical Knowledge Query (RAG Tool - NOT PineBioML)
-User: "What is diabetes?"
-Output: {
-  "answer": "I will search our medical knowledge base for information about diabetes.",
-  "thoughts": "User asking for medical definition/knowledge. This is RAG query_medical_rag, NOT PineBioML.",
-  "tasks": [
-    {
-      "tool": "query_medical_rag",
-      "args": {
-        "question": "What is diabetes? Provide definition and clinical overview."
-      }
-    }
-  ]
-}
+        "## Example 19: External Guideline — ADA Diabetes\n"
+        'User: "What protocol should I follow for a patient with HbA1c 11.2? ADA guidelines?"\n'
+        "Output: {\n"
+        '  "answer": "I will look up the ADA guidelines for managing HbA1c 11.2 and provide the recommended treatment protocol.",\n'
+        '  "thoughts": "ADA is an external guideline body for diabetes. Must use query_external_guidelines.",\n'
+        '  "tasks": [{ "tool": "query_external_guidelines", "args": { "question": "ADA guidelines management HbA1c 11.2 diabetes treatment protocol", "patient_context": "HbA1c 11.2" } }]\n'
+        "}\n\n"
 
-## Example 21: Clinical Experience Reasoning (EXPRAG Hybrid)
-User: "Pasien 60 tahun dengan Mayo Score 9 dan riwayat UC. Apa rekomendasi follow-up berdasarkan pengalaman pasien serupa?"
-Output: {
-  "answer": "Saya akan mencari pasien dengan profil klinis serupa (Age: 60, Mayo: 9, Indication: UC) dan membandingkan tindakan medis mereka dengan protokol SOP kita.",
-  "thoughts": "User asks for treatment based on 'similar patients' and provides clinical metrics. High-priority for query_exprag_hybrid.",
-  "tasks": [
-    {
-      "tool": "query_exprag_hybrid",
-      "args": {
-        "question": "rekomendasi follow-up berdasarkan pengalaman pasien serupa",
-        "patient_data": "{\\\"age\\\": 60, \\\"sum_pmayo\\\": 9, \\\"indication\\\": \\\"UC\\\"}"
-      }
-    }
-  ]
-}
+        "## Example 20: External Guideline — Indonesian\n"
+        'User: "Panduan tatalaksana kolitis ulseratif berat berdasarkan ECCO dan ACG?"\n'
+        "Output: {\n"
+        '  "answer": "Saya akan mengambil panduan tatalaksana kolitis ulseratif berat dari ECCO dan ACG melalui sumber eksternal.",\n'
+        '  "thoughts": "User mentions ECCO and ACG (both external bodies). Language is Indonesian. Must use query_external_guidelines.",\n'
+        '  "tasks": [{ "tool": "query_external_guidelines", "args": { "question": "severe ulcerative colitis ECCO ACG guidelines treatment escalation", "patient_context": "severe activity" } }]\n'
+        "}\n\n"
 
-## Example 22: Advanced Medical RAG (Sentence Window)
-User: "Lakukan analisis mendalam terhadap catatan klinis ini menggunakan Sentence Window."
-Output: {
-  "answer": "Saya akan menggunakan mesin Sentence Window untuk mengekstraksi konteks klinis yang paling detail dari catatan Anda.",
-  "thoughts": "User wants high-precision sentence-level analysis for complex records.",
-  "tasks": [
-    {
-      "tool": "query_medical_rag",
-      "args": {
-        "question": "Analisis detail catatan klinis",
-        "method": "sentence"
-      }
-    }
-  ]
-}
+        "## Example 21: External Guideline — No Named Authority, But Treatment Protocol\n"
+        'User: "What is the standard treatment escalation for a patient with severe IBD not responding to steroids?"\n'
+        "Output: {\n"
+        '  "answer": "I will retrieve current international guidelines for rescue therapy in steroid-refractory severe IBD.",\n'
+        '  "thoughts": "User asks treatment escalation — this is external knowledge. Must use query_external_guidelines, not internal docs.",\n'
+        '  "tasks": [{ "tool": "query_external_guidelines", "args": { "question": "treatment escalation steroid-refractory severe IBD rescue therapy guidelines" } }]\n'
+        "}\n\n"
 
-## Example 23: Advanced Medical RAG (Auto-Merging)
-User: "What are the standard protocols for this according to the SOP documents?"
-Output: {
-  "answer": "I will scan the SOP documents using hierarchical auto-merging to find the exact official protocols for your query.",
-  "thoughts": "Long SOP documents are best handled with auto-merging for hierarchical context.",
-  "tasks": [
-    {
-      "tool": "query_medical_rag",
-      "args": {
-        "question": "Official standard protocols",
-        "method": "auto_merging"
-      }
-    }
-  ]
-}
-
-## Example 24: Grouped Distribution (Indonesian)
-User: "tampilkan distribusi umur berdasarkan jenis kelamin"
-Output: {
-  "answer": "Saya akan membuat plot distribusi umur yang dikelompokkan berdasarkan jenis kelamin untuk melihat perbandingannya.",
-  "thoughts": "User wants distribution (umur) by category (jenis kelamin). Using hue_column for grouping.",
-  "tasks": [
-    {
-      "tool": "generate_medical_plot",
-      "args": {
-        "plot_type": "distribution",
-        "target_column": "age",
-        "hue_column": "sex"
-      }
-    }
-  ]
-}
-
-## Example 25: Box Plot for Comparison (English)
-User: "compare CRP levels between disease groups using a box plot"
-Output: {
-  "answer": "I will generate a box plot to compare CRP levels across different disease groups.",
-  "thoughts": "User explicitly requested a box plot for comparison. Mapping CRP to target and disease groups to hue.",
-  "tasks": [
-    {
-      "tool": "generate_medical_plot",
-      "args": {
-        "plot_type": "box",
-        "target_column": "crp",
-        "hue_column": "disease"
-      }
-    }
-  ]
-}
-
-## Example 26: Parameter Refinement (Session Aware)
-User: "ganti warna biru"
-Output: {
-  "answer": "Tentu, saya ganti warna plotnya menjadi biru.",
-  "thoughts": "User wants a style change. Checking history... Last plot used target_column='age' and type='distribution'. Reusing those params.",
-  "tasks": [
-    {
-      "tool": "generate_medical_plot",
-      "args": {
-        "plot_type": "distribution",
-        "target_column": "age",
-        "styling": { "colors": { "primary": "blue" } }
-      }
-    }
-  ]
-}"""
+        "## ROUTING DECISION TREE:\n"
+        "- User mentions ACG, ECCO, WHO, NICE, ESC, AHA, IDSA, ADA, ASCO, ESMO, GOLD, KDIGO, EULAR, AAN, ACOG... -> ALWAYS use query_external_guidelines\n"
+        "- User asks for treatment escalation/protocol/recommendation for a clinical severity -> use query_external_guidelines\n"
+        "- User asks about docs stored in our INTERNAL uploaded files -> use query_medical_rag\n"
+        "- User asks for similar patient historical experience -> use query_exprag_hybrid\n"
+    )

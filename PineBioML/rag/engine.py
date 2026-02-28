@@ -156,11 +156,57 @@ ANSWER:"""
         
         This method delegates to the PureOrchestrator for agentic tool selection
         without any hardcoded heuristics or keyword matching.
+        
+        Exception: A deterministic pre-router guard catches external guideline keywords
+        and bypasses the LLM to guarantee correct routing to query_external_guidelines.
         """
         if not self.qa_chain: 
             return "RAG not initialized.", "none", [], ""
         
         pine_logger(f"🧠 Smart Query: '{question[:100]}...'")
+
+        # ─── GUARD RAG PRE-ROUTER ─────────────────────────────────────────────
+        # Deterministic: if the question mentions known external guideline authorities
+        # OR clinical protocol keywords, bypass LLM and route directly to
+        # query_external_guidelines. This prevents the LLM from misrouting to
+        # internal query_medical_rag which has no external guideline content.
+        EXTERNAL_GUIDELINE_TRIGGERS = [
+            # Named guideline bodies
+            "acg", "ecco", "who guidelines", "nice guidelines", "esc guidelines",
+            "aha guidelines", "acc guidelines", "idsa", "ada guidelines",
+            "asco guidelines", "esmo", "nccn", "gold guidelines", "ats guidelines",
+            "ers guidelines", "kdigo", "eular", "aan guidelines", "acog",
+            "bsg guidelines", "wgo guidelines", "sccm", "esicm",
+            # Clinical action phrases
+            "per acg", "per ecco", "per who", "per nice", "per esc", "per idsa",
+            "per ada", "per asco", "per gold", "per kdigo", "per eular",
+            "based on acg", "based on ecco", "based on guidelines",
+            "according to acg", "according to ecco", "according to who",
+            "according to guidelines", "according to protocol",
+            "recommended escalation", "escalation therapy", "rescue therapy",
+            "international guidelines", "clinical guidelines for",
+            "guideline recommendation", "panduan tatalaksana",  # Indonesian
+            "rekomendasi guideline", "berdasarkan guideline",   # Indonesian
+        ]
+        q_lower = question.lower()
+        is_external_guideline = any(trigger in q_lower for trigger in EXTERNAL_GUIDELINE_TRIGGERS)
+        
+        if is_external_guideline:
+            pine_logger(f"🌐 Guard RAG Pre-Router: Detected external guideline keyword — bypassing LLM, routing to query_external_guidelines")
+            answer = "I will fetch the latest external medical guidelines relevant to your question."
+            if self.detect_language(question) == "Indonesian":
+                answer = "Saya akan mengambil panduan medis terbaru dari sumber eksternal yang relevan dengan pertanyaan Anda."
+            tasks = [{
+                "tool": "query_external_guidelines",
+                "args": {
+                    "question": question,
+                    "patient_context": ""  # Will be enriched by LLM in the tool itself
+                }
+            }]
+            return answer, "multi_task", tasks, ""
+        # ─── END GUARD RAG PRE-ROUTER ─────────────────────────────────────────
+
+        pine_logger(f"🧠 Smart Query (LLM route): '{question[:100]}...'")
         
         # 1. Multi-tier RAG Retrieval
         try:

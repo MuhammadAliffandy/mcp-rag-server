@@ -26,10 +26,14 @@ def get_orchestration_prompt(
         Complete system prompt string for the Orchestrator
     """
     
+
     # Ambil contoh few-shot yang relevan (bisa dinamis juga kalau mau)
     few_shot = get_few_shot_examples()
-    
-    return f"""
+
+    # NOTE: Using str.replace() instead of f-string to avoid Python 3.10 f-string
+    # nesting depth limit (which is hit by the large prompt with many {variable} refs).
+    _TEMPLATE = """
+
 You are the **Strategic Orchestrator** for the PineBioML Medical Analysis System.
 Your goal is to map user intent to specific Tools or RAG queries without hallucination.
 
@@ -69,14 +73,19 @@ Your goal is to map user intent to specific Tools or RAG queries without halluci
 - ✅ User asks for: interpretation of results (AFTER analysis)
 - ✅ User asks for: SOPs, guidelines, protocols
 - ✅ User asks for: similarities, peer experience, "what happened in similar cases?"
+- ✅ User asks for: **live external guidelines** (ACG, ECCO, WHO, NICE, ESC, ADA, ASCO, IDSA, etc.) — use `query_external_guidelines`
 
 ### Examples:
 - "Tampilkan overview data" → **generate_data_overview** (NOT query_medical_rag)
 - "Clean data pakai KNN" → **clean_medical_data** (NOT query_medical_rag)
 - "Cari biomarkers" → **discover_markers** (NOT query_medical_rag)
 - "Buatkan PCA plot" → **generate_medical_plot** (NOT query_medical_rag)
-- "What is diabetes?" → **query_medical_rag** (medical knowledge)
+- "What is diabetes?" → **query_medical_rag** (internal knowledge)
 - "How do we treat cases like this patient?" → **query_exprag_hybrid** (experience + knowledge)
+- "What does ACG say about MES 3?" → **query_external_guidelines** (live web guideline fetch)
+- "What are ECCO recommendations for severe colitis?" → **query_external_guidelines**
+- "Patient has HbA1c 11, what does ADA recommend?" → **query_external_guidelines**
+- "Treatment for sepsis per IDSA?" → **query_external_guidelines**
 
 
 ## Rule 8: SMART COLUMN MAPPING (TARGET SELECTION)
@@ -246,6 +255,19 @@ Before adding ANY task to the `tasks` array, you MUST:
   - Examples: "extract clinical data", "load patient records", "prepare data"
 
 ## F. DATA & KNOWLEDGE RETRIEVAL (RAG)
+- **query_external_guidelines**(question, patient_context, sources)
+  - Use when: User asks about **external medical guidelines**, protocols, or evidence-based treatment recommendations from ANY medical society
+  - **ALWAYS prefer this over query_medical_rag** when the user mentions guideline authorities (ACG, ECCO, WHO, NICE, ESC, AHA, IDSA, ADA, ASCO, ESMO, GOLD, KDIGO, EULAR, AAN, ACOG, etc.)
+  - **patient_context**: Optional string summarizing current patient status (e.g., "MES 3, pMayo 8, Hb 9")
+  - The system auto-detects specialty and queries the right authorities
+  - Examples:
+    - "What does ACG recommend for severe colitis?" → `query_external_guidelines(question=..., patient_context="MES 3")`
+    - "What protocol per ECCO for UC flare?" → `query_external_guidelines`
+    - "Treatment guideline for HbA1c 11, ADA protocol" → `query_external_guidelines`
+    - "IDSA recommendation for sepsis antibiotics" → `query_external_guidelines`
+    - "What are WHO criteria for X?" → `query_external_guidelines`
+    - "Panduan tatalaksana kolitis ulseratif berat" → `query_external_guidelines`
+
 - **query_exprag_hybrid**(question, patient_data)
   - Use when: Comprehensive clinical reasoning, similarity search, combining internal experience with external SOPs.
   - **patient_data**: JSON string of current patient metrics (Age, Mayo, Hb, etc.)
@@ -256,7 +278,7 @@ Before adding ANY task to the `tasks` array, you MUST:
   - Examples: "find patient 123", "search for code ABC"
 
 - **query_medical_rag**(question, patient_id_filter, method)
-  - Use when: Medical definitions, reasoning, interpretations
+  - Use when: Medical definitions, reasoning, interpretations **using INTERNAL ingested documents only**
   - **method**: "vector" (default), "sentence" (high-precision notes), "auto_merging" (complex SOPs)
   - Examples: "analyze these notes deeply" (use sentence), "what are the SOPs for X" (use auto_merging)
 
@@ -291,8 +313,8 @@ You must return ONLY a JSON object. No markdown formatting (```json), no convers
 
 CRITICAL STYLING RULE:
 - The "styling" argument MUST be a JSON STRING (escaped quotes), NOT a nested object.
-- ✅ CORRECT: "styling": "{{\\"title\\": \\"Analysis\\"}}"
-- ❌ WRONG: "styling": {{"title": "Analysis"}}
+- CORRECT: "styling": "{\"title\": \"Analysis\"}"
+- WRONG: "styling": {"title": "Analysis"}
 
 CRITICAL:
 1. "tasks" MUST be an array.
@@ -300,6 +322,15 @@ CRITICAL:
 3. Doctor Persona: Maintain a professional, non-technical physician tone.
 
 RESPOND NOW:
-
-RESPOND NOW:
 """
+
+    return (
+        _TEMPLATE
+        .replace("{language}", language)
+        .replace("{chat_history}", chat_history or "No previous conversation.")
+        .replace("{schema_context}", schema_context or "No tabular data loaded. (User might need to upload a file)")
+        .replace("{session_preview}", session_preview or "No user data.")
+        .replace("{knowledge_preview}", knowledge_preview or "No relevant internal docs found.")
+        .replace("{inventory_preview}", inventory_preview or "No files.")
+        .replace("{few_shot}", few_shot)
+    )

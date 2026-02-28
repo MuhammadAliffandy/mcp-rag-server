@@ -526,6 +526,46 @@ def query_exprag_hybrid(question: str, patient_data: str = "{}") -> str:
         return json.dumps({"error": str(e)})
 
 @mcp.tool()
+def query_external_guidelines(question: str, patient_context: str = "", sources: str = "auto") -> str:
+    """
+    Guard RAG: Fetches live treatment guidelines from authoritative medical sources.
+
+    Searches across ALL major medical guideline authorities including:
+    - GI/IBD: ACG, ECCO, BSG, WGO
+    - General: WHO, NICE, PubMed, Cochrane
+    - Cardiology: ESC, AHA, ACC
+    - Infectious Disease: IDSA, CDC
+    - Diabetes/Endocrine: ADA, ENDO Society
+    - Oncology: ASCO, ESMO, NCCN
+    - Respiratory: GOLD, ATS, ERS
+    - Nephrology: KDIGO, ASN
+    - Rheumatology: EULAR, ACR
+    - Neurology: AAN
+    - OB/GYN: ACOG, FIGO
+    - Critical Care: SCCM, ESICM
+
+    The system auto-detects the medical specialty from the question and
+    prioritizes the relevant guideline authorities.
+
+    Args:
+        question: Clinical question (e.g., "What is the recommended treatment for MES 3 severe UC?")
+        patient_context: Optional patient info string (e.g., "MES 3, pMayo 8, Hb 9 g/dL")
+        sources: "auto" to auto-detect specialty, or comma-separated source names to target specific ones
+
+    Returns:
+        Synthesized clinical recommendation with source citations (URLs).
+    """
+    try:
+        from PineBioML.rag.external_guidelines import query_external_guidelines as _fetch_guidelines
+        pine_log(f"🌐 Guard RAG: Fetching external guidelines for: {question[:80]}...")
+        answer = _fetch_guidelines(question=question, patient_context=patient_context)
+        pine_log(f"✅ Guard RAG: Retrieved answer ({len(answer)} chars)")
+        return answer
+    except Exception as e:
+        pine_log(f"❌ Guard RAG Error: {e}")
+        return f"⚠️ Could not retrieve external guidelines: {str(e)}"
+
+@mcp.tool()
 def exact_identifier_search(query: str, patient_id_filter: Optional[str] = None) -> str:
     """Perform literal substring search across all ingested documents."""
     res, hits = rag_engine.exact_search(query, patient_id_filter)
