@@ -508,10 +508,21 @@ if st.session_state.get("processing_pending", False):
 
     # Placeholder for the new assistant message to keep things clean
     with st.spinner("Medical AI is planning and executing..."):
+        # Auto-extract patient ID from the chat message if sidebar filter is blank
+        import re as _re_pid
+        effective_patient_filter = patient_filter
+        if not effective_patient_filter:
+            _pid_match = _re_pid.search(
+                r'\b(?:patient|id|pasien)\s*[:#]?\s*(\d+)\b',
+                last_user_prompt, _re_pid.IGNORECASE
+            )
+            if _pid_match:
+                effective_patient_filter = _pid_match.group(1)
+
         # Call the Smart Brain via MCP Tool
         dispatch_res = asyncio.run(call_mcp_tool("smart_intent_dispatch", {
             "question": last_user_prompt,
-            "patient_id_filter": patient_filter,
+            "patient_id_filter": effective_patient_filter,
             "chat_history": st.session_state.messages[:-1] # History excluding current
         }))
 

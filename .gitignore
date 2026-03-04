@@ -67,3 +67,7 @@ note.txt
 # Streamlit
 .streamlit/
 
+# test
+qa_report.docx
+qa_report.md
+pinebio_rag_presentation.md

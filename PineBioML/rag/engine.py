@@ -213,17 +213,44 @@ ANSWER:"""
             # Get GLOBAL SUMMARIES (File Inventory)
             summary_docs = self.vector_store.similarity_search("[DEEP SUMMARY]", k=10)
             
+            # Fetch more candidates to allow for Python-side filtering
+            fetch_k = 50 if patient_id_filter else 10
+            
             # Get SESSION DOCUMENTS (User Uploads - Priority)
-            session_docs = self.vector_store.similarity_search(
-                question, k=10, 
+            session_docs_raw = self.vector_store.similarity_search(
+                question, k=fetch_k, 
                 filter={"doc_type": {"$in": ["session_upload", "internal_patient"]}}
             )
             
             # Get KNOWLEDGE BASE (SOPs/Guidelines - Reference)
-            knowledge_docs = self.vector_store.similarity_search(
-                question, k=5, 
+            knowledge_docs_raw = self.vector_store.similarity_search(
+                question, k=fetch_k, 
                 filter={"doc_type": "internal_record"}
             )
+            
+            session_docs = []
+            knowledge_docs = []
+            
+            # Custom Python-side filtering for patient IDs
+            if patient_id_filter:
+                clean_filter = str(patient_id_filter).lower().strip()
+                
+                # Filter session docs
+                for d in session_docs_raw:
+                    p_ids = str(d.metadata.get("patient_ids", "")).lower()
+                    if clean_filter in p_ids.split(',') or f"patient_{clean_filter}" in p_ids:
+                        session_docs.append(d)
+                
+                # Filter knowledge docs 
+                for d in knowledge_docs_raw:
+                    p_ids = str(d.metadata.get("patient_ids", "")).lower()
+                    if clean_filter in p_ids.split(',') or f"patient_{clean_filter}" in p_ids:
+                        knowledge_docs.append(d)
+                        
+                pine_logger(f"🔍 Filtered to {len(session_docs)} session docs and {len(knowledge_docs)} knowledge docs for Patient {clean_filter}")
+            else:
+                session_docs = session_docs_raw
+                knowledge_docs = knowledge_docs_raw
             
             # Format context previews
             session_preview = "\n---\n".join([
@@ -507,13 +534,32 @@ ANSWER:"""
             
             # Universal Mirroring Instruction
             sys_msg = "You are a Senior Clinical Data Scientist. You MUST mirror the user's language perfectly and ABSORB ALL provided context."
-            instr = f"Mirror the user's language (Detect {lang}). Wrap findings into a cohesive clinical narrative. Explain biological significance. INTEGRATE EVERY RELEVANT DETAIL from the context."
+            instr = f"Mirror the user's language (Detect {lang}). Provide a cohesive clinical narrative. Explain biological significance. INTEGRATE EVERY RELEVANT DETAIL from the context."
+
+            # Extract any raw tabular rows from rag_context for explicit display
+            raw_records_section = ""
+            if rag_context:
+                import re as _re_rows
+                data_rows = _re_rows.findall(
+                    r'Data Record \(Row \d+\):.*?(?=Data Record|$)', 
+                    rag_context, _re_rows.DOTALL
+                )
+                if data_rows:
+                    raw_records_section = "\n\n### 📋 Retrieved Data Records\n"
+                    for i, row in enumerate(data_rows, 1):
+                        raw_records_section += f"**Record {i}:** {row.strip()[:400]}\n\n"
 
             user_prompt = f"""
 [SYSTEM MANDATE]:
-You must provide a COMPREHENSIVE analysis. Do not ignore any clinical details provided in the [RAG CONTEXT]. If the context mentions specific thresholds, protocols, or patient history, INTEGRATE them into your final synthesis.
+You must provide a COMPREHENSIVE analysis in TWO PARTS:
+
+PART 1 - RAW DATA TABLE: List ALL individual patient records retrieved, showing each visit/row explicitly with its exact values.
+PART 2 - CLINICAL NARRATIVE: Interpret the findings clinically.
 
 [USER REQUEST]: {question}
+
+[RAW RETRIEVED RECORDS]:
+{raw_records_section or "(No structured records extracted — use all data from RAG context below.)"}
 
 [RAG CONTEXT (CLINICAL BACKGROUND/GUIDELINES/RECORDS)]:
 {rag_context or "No specific documentation context provided."}
@@ -523,14 +569,11 @@ You must provide a COMPREHENSIVE analysis. Do not ignore any clinical details pr
 
 [INSTRUCTIONS & CONSTRAINTS]:
 1. {instr}
-2. **NO REPETITION**: The user has ALREADY seen the [TECHNICAL ANALYSIS FINDINGS]. **DO NOT** repeat tables, lists of numbers, or raw statistics.
-3. **INTERPRETATION ONLY**: Focus entirely on the **clinical implications** of the findings. What does the data *mean* for the patient?
-    - Instead of: "The mean CRP is 5.2 vs 1.2" (Redundant)
-    - Say: "The significantly elevated CRP in the Biologics group suggests active inflammation despite treatment." (Insight)
-4. **INTEGRATE RAG CONTEXT**: Use the [RAG CONTEXT] to explain *why* these findings matter based on similar cases or guidelines.
+2. **PART 1 — SHOW ALL RECORDS**: ALWAYS start with a table or bullet list showing EVERY retrieved patient record/row with its exact values (dates, Hb, CRP, pMayo, scoring, treatment etc.). Label each record clearly (Record 1: date=..., Hb=..., CRP=...). Do NOT skip any record.
+3. **PART 2 — NARRATIVE**: AFTER listing all records, provide the clinical interpretation — what does the data pattern mean across visits? Interpret trends, biological significance, and clinical implications.
+4. **INTEGRATE RAG CONTEXT**: Use the RAG CONTEXT to explain why these findings matter.
 5. Respond in the EXACT SAME language as the User Request.
-6. **FORMATTING**: Use **Professional Markdown** (bullet points, bold key terms) for readability.
-7. Short and concise. Do not summarize what was just shown. Start directly with the insight.
+6. **FORMATTING**: Use **Professional Markdown** (tables where possible, bold key terms, clear headers for Part 1 and Part 2).
             """
             return llm.invoke([("system", sys_msg), ("human", user_prompt)]).content
         except Exception as e: return f"Synthesis error: {e}"
