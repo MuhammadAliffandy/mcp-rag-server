@@ -1280,6 +1280,34 @@ def query_medical_rag(question: str, patient_id_filter: Optional[str] = None, me
     - auto_merging: hierarchical context retrieval (best for long documents/SOPs).
     """
     try:
+        # When a patient ID filter is set, use exact_search to guarantee ALL records
+        # for that patient are retrieved (not just the top-k semantically similar ones)
+        if patient_id_filter and str(patient_id_filter).strip():
+            pine_log(f"🔍 Patient filter '{patient_id_filter}' detected — using exact_search for complete record retrieval")
+            res_text, hits = rag_engine.exact_search(question, patient_id_filter)
+            
+            # Build rag_context from the exact hits, filtering strictly to this patient
+            clean_filter = str(patient_id_filter).lower().strip()
+            patient_hits = [
+                h for h in hits
+                if clean_filter in str(h["metadata"].get("patient_ids", "")).lower().split(",")
+                or f"id {clean_filter}" in str(h["metadata"].get("patient_ids", "")).lower()
+            ]
+            
+            pine_log(f"✅ exact_search returned {len(patient_hits)} records for patient '{patient_id_filter}'")
+            rag_context = "\n---\n".join([h["text"] for h in patient_hits])
+            
+            # Synthesize using the full exact match context
+            final_answer = rag_engine.synthesize_results(question, res_text, rag_context)
+            
+            return json.dumps({
+                "answer": final_answer,
+                "sources": list(set(h["metadata"].get("source", "unknown") for h in patient_hits)),
+                "method_used": "exact_patient_search",
+                "records_found": len(patient_hits)
+            })
+        
+        # No patient filter: use standard semantic QA chain
         ans, sources = rag_engine.query(question, patient_id_filter, method=method)
         rag_context = "\n---\n".join([str(d.page_content if hasattr(d, 'page_content') else d.text) for d in sources])
         
