@@ -196,11 +196,16 @@ ANSWER:"""
             answer = "I will fetch the latest external medical guidelines relevant to your question."
             if self.detect_language(question) == "Indonesian":
                 answer = "Saya akan mengambil panduan medis terbaru dari sumber eksternal yang relevan dengan pertanyaan Anda."
+            
+            # Extract patient context from question text
+            from PineBioML.rag.external_guidelines import extract_patient_context
+            extracted_ctx = extract_patient_context(question)
+            
             tasks = [{
                 "tool": "query_external_guidelines",
                 "args": {
                     "question": question,
-                    "patient_context": ""  # Will be enriched by LLM in the tool itself
+                    "patient_context": extracted_ctx
                 }
             }]
             return answer, "multi_task", tasks, ""
@@ -527,53 +532,62 @@ ANSWER:"""
         except Exception as e: return f"Error: {e}", []
 
     def synthesize_results(self, question: str, tool_outputs: str, rag_context: str = ""):
-        """Final clinical synthesis wrapping all findings with strict language mirroring."""
+        """Final clinical synthesis wrapping all findings with strict Colonosense formatting."""
         try:
             lang = self.detect_language(question)
             llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.2)
             
-            # Universal Mirroring Instruction
-            sys_msg = "You are a Senior Clinical Data Scientist. You MUST mirror the user's language perfectly and ABSORB ALL provided context."
-            instr = f"Mirror the user's language (Detect {lang}). Provide a cohesive clinical narrative. Explain biological significance. INTEGRATE EVERY RELEVANT DETAIL from the context."
-
-            # Extract any raw tabular rows from rag_context for explicit display
-            raw_records_section = ""
-            if rag_context:
-                import re as _re_rows
-                data_rows = _re_rows.findall(
-                    r'Data Record \(Row \d+\):.*?(?=Data Record|$)', 
-                    rag_context, _re_rows.DOTALL
-                )
-                if data_rows:
-                    raw_records_section = "\n\n### 📋 Retrieved Data Records\n"
-                    for i, row in enumerate(data_rows, 1):
-                        raw_records_section += f"**Record {i}:** {row.strip()[:400]}\n\n"
+            sys_msg = (
+                "You are the Colonosense Orchestrator, a Senior Clinical AI Doctor Assistant. "
+                "Your audience is a gastroenterologist or clinical physician. "
+                "You MUST mirror the user's language perfectly. "
+                "You MUST be thorough, precise, and show ALL retrieved data — never summarise away important values. "
+                "You are a tool for doctors, not for patients. Be clinical and evidence-based."
+            )
 
             user_prompt = f"""
 [SYSTEM MANDATE]:
-You must provide a COMPREHENSIVE analysis in TWO PARTS:
-
-PART 1 - RAW DATA TABLE: List ALL individual patient records retrieved, showing each visit/row explicitly with its exact values.
-PART 2 - CLINICAL NARRATIVE: Interpret the findings clinically.
+You are generating a DETAILED clinical report for a physician. Show ALL data. Be exhaustive. This is a doctor assistant tool.
 
 [USER REQUEST]: {question}
 
-[RAW RETRIEVED RECORDS]:
-{raw_records_section or "(No structured records extracted — use all data from RAG context below.)"}
+[TOOL OUTPUTS & RAG CONTEXT]:
+{tool_outputs[:50000] if tool_outputs else "No tool findings."}
+{rag_context or ""}
 
-[RAG CONTEXT (CLINICAL BACKGROUND/GUIDELINES/RECORDS)]:
-{rag_context or "No specific documentation context provided."}
+[OUTPUT FORMAT — follow EXACTLY]:
 
-[TECHNICAL ANALYSIS FINDINGS]:
-{tool_outputs[:50000] if tool_outputs else "No findings."}
+### Category Recognized
+State which of the 7 categories: Disease Severity Assessment, Treatment Adjustment, Colon Cancer Surveillance Timing, Monitor Tools and Interval, Risk of Complications, Lifestyle and Diet Modification, or Family Planning.
 
-[INSTRUCTIONS & CONSTRAINTS]:
-1. {instr}
-2. **PART 1 — SHOW ALL RECORDS**: ALWAYS start with a table or bullet list showing EVERY retrieved patient record/row with its exact values (dates, Hb, CRP, pMayo, scoring, treatment etc.). Label each record clearly (Record 1: date=..., Hb=..., CRP=...). Do NOT skip any record.
-3. **PART 2 — NARRATIVE**: AFTER listing all records, provide the clinical interpretation — what does the data pattern mean across visits? Interpret trends, biological significance, and clinical implications.
-4. **INTEGRATE RAG CONTEXT**: Use the RAG CONTEXT to explain why these findings matter.
-5. Respond in the EXACT SAME language as the User Request.
-6. **FORMATTING**: Use **Professional Markdown** (tables where possible, bold key terms, clear headers for Part 1 and Part 2).
+### Patient Context (Core RAG)
+This section MUST be detailed and data-rich. Follow these rules:
+- **Record count**: State how many data records/visits were retrieved (e.g., "Retrieved 4 longitudinal records for Patient X").
+- **Data table**: Present ALL retrieved patient values in a Markdown table with columns like: Visit Date | pMayo | Nancy | Hb (g/dL) | CRP (mg/dL) | Fecal Calprotectin (µg/g) | Current Medication | Notes.
+- **Temporal analysis**: Describe the trajectory across visits (Baseline → Follow-up 1 → Follow-up 2, etc.). Highlight any worsening or improving trends explicitly.
+- **Key flags**: Bold any abnormal values. Clearly state if a lab is above/below reference range.
+- If no patient data was retrieved, state explicitly: "No longitudinal records found for this patient."
+
+### Medical Guidelines (Guard RAG)
+This section MUST cite specific protocols. Follow these rules:
+- **Name the guideline source** (e.g., "According to ACG Clinical Guidelines...", "Per ECCO 2024 Consensus...").
+- **Quote specific recommendations** with dosing, timing, and escalation steps.
+- **Map the guideline to the patient's data**: e.g., "Given Patient X's pMayo of 8 and CRP of 3.2, the ACG recommends escalation to..."
+- If guidelines were retrieved from PDF documents, cite the document name.
+- If NO guidelines were found, state: "No internal SOP matched this query. I am restricted from providing external or unverified recommendations."
+
+### Statistical Analysis (PineBio ML)
+- Show any ML-computed risk scores, trend predictions, or statistical correlations.
+- If no ML tools were executed, state: "Not applicable for this query category."
+
+### Final Synthesis
+Provide a **stepwise, actionable clinical recommendation** for the treating physician:
+1. **Current Assessment**: One-line summary of the patient's current state.
+2. **Recommended Action**: What should the doctor do next, based on the guidelines + patient data?
+3. **Monitoring Plan**: What labs/scores to recheck and when?
+4. **Escalation Trigger**: Under what conditions should the doctor escalate therapy?
+
+Respond in the SAME language as the user's question ({lang}).
             """
             return llm.invoke([("system", sys_msg), ("human", user_prompt)]).content
         except Exception as e: return f"Synthesis error: {e}"

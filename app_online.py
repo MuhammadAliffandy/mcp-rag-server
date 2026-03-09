@@ -14,7 +14,7 @@ def get_img_base64(file_path):
     return base64.b64encode(data).decode()
 
 load_dotenv()
-st.set_page_config(page_title="Medical MCP RAG & PineBioML", page_icon="🌲", layout="wide")
+st.set_page_config(page_title="Colonosense Online Edition", page_icon="🌐", layout="wide")
 
 # Project Path Discovery
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -24,7 +24,7 @@ os.makedirs(TEMP_UPLOADS_DIR, exist_ok=True)
 # MCP Server Parameters
 server_params = StdioServerParameters(
     command=os.path.join(APP_DIR, "venv/bin/python"),
-    args=[os.path.join(APP_DIR, "src/api/mcp_server.py")],
+    args=[os.path.join(APP_DIR, "src/api/mcp_server_online.py")],
     env={**os.environ, "PYTHONPATH": APP_DIR}
 )
 
@@ -388,8 +388,8 @@ with st.sidebar:
         <div class="brand-header">
             <div class="brand-icon">P</div>
             <div>
-                <div style="font-weight:600; font-size:1rem; color:#FFFFFF;">PineBioML-4</div>
-                <div style="font-size:0.75rem; color:#666;">Medical Intelligence Core</div>
+                <div style="font-weight:600; font-size:1rem; color:#FFFFFF;">Colonosense Online</div>
+                <div style="font-size:0.75rem; color:#666;">Online Guard RAG Edition</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -632,9 +632,9 @@ if st.session_state.get("processing_pending", False):
                         tool_outputs.append(f"Core RAG retrieved: {m_res}")
 
                 elif t_name == "query_guard_rag":
-                    with st.spinner("Consulting Medical Guidelines (Offline SOPs)..."):
+                    with st.spinner("🌐 Searching Online Medical Guidelines..."):
                         m_res = asyncio.run(call_mcp_tool("query_guard_rag", t_args))
-                        st.markdown("### 🌐 Medical Guidelines (Offline SOP)\n" + m_res)
+                        st.markdown("### 🌐 Medical Guidelines (Online Search)\n" + m_res)
                         res += f"\n\n{m_res}"
                         tool_outputs.append(f"Guard RAG retrieved: {m_res}")
 

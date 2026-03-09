@@ -1,4 +1,6 @@
+# ============================================================
 # Virtual Environment
+# ============================================================
 venv/
 .venv/
 env/
@@ -6,9 +8,10 @@ bin/
 lib/
 share/
 include/
-architecture_docs/
 
-# Python
+# ============================================================
+# Python Build / Cache
+# ============================================================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -29,45 +32,105 @@ wheels/
 .installed.cfg
 *.egg
 
-# Environment Variables
+# ============================================================
+# Environment Variables (secrets)
+# ============================================================
 .env
 
-# Project Specific Data & State
-.mcp_state/
+# ============================================================
+# Internal Docs — Large Medical PDFs & Patient Excel (185MB+)
+# ============================================================
+internal_docs/
+
+# ============================================================
+# Vector Databases & Storage
+# ============================================================
 chroma_db/
+test_chroma/
+storage_data/
+.mcp_state/
+
+# ============================================================
+# Temporary / Runtime Files
+# ============================================================
+temp_uploads/
+temp_excel_cols.txt
 plots/
 output/
 src/pinebio/outputs/
-temp_uploads/
+
+# ============================================================
+# Logs
+# ============================================================
 logs/
 *.log
 log.txt
 server_debug.log
-note.txt
-*.joblib
 
-# Data Files (exclude from git)
+# ============================================================
+# Model Weights & Large Binaries
+# ============================================================
+*.h5
+*.hdf5
+*.pkl
+*.joblib
+*.pt
+*.pth
+*.onnx
+*.tflite
+*.safetensors
+
+# ============================================================
+# Generated Media & Data (large / binary)
+# ============================================================
 *.png
 *.jpg
+*.jpeg
+*.gif
+*.webp
 *.csv
 *.xlsx
 *.json
+*.docx
+*.db
 
-# Allow specific config files
+# Allow specific config files back
 !requirements.txt
 !pyproject.toml
 !package.json
+!.env.example
 
+# ============================================================
 # IDEs & System
+# ============================================================
 .vscode/
 .idea/
 .DS_Store
 *.swp
+*.swo
+*~
 
+# ============================================================
 # Streamlit
+# ============================================================
 .streamlit/
 
-# test
+# ============================================================
+# Test / QA Artifacts
+# ============================================================
 qa_report.docx
 qa_report.md
+pinebioml_rag_presentation.md
 pinebio_rag_presentation.md
+test_orchestrator.py
+colonossene_evaluation.docx
+colonossene_evaluation.md
+.pytest_cache/
+
+# ============================================================
+# Other project-specific
+# ============================================================
+ColonoSense_Deployment_Suite/
+architecture_docs/
+note.txt
+documents/

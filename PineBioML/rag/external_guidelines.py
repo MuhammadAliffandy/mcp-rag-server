@@ -1,14 +1,14 @@
 """
 External Guidelines RAG (Guard RAG)
 
-Fetches live medical guidelines from trusted authorities across ALL specialties,
-synthesizes a cited clinical answer using GPT-4o-mini.
+Architecture: Knowledge-First + Web-Enrich
+  1. match_guideline()            — instant lookup from embedded clinical_knowledge.py
+  2. fetch_guideline_context()    — optional web search to enrich (DuckDuckGo)
+  3. synthesize_guidelines()      — LLM synthesis with citations
+  4. query_external_guidelines()  — main entry point
 
-Architecture:
-  1. detect_medical_domain()  — classify question into specialty
-  2. build_search_query()     — build optimized search string
-  3. fetch_guideline_context() — DuckDuckGo search + scrape pages
-  4. synthesize_guidelines()  — LLM synthesis with citations
+If embedded knowledge matches → returns a reliable, cited answer immediately.
+Web search is used only to ENRICH, not as the primary source.
 """
 
 import re
@@ -17,75 +17,53 @@ import datetime
 from typing import List, Dict, Tuple, Optional
 from langchain_openai import ChatOpenAI
 
+from .clinical_knowledge import (
+    CLINICAL_GUIDELINES,
+    match_guideline,
+    format_guideline_answer,
+)
+
 # ---------------------------------------------------------------------------
-# GUIDELINE SOURCE REGISTRY — All authoritative medical guideline domains
+# GUIDELINE SOURCE REGISTRY — for web search enrichment
 # ---------------------------------------------------------------------------
 
 GUIDELINE_SOURCES: Dict[str, Dict] = {
-    # GI / IBD
     "ACG":      {"domain": "gi.org",                      "specialty": ["gi", "ibd", "colitis", "crohn"]},
     "ECCO":     {"domain": "ecco-ibd.eu",                 "specialty": ["gi", "ibd", "colitis", "crohn"]},
     "BSG":      {"domain": "bsg.org.uk",                  "specialty": ["gi", "ibd", "colonoscopy"]},
     "WGO":      {"domain": "worldgastroenterology.org",   "specialty": ["gi", "endoscopy"]},
-
-    # General / Multi-specialty
     "WHO":      {"domain": "who.int",                     "specialty": ["general", "infectious", "global"]},
     "NICE":     {"domain": "nice.org.uk",                 "specialty": ["general", "all"]},
     "PubMed":   {"domain": "pubmed.ncbi.nlm.nih.gov",    "specialty": ["research", "all"]},
     "Cochrane": {"domain": "cochranelibrary.com",         "specialty": ["evidence", "all"]},
-
-    # Cardiology
     "ESC":      {"domain": "escardio.org",                "specialty": ["cardiology", "heart", "ecg", "ejection fraction"]},
     "AHA":      {"domain": "heart.org",                   "specialty": ["cardiology", "heart failure", "stroke"]},
     "ACC":      {"domain": "acc.org",                     "specialty": ["cardiology", "coronary"]},
-
-    # Infectious Disease
     "IDSA":     {"domain": "idsociety.org",               "specialty": ["infectious", "antibiotic", "sepsis", "hiv"]},
     "CDC":      {"domain": "cdc.gov",                     "specialty": ["infectious", "vaccine", "prevention"]},
-
-    # Diabetes / Endocrinology
     "ADA":      {"domain": "diabetes.org",                "specialty": ["diabetes", "hba1c", "insulin", "glucose"]},
     "ENDO":     {"domain": "endocrine.org",               "specialty": ["endocrine", "thyroid", "adrenal"]},
-
-    # Oncology
     "ASCO":     {"domain": "asco.org",                    "specialty": ["cancer", "oncology", "chemotherapy"]},
     "ESMO":     {"domain": "esmo.org",                    "specialty": ["cancer", "oncology", "tumor"]},
     "NCCN":     {"domain": "nccn.org",                    "specialty": ["cancer", "oncology", "staging"]},
-
-    # Respiratory
     "GOLD":     {"domain": "goldcopd.org",                "specialty": ["copd", "respiratory", "spirometry"]},
     "ATS":      {"domain": "thoracic.org",                "specialty": ["respiratory", "pneumonia", "ards"]},
     "ERS":      {"domain": "ersnet.org",                  "specialty": ["respiratory", "lung", "asthma"]},
-
-    # Nephrology
     "KDIGO":    {"domain": "kdigo.org",                   "specialty": ["kidney", "nephrology", "renal", "creatinine"]},
     "ASN":      {"domain": "asn-online.org",              "specialty": ["kidney", "dialysis", "glomerular"]},
-
-    # Rheumatology
     "EULAR":    {"domain": "eular.org",                   "specialty": ["rheumatology", "arthritis", "lupus", "spondylitis"]},
     "ACR":      {"domain": "rheumatology.org",            "specialty": ["rheumatology", "gout", "fibromyalgia"]},
-
-    # Neurology
     "AAN":      {"domain": "aan.com",                     "specialty": ["neurology", "stroke", "seizure", "dementia", "ms"]},
-    "ENS":      {"domain": "ens.org",                     "specialty": ["neurology", "parkinson", "headache"]},
-
-    # OB/GYN
     "ACOG":     {"domain": "acog.org",                    "specialty": ["obstetrics", "gynecology", "pregnancy", "maternal"]},
-    "FIGO":     {"domain": "figo.org",                    "specialty": ["obstetrics", "fertilization", "maternal"]},
-
-    # Surgery
-    "SAGES":    {"domain": "sages.org",                   "specialty": ["surgery", "laparoscopy", "endoscopy", "bariatric"]},
-
-    # Critical Care / ICU
     "SCCM":     {"domain": "sccm.org",                    "specialty": ["icu", "critical care", "sepsis", "ventilator"]},
     "ESICM":    {"domain": "esicm.org",                   "specialty": ["icu", "critical", "shock", "organ failure"]},
 }
 
-# Domain keywords for auto-detecting specialty from a clinical question
+# Specialty keyword detection
 SPECIALTY_KEYWORDS: Dict[str, List[str]] = {
     "gi":           ["colitis", "mes", "mayo", "ibd", "crohn", "uc", "ulcerative", "colonoscopy", "ileitis", "gi", "gastro", "rectum", "colon", "bowel", "intestin"],
     "cardiology":   ["ejection fraction", "ef", "heart", "cardiac", "ecg", "ekg", "mi", "stemi", "nstemi", "afib", "hf", "cardiomyopathy", "troponin"],
-    "infectious":   ["sepsis", "antibiotic", "infection", "bacteremia", "covid", "pneumonia", "hiv", "fever", "crp infect"],
+    "infectious":   ["sepsis", "antibiotic", "infection", "bacteremia", "covid", "pneumonia", "hiv", "fever"],
     "diabetes":     ["hba1c", "diabetes", "glucose", "insulin", "metformin", "hyperglycemia", "dm"],
     "cancer":       ["tumor", "cancer", "malignancy", "chemotherapy", "staging", "biopsy", "oncol"],
     "respiratory":  ["copd", "asthma", "spirometry", "fev1", "oxygen", "spo2", "dyspnea", "respiratory"],
@@ -97,34 +75,62 @@ SPECIALTY_KEYWORDS: Dict[str, List[str]] = {
 }
 
 
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
 def detect_medical_domain(question: str) -> List[str]:
-    """
-    Classify a clinical question into medical specialties.
-    Returns a list of detected specialties, ordered by confidence.
-    """
+    """Classify a clinical question into medical specialties."""
     q_lower = question.lower()
     scores: Dict[str, int] = {}
-
     for specialty, keywords in SPECIALTY_KEYWORDS.items():
         hit = sum(1 for kw in keywords if kw in q_lower)
         if hit > 0:
             scores[specialty] = hit
-
     if not scores:
-        return ["general"]  # Default fallback
-
-    # Sort by score descending
+        return ["general"]
     return sorted(scores.keys(), key=lambda s: -scores[s])
 
 
+def extract_patient_context(question: str) -> str:
+    """Extract patient context (MES score, severity, metrics) from the question text."""
+    q_lower = question.lower()
+    ctx_parts = []
+
+    # MES score
+    mes_match = re.search(r'mes\s*(\d)', q_lower)
+    if mes_match:
+        score = mes_match.group(1)
+        severity_map = {"0": "Remission", "1": "Mild", "2": "Moderate", "3": "Severe"}
+        ctx_parts.append(f"MES {score} ({severity_map.get(score, '')})")
+
+    # pMayo
+    pmayo_match = re.search(r'(?:p?mayo|pmayo)\s*(?:score)?\s*(\d+)', q_lower)
+    if pmayo_match:
+        ctx_parts.append(f"pMayo {pmayo_match.group(1)}")
+
+    # Severity keywords
+    for sev in ["severe", "moderate", "mild", "remission", "fulminant", "acute"]:
+        if sev in q_lower and sev not in " ".join(ctx_parts).lower():
+            ctx_parts.append(sev.capitalize())
+
+    # HbA1c
+    hba1c_match = re.search(r'hba1c\s*(\d+\.?\d*)', q_lower)
+    if hba1c_match:
+        ctx_parts.append(f"HbA1c {hba1c_match.group(1)}")
+
+    # EF
+    ef_match = re.search(r'(?:ef|ejection fraction)\s*(\d+)', q_lower)
+    if ef_match:
+        ctx_parts.append(f"EF {ef_match.group(1)}%")
+
+    return ", ".join(ctx_parts) if ctx_parts else ""
+
+
 def get_priority_domains(specialties: List[str], max_domains: int = 6) -> List[Dict]:
-    """
-    Given detected specialties, return the top guideline sources to search.
-    Always includes PubMed and WHO as baseline.
-    """
+    """Given detected specialties, return the top guideline sources to search."""
     priority = []
     seen = set()
-
     for specialty in specialties:
         for name, info in GUIDELINE_SOURCES.items():
             if name in seen:
@@ -132,104 +138,53 @@ def get_priority_domains(specialties: List[str], max_domains: int = 6) -> List[D
             if any(specialty in s for s in info["specialty"]):
                 priority.append({"name": name, **info})
                 seen.add(name)
-
-    # Always include general fallbacks
     for name in ["PubMed", "WHO", "NICE"]:
         if name not in seen:
             priority.append({"name": name, **GUIDELINE_SOURCES[name]})
             seen.add(name)
-
     return priority[:max_domains]
 
 
-def build_search_query(question: str, patient_context: str, specialties: List[str]) -> str:
-    """
-    Build an optimized DuckDuckGo query for medical guideline retrieval.
-    """
-    # Extract key clinical terms from question
-    clinical_terms = re.sub(r'[^a-zA-Z0-9 \-]', '', question[:200]).strip()
-
-    # Add severity terms if patient context present
-    context_terms = ""
-    if patient_context:
-        ctx_lower = patient_context.lower()
-        if any(t in ctx_lower for t in ["mes 3", "severe", "pMayo", "high"]):
-            context_terms = "severe treatment escalation"
-        elif any(t in ctx_lower for t in ["mes 2", "moderate", "moderate-severe"]):
-            context_terms = "moderate treatment guidelines"
-        elif any(t in ctx_lower for t in ["mes 1", "mes 0", "mild", "remission"]):
-            context_terms = "mild remission induction"
-
-    specialty_hint = specialties[0] if specialties else "clinical"
-    query = f"{clinical_terms} {context_terms} guidelines protocol {specialty_hint}".strip()
-    return query[:400]  # DuckDuckGo query length limit
-
-
 def scrape_page(url: str, max_chars: int = 3000, timeout: int = 8) -> Tuple[str, str]:
-    """
-    Scrape text content from a URL.
-    Returns (text_content, status) where status is 'ok' | 'paywalled' | 'error'.
-    """
+    """Scrape text content from a URL. Returns (text_content, status)."""
     try:
         import requests
         from bs4 import BeautifulSoup
-
         headers = {"User-Agent": "Mozilla/5.0 (compatible; PineBioML-GuardRAG/1.0)"}
         resp = requests.get(url, headers=headers, timeout=timeout)
-
         if resp.status_code in [401, 403, 402]:
             return "", "paywalled"
         if resp.status_code != 200:
             return "", f"error_{resp.status_code}"
-
         soup = BeautifulSoup(resp.text, "html.parser")
-
-        # Remove navigation, scripts, styles, ads
         for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form", "button"]):
             tag.decompose()
-
-        # Try to get main content areas first
         main = soup.find("main") or soup.find("article") or soup.find(id="content") or soup.find(class_="content")
         text = (main or soup).get_text(separator=" ", strip=True)
-
-        # Clean up whitespace
         text = re.sub(r'\s+', ' ', text).strip()
-
         return text[:max_chars], "ok"
-
     except Exception as e:
         return "", f"error: {str(e)}"
 
 
-def fetch_guideline_context(
-    question: str,
-    patient_context: str = "",
-    max_results: int = 5
-) -> List[Dict]:
+def fetch_web_guidelines(question: str, patient_context: str = "", max_results: int = 3) -> List[Dict]:
     """
-    Main fetch pipeline:
-    1. Detect specialty
-    2. Build search query
-    3. Search DuckDuckGo across priority domains
-    4. Scrape top pages
-    Returns list of {source_name, url, content, status}
+    Web search enrichment (best-effort, not primary source).
+    Searches DuckDuckGo for guideline content across priority domains.
     """
     results = []
-
     try:
         try:
-            from ddgs import DDGS  # New package name
+            from ddgs import DDGS
         except ImportError:
-            from duckduckgo_search import DDGS  # Legacy fallback
+            from duckduckgo_search import DDGS
 
-        # 1. Detect specialty
         specialties = detect_medical_domain(question)
-        priority_domains = get_priority_domains(specialties, max_domains=8)
+        priority_domains = get_priority_domains(specialties, max_domains=4)
 
-        # 2. Build query
-        query = build_search_query(question, patient_context, specialties)
+        clinical_terms = re.sub(r'[^a-zA-Z0-9 \-]', '', question[:200]).strip()
+        query = f"{clinical_terms} guidelines protocol".strip()
 
-        # 3. Search each priority domain
         fetched_urls = set()
         ddg = DDGS()
 
@@ -237,22 +192,15 @@ def fetch_guideline_context(
             domain = source_info["domain"]
             source_name = source_info["name"]
             site_query = f"site:{domain} {query}"
-
             try:
-                # DuckDuckGo search
                 search_results = list(ddg.text(site_query, max_results=2))
-                time.sleep(0.3)  # Rate limiting
-
+                time.sleep(0.3)
                 for r in search_results:
                     url = r.get("href", "")
                     if not url or url in fetched_urls:
                         continue
-
                     fetched_urls.add(url)
-
-                    # Scrape the page
                     content, status = scrape_page(url)
-
                     results.append({
                         "source_name": source_name,
                         "url": url,
@@ -261,122 +209,135 @@ def fetch_guideline_context(
                         "content": content,
                         "status": status
                     })
-
                     if len(results) >= max_results:
                         break
-
-            except Exception as e:
-                # Skip this domain silently (rate limit / no results)
+            except Exception:
                 pass
-
             if len(results) >= max_results:
                 break
-
-    except ImportError:
-        return [{
-            "source_name": "Error",
-            "url": "",
-            "content": "duckduckgo-search library not installed. Run: pip install duckduckgo-search",
-            "status": "error"
-        }]
-    except Exception as e:
-        return [{"source_name": "Error", "url": "", "content": str(e), "status": "error"}]
-
+    except Exception:
+        pass  # Web search failure is non-fatal
     return results
 
 
-def synthesize_guidelines(
-    question: str,
-    fetched_results: List[Dict],
-    patient_context: str = ""
-) -> str:
-    """
-    Uses GPT-4o-mini to synthesize a cited clinical answer from scraped guideline content.
-    """
-    try:
-        # Build the context block from fetched results
-        context_blocks = []
-        used_sources = []
-
-        for r in fetched_results:
-            if r.get("status") == "ok" and r.get("content"):
-                block = f"[{r['source_name']}] ({r['url']})\n{r['content']}"
-                context_blocks.append(block)
-                used_sources.append(f"- **{r['source_name']}**: {r['url']}")
-            elif r.get("snippet"):
-                block = f"[{r['source_name']}] ({r['url']}) — SNIPPET ONLY:\n{r['snippet']}"
-                context_blocks.append(block)
-                used_sources.append(f"- **{r['source_name']}** (snippet): {r['url']}")
-
-        if not context_blocks:
-            return "⚠️ No guideline content could be retrieved from external sources. Please check your internet connection or try a more specific clinical question."
-
-        guideline_context = "\n\n---\n\n".join(context_blocks)
-        sources_list = "\n".join(used_sources)
-
-        patient_block = f"\n**Current Patient Context:** {patient_context}" if patient_context else ""
-
-        system_prompt = """You are a Senior Clinical Decision Support AI. Your role is to synthesize medical guideline content and provide actionable, evidence-based clinical recommendations with clear source citations.
-
-CRITICAL RULES:
-1. ALWAYS cite which guideline your recommendation comes from (e.g., "Per ACG Guidelines...", "According to ECCO 2023...")
-2. If multiple guidelines agree, note the consensus
-3. If guidelines differ, note the discrepancy clearly
-4. Structure your answer: Recommendation → Rationale → Source
-5. Use markdown formatting (bold for drug names, bullet points for steps)
-6. Be concise but complete. A doctor needs ACTION not theory.
-7. Mirror the user's language (Indonesian if they asked in Indonesian, English otherwise)"""
-
-        user_prompt = f"""Clinical Question: {question}
-{patient_block}
-
-Retrieved Guideline Content:
-{guideline_context[:8000]}
-
-Based ONLY on the above guideline content, provide a clinical recommendation with citations.
-End your response with a "📚 Sources Consulted:" section listing the sources used.
-"""
-
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
-        response = llm.invoke([("system", system_prompt), ("human", user_prompt)])
-        answer = response.content
-
-        # Append source list if not already present
-        if "Sources Consulted" not in answer and used_sources:
-            answer += f"\n\n📚 **Sources Consulted:**\n{sources_list}"
-
-        return answer
-
-    except Exception as e:
-        return f"❌ Synthesis error: {e}"
-
+# ============================================================================
+# MAIN ENTRY POINT
+# ============================================================================
 
 def query_external_guidelines(
     question: str,
     patient_context: str = "",
-    max_results: int = 5
+    max_results: int = 3
 ) -> str:
     """
-    Main entry point for Guard RAG.
-    Fetches and synthesizes medical guideline content for a clinical question.
-
-    Args:
-        question: Clinical question (e.g., "What is the treatment for MES 3 ulcerative colitis?")
-        patient_context: Optional patient info string (e.g., "pMayo 7, Hb 9, MES 3")
-        max_results: Number of guideline pages to retrieve
-
-    Returns:
-        Synthesized clinical answer with citations.
+    Guard RAG main entry point. Strictly offline.
+    
+    Flow:
+    1. Extract patient context from question if not provided
+    2. Match against embedded clinical knowledge base (instant, reliable)
+    3. Synthesize final answer with proper citations
     """
     timestamp = datetime.datetime.now().isoformat()
-    print(f"[{timestamp}] [GuardRAG] Fetching guidelines for: {question[:100]}...")
+    print(f"[{timestamp}] [GuardRAG] Processing (OFFLINE): {question[:100]}...")
 
-    # Step 1: Fetch from external sources
-    fetched = fetch_guideline_context(question, patient_context, max_results=max_results)
-    ok_count = sum(1 for r in fetched if r.get("status") == "ok")
-    print(f"[GuardRAG] Retrieved {len(fetched)} results ({ok_count} fully scraped)")
+    # 1. Extract patient context from question text if not provided
+    if not patient_context:
+        patient_context = extract_patient_context(question)
+    print(f"[GuardRAG] Patient context: {patient_context or 'none detected'}")
 
-    # Step 2: Synthesize with LLM
-    answer = synthesize_guidelines(question, fetched, patient_context)
+    # 2. Match embedded clinical knowledge (PRIMARY SOURCE)
+    kb_matches = match_guideline(question, patient_context)
+    kb_answer = format_guideline_answer(kb_matches, question)
 
-    return answer
+    if kb_matches:
+        print(f"[GuardRAG] Embedded KB: {len(kb_matches)} match(es) — primary: {kb_matches[0]['id']}")
+    else:
+        print(f"[GuardRAG] Embedded KB: no matches")
+
+    # 3. Synthesize final answer directly from KB, NO WEB SEARCH
+    if kb_answer:
+        return kb_answer
+    else:
+        # Nothing found — explicit fail-safe
+        return "No internal SOP found for this specific query. I am restricted from providing external or unverified recommendations."
+
+def _synthesize_combined(question: str, kb_answer: str, web_context: str, patient_context: str) -> str:
+    """Combine embedded knowledge (primary) with web enrichment."""
+    try:
+        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
+
+        system = (
+            "You are a Clinical Decision Support AI. You have been given a PRIMARY guideline answer "
+            "from our embedded knowledge base, plus SUPPLEMENTARY web content. "
+            "Your job is to enhance the primary answer with any additional relevant details from the web, "
+            "while keeping the primary answer's citations and structure intact. "
+            "Keep citations explicit (e.g., 'According to ACG Clinical Guidelines...'). "
+            "Mirror the user's language. Be concise and actionable."
+        )
+        user = (
+            f"Question: {question}\n"
+            f"Patient Context: {patient_context}\n\n"
+            f"PRIMARY GUIDELINE ANSWER:\n{kb_answer}\n\n"
+            f"SUPPLEMENTARY WEB CONTENT:\n{web_context[:3000]}\n\n"
+            f"Provide the final clinical recommendation. Start with the primary answer, "
+            f"add any new relevant details from web content. Keep source citations."
+        )
+        response = llm.invoke([("system", system), ("human", user)])
+        return response.content
+    except Exception as e:
+        # Fallback to KB answer alone if LLM fails
+        return kb_answer
+
+
+def _synthesize_web_only(question: str, web_context: str, patient_context: str) -> str:
+    """Synthesize from web content only (no embedded KB match)."""
+    try:
+        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
+
+        system = (
+            "You are a Senior Clinical Decision Support AI. Synthesize medical guideline content "
+            "into an actionable clinical recommendation. ALWAYS cite which guideline source. "
+            "Use the format: 'According to [SOURCE] Guidelines: [RECOMMENDATION]'. "
+            "Mirror the user's language. Be concise."
+        )
+        user = (
+            f"Clinical Question: {question}\n"
+            f"Patient Context: {patient_context}\n\n"
+            f"Retrieved Guideline Content:\n{web_context[:5000]}\n\n"
+            f"Provide a clinical recommendation with citations."
+        )
+        response = llm.invoke([("system", system), ("human", user)])
+        return response.content
+    except Exception as e:
+        return f"⚠️ Could not synthesize guidelines: {e}"
+
+
+def _synthesize_fallback(question: str, patient_context: str) -> str:
+    """LLM general medical knowledge when no specific sources found."""
+    try:
+        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
+
+        system = (
+            "You are a Senior Clinical Decision Support AI with extensive knowledge of "
+            "ACG, ECCO, WHO, NICE, ESC, ADA, ASCO, IDSA, and other major medical guidelines. "
+            "Answer based on your training knowledge of these guidelines. "
+            "ALWAYS cite the specific guideline source. "
+            "Use the format: 'According to [SOURCE] Clinical Guidelines: [RECOMMENDATION]'. "
+            "Mirror the user's language."
+        )
+        user = (
+            f"Clinical Question: {question}\n"
+            f"Patient Context: {patient_context}\n\n"
+            f"Provide an evidence-based clinical recommendation citing the relevant guidelines."
+        )
+        response = llm.invoke([("system", system), ("human", user)])
+        answer = response.content
+
+        # Add disclaimer
+        answer += (
+            "\n\n> ⚠️ *Note: This recommendation is based on the AI's training knowledge of published guidelines. "
+            "For the latest updates, please consult the original guideline publications directly.*"
+        )
+        return answer
+    except Exception as e:
+        return f"⚠️ Could not generate guideline recommendation: {e}"
