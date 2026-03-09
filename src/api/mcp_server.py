@@ -596,29 +596,62 @@ def query_core_rag(patient_id: str, query_intent: str) -> str:
     """
     Fetches longitudinal patient context (Excel, PDFs, symptom scores, clinical events).
     Uses the internal patient data (e.g. 4DEADFE...xlsx) via semantic vector search.
+    After retrieval, enriches raw data with clinical interpretations (risk flags, warnings).
     """
     try:
         pine_log(f"🔍 Core RAG: fetching data for Patient '{patient_id}' - Intent: {query_intent}")
         
-        # Strategy 1: Exact search using patient ID as the identifier (not the intent)
-        # This searches for the patient ID string in the documents
+        raw_data = None
+        
+        # Strategy 1: Exact search using patient ID as the identifier
         res, hits = rag_engine.exact_search(f"patient {patient_id}", patient_id_filter=patient_id)
         
         if hits and "No exact matches found" not in str(res):
             pine_log(f"✅ Core RAG: exact search found {len(hits)} hits for Patient {patient_id}")
-            return res
+            raw_data = res
         
-        # Strategy 2: Semantic vector search with the full intent as the query
-        # This uses LangChain QA chain to find semantically relevant chunks
-        pine_log(f"🔄 Core RAG: falling back to semantic search for '{query_intent}' (Patient {patient_id})")
-        scoped_query = f"Patient {patient_id}: {query_intent}"
-        answer, sources = rag_engine.query(scoped_query, patient_id_filter=patient_id)
+        # Strategy 2: Semantic vector search fallback
+        if not raw_data:
+            pine_log(f"🔄 Core RAG: falling back to semantic search for '{query_intent}' (Patient {patient_id})")
+            scoped_query = f"Patient {patient_id}: {query_intent}"
+            answer, sources = rag_engine.query(scoped_query, patient_id_filter=patient_id)
+            
+            if answer and len(str(answer).strip()) > 10 and "Not ready" not in str(answer):
+                pine_log(f"✅ Core RAG: semantic search returned answer ({len(str(answer))} chars)")
+                raw_data = str(answer)
         
-        if answer and len(str(answer).strip()) > 10 and "Not ready" not in str(answer):
-            pine_log(f"✅ Core RAG: semantic search returned answer ({len(str(answer))} chars)")
-            return str(answer)
+        if not raw_data:
+            return f"No patient data found for Patient {patient_id} regarding '{query_intent}'."
         
-        return f"No patient data found for Patient {patient_id} regarding '{query_intent}'."
+        # === CLINICAL DATA ENRICHMENT ===
+        # Pass raw data through the Clinical Data Parser to add risk flags & interpretations
+        try:
+            from PineBioML.prompts.clinical_parser import (
+                CLINICAL_DATA_PARSER_SYSTEM,
+                CLINICAL_DATA_PARSER_PROMPT
+            )
+            from langchain_openai import ChatOpenAI
+            
+            pine_log(f"🧬 Core RAG: Enriching raw data with clinical interpretations...")
+            llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
+            
+            enrichment_prompt = CLINICAL_DATA_PARSER_PROMPT.format(
+                raw_data=raw_data[:30000],
+                query_intent=query_intent
+            )
+            
+            enriched = llm.invoke([
+                ("system", CLINICAL_DATA_PARSER_SYSTEM),
+                ("human", enrichment_prompt)
+            ]).content
+            
+            pine_log(f"✅ Core RAG: Clinical enrichment complete ({len(enriched)} chars)")
+            return enriched
+            
+        except Exception as enrich_err:
+            pine_log(f"⚠️ Core RAG: Enrichment failed ({enrich_err}), returning raw data")
+            return raw_data
+        
     except Exception as e:
         pine_log(f"❌ Core RAG Error: {e}")
         return f"⚠️ Could not retrieve core patient data: {str(e)}"
