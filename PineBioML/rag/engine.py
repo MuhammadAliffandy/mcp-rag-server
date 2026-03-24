@@ -202,10 +202,9 @@ ANSWER:"""
             extracted_ctx = extract_patient_context(question)
             
             tasks = [{
-                "tool": "query_external_guidelines",
+                "tool": "query_guard_rag",
                 "args": {
-                    "question": question,
-                    "patient_context": extracted_ctx
+                    "query_intent": question
                 }
             }]
             return answer, "multi_task", tasks, ""
@@ -532,22 +531,26 @@ ANSWER:"""
         except Exception as e: return f"Error: {e}", []
 
     def synthesize_results(self, question: str, tool_outputs: str, rag_context: str = ""):
-        """Final clinical synthesis wrapping all findings with strict Colonosense formatting."""
+        """Final clinical synthesis wrapping all findings with strict ColonoSense formatting and tiered evidence."""
         try:
             lang = self.detect_language(question)
             llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.2)
             
             sys_msg = (
-                "You are the Colonosense Orchestrator, a Senior Clinical AI Doctor Assistant. "
+                "You are ColonoSense, a clinical decision support AI specializing in inflammatory bowel disease (IBD). "
                 "Your audience is a gastroenterologist or clinical physician. "
                 "You MUST mirror the user's language perfectly. "
                 "You MUST be thorough, precise, and show ALL retrieved data — never summarise away important values. "
-                "You are a tool for doctors, not for patients. Be clinical and evidence-based."
+                "You are a tool for doctors, not for patients. Be clinical and evidence-based. "
+                "CRITICAL: Every recommendation MUST follow the format: [Tier X] 1. Recommendation [Society/Author, Year]. "
+                "Tier hierarchy: [Tier 1] Global Guidelines → [Tier 2] Local Guidelines → [Tier 3] Meta-analyses → [Tier 4] Pivotal Trials. "
+                "Within the same tier, list from latest year to oldest. Present all available societies."
             )
 
             user_prompt = f"""
 [SYSTEM MANDATE]:
 You are generating a DETAILED clinical report for a physician. Show ALL data. Be exhaustive. This is a doctor assistant tool.
+EVERY recommendation MUST use [Tier X] format: `[Tier X] 1. Recommendation [Society/Author, Year]`
 
 [USER REQUEST]: {question}
 
@@ -558,22 +561,30 @@ You are generating a DETAILED clinical report for a physician. Show ALL data. Be
 [OUTPUT FORMAT — follow EXACTLY]:
 
 ### Category Recognized
-State which of the 7 categories: Disease Severity Assessment, Treatment Adjustment, Colon Cancer Surveillance Timing, Monitor Tools and Interval, Risk of Complications, Lifestyle and Diet Modification, or Family Planning.
+State which of the 7 categories: Disease Severity & Remission, Treatment Adjustment, Colon Cancer Surveillance, Monitor Tools and Interval, Risk of Complications, Lifestyle and Diet Modification, or Family Planning.
 
 ### Patient Context (Core RAG)
 This section MUST be detailed and data-rich. Follow these rules:
-- **Record count**: State how many data records/visits were retrieved (e.g., "Retrieved 4 longitudinal records for Patient X").
-- **Data table**: Present ALL retrieved patient values in a Markdown table with columns like: Visit Date | pMayo | Nancy | Hb (g/dL) | CRP (mg/dL) | Fecal Calprotectin (µg/g) | Current Medication | Notes.
-- **Temporal analysis**: Describe the trajectory across visits (Baseline → Follow-up 1 → Follow-up 2, etc.). Highlight any worsening or improving trends explicitly.
-- **Key flags**: Bold any abnormal values. Clearly state if a lab is above/below reference range.
+- **Record count**: State how many data records/visits were retrieved.
+- **Data table**: Present ALL retrieved patient values in a Markdown table.
+- **Severity Classification**: If Category 1 — state Total Mayo Score and classify: Remission (0-2), Mild (3-5), Moderate (6-10), Severe (>10).
+- **Remission Checklist** (if Category 1):
+  | Criterion | Value | Status |
+  |---|---|---|
+  | Clinical (pMayo <3) | [value] | MET/NOT MET |
+  | Biochemical (CRP <1 & FC <100) | [values] | MET/NOT MET |
+  | Endoscopic (MES 0-1) | [value] | MET/NOT MET |
+  | Histologic (Nancy 0-1) | [value] | MET/NOT MET |
+- **Poor Prognostic Factors**: List if present: age <40, extensive colitis, PSC, MES 3, high CRP, low albumin (<3.5), steroid use (non-Cortiment MMX).
+- **Temporal analysis**: Describe trajectory across visits. Bold abnormal values.
 - If no patient data was retrieved, state explicitly: "No longitudinal records found for this patient."
 
 ### Medical Guidelines (Guard RAG)
-This section MUST cite specific protocols. Follow these rules:
-- **Name the guideline source** (e.g., "According to ACG Clinical Guidelines...", "Per ECCO 2024 Consensus...").
-- **Quote specific recommendations** with dosing, timing, and escalation steps.
-- **Map the guideline to the patient's data**: e.g., "Given Patient X's pMayo of 8 and CRP of 3.2, the ACG recommends escalation to..."
-- If guidelines were retrieved from PDF documents, cite the document name.
+This section MUST use [Tier X] citation format. Follow these rules:
+- Every recommendation: `[Tier X] 1. Recommendation [Society/Author, Year]`
+- **Map the guideline to the patient's data** — connect retrieved guidelines to the patient's specific values.
+- If Category 2: Include treat-to-target goals (clinical → biochemical → endoscopic) and response timeline.
+- If Category 3: Include CRC screening intervals (High 1yr / Intermediate 2-3yr / Low 5yr).
 - If NO guidelines were found, state: "No internal SOP matched this query. I am restricted from providing external or unverified recommendations."
 
 ### Statistical Analysis (PineBio ML)
@@ -583,7 +594,7 @@ This section MUST cite specific protocols. Follow these rules:
 ### Final Synthesis
 Provide a **stepwise, actionable clinical recommendation** for the treating physician:
 1. **Current Assessment**: One-line summary of the patient's current state.
-2. **Recommended Action**: What should the doctor do next, based on the guidelines + patient data?
+2. **Recommended Action**: What should the doctor do next? Use [Tier X] format for all recommendations.
 3. **Monitoring Plan**: What labs/scores to recheck and when?
 4. **Escalation Trigger**: Under what conditions should the doctor escalate therapy?
 
