@@ -115,38 +115,41 @@ Preview: {full_text[:500]}...
     @staticmethod
     def process_tabular(file_path: str, doc_type: str) -> List[LangChainDocument]:
         try:
+            dfs = {}
             if file_path.endswith('.csv'):
-                df = pd.read_csv(file_path)
+                dfs['Sheet1'] = pd.read_csv(file_path)
             else:
-                df = pd.read_excel(file_path)
+                dfs = pd.read_excel(file_path, sheet_name=None)
                 
-            patient_id_cols = [col for col in df.columns if 'id' in col.lower() or 'patient' in col.lower()]
             documents = []
+            all_ids = set()
             
-            # Deep Tabular Analysis for RAG
-            cols_info = []
-            for col in df.columns:
-                dtype = str(df[col].dtype)
-                nulls = df[col].isnull().sum()
-                sample = str(df[col].iloc[0]) if not df.empty else "N/A"
-                cols_info.append(f"- {col} ({dtype}): {nulls} missing, example: {sample}")
+            # Deep Tabular Analysis for RAG across all sheets
+            cols_summary_list = []
+            for sheet_name, df in dfs.items():
+                patient_id_cols = [col for col in df.columns if 'id' in col.lower() or 'patient' in col.lower()]
+                if patient_id_cols:
+                    all_ids.update(df[patient_id_cols[0]].dropna().unique().tolist())
+                
+                cols_info = []
+                for col in df.columns:
+                    dtype = str(df[col].dtype)
+                    nulls = df[col].isnull().sum()
+                    sample = str(df[col].iloc[0]) if not df.empty else "N/A"
+                    cols_info.append(f"  - {col} ({dtype}): {nulls} missing, example: {sample}")
+                cols_summary_list.append(f"Sheet: {sheet_name}\nRows: {len(df)}, Columns: {len(df.columns)}\n" + "\n".join(cols_info))
+
+            cols_summary = "\n\n".join(cols_summary_list)
             
-            cols_summary = "\n".join(cols_info)
             summary_content = f"""
 [DEEP SUMMARY] File: {os.path.basename(file_path)}
-Format: Tabular (Excel/CSV)
-Rows: {len(df)}, Columns: {len(df.columns)}
+Format: Tabular (Excel/CSV with {len(dfs)} sheets)
 Columns Overview:
 {cols_summary}
-
-Statistical Highlights:
-{df.describe().to_string() if not df.select_dtypes('number').empty else "No numeric columns."}
             """.strip()
             
-            # Extract all unique patient IDs for summary
-            all_ids = []
-            if patient_id_cols:
-                all_ids = df[patient_id_cols[0]].dropna().unique().tolist()
+            # Combine the first sheet's JSON representation for simple server data sync if needed
+            first_sheet_df = list(dfs.values())[0] if dfs else pd.DataFrame()
             
             documents.append(LangChainDocument(
                 page_content=summary_content,
@@ -155,26 +158,30 @@ Statistical Highlights:
                     "type": "file_summary",
                     "doc_type": doc_type,
                     "patient_ids": ",".join(map(str, all_ids)),
-                    "df_json": df.to_json() # Keep for server data sync
+                    "df_json": first_sheet_df.to_json() # Keep for server data sync
                 }
             ))
             
             max_rows = 500 
-            for i, row in df.head(max_rows).iterrows():
-                row_content = [f"{col}: {val}" for col, val in row.items() if pd.notnull(val)]
-                row_text = f"Data Record (Row {i+1}): {', '.join(row_content)}"
-                p_id = str(row[patient_id_cols[0]]) if patient_id_cols else ""
+            for sheet_name, df in dfs.items():
+                patient_id_cols = [col for col in df.columns if 'id' in col.lower() or 'patient' in col.lower()]
+                for i, row in df.head(max_rows).iterrows():
+                    row_content = [f"{col}: {val}" for col, val in row.items() if pd.notnull(val)]
+                    # Explicitly mention the sheet name so the LLM can query "UC_baseline", "UC_lab", etc.
+                    row_text = f"Data Record (Sheet: {sheet_name}, Row {i+1}): {', '.join(row_content)}"
+                    p_id = str(row[patient_id_cols[0]]) if patient_id_cols else ""
 
-                documents.append(LangChainDocument(
-                    page_content=row_text,
-                    metadata={
-                        "source": file_path,
-                        "patient_ids": p_id,
-                        "row_index": i,
-                        "type": "tabular_row",
-                        "doc_type": doc_type
-                    }
-                ))
+                    documents.append(LangChainDocument(
+                        page_content=row_text,
+                        metadata={
+                            "source": file_path,
+                            "sheet_name": sheet_name,
+                            "patient_ids": p_id,
+                            "row_index": i,
+                            "type": "tabular_row",
+                            "doc_type": doc_type
+                        }
+                    ))
             return documents
         except Exception as e:
             log_safe(f"Error processing Tabular {file_path}: {e}")
