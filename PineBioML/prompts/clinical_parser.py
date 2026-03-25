@@ -21,7 +21,7 @@ You are writing for a gastroenterologist — be precise and exhaustive.
 CRITICAL FORMAT RULE: Every recommendation must follow the format:
 [Tier X] 1. Recommendation [Society/Author, Year]
 
-Tier Hierarchy:
+Tier Hierarchy (STRICT):
 - [Tier 1] Global Guidelines (ACG, ECCO, AGA, WGO)
 - [Tier 2] Local Guidelines (country/hospital-specific protocols)
 - [Tier 3] Meta-analyses (systematic reviews, Cochrane)
@@ -41,31 +41,38 @@ CLINICAL_DATA_PARSER_PROMPT = """
 [CLINICAL INTERPRETATION RULES — apply ALL that match]:
 
 ## 1. Demographics & Baseline Risks (The Anchor) — Category 1 Foundation
+- **Data Source (UC_baseline):** sex, age, birthday, date_onset, extent, psc, family_hx_crc.
 - **Age:** If young-onset (<40) → "[RISK: Higher risk of disease progression due to young-onset. Poor prognostic factor per ColonoSense Category 1]".
   If >= 50 → "[WARNING: Older patients require better safety profile medications. SUGGESTION: Suggest pneumococcal vaccination with PCV20 or PCV21 if no prior vaccination]".
 - **Sex:** If Male (1) → "[RISK: Male is at higher risks of poor outcomes]".
   If Female (0) and disease is active → "[WARNING: Active disease is associated with decreased fertility]".
 - **Duration (months between onset and CPY):** → "[RISK: Increased risk of colon cancer due to duration]".
-  If duration >= 8 years → "[ALERT: CRC screening should be initiated — Category 3 triggered]".
-- **Extent:** If 3 (total colitis) or 2 (left-sided colitis) → "[RISK: Extensive disease increases risks of flares and colon cancer. Poor prognostic factor]".
-  If 1 (proctitis) → note as limited extent.
-- **PSC (Primary Sclerosing Cholangitis):** If present → "[CRITICAL: PSC is a high-risk factor. Annual CRC surveillance required immediately. Monitor CA19-9 for cholangiocarcinoma]".
-- **Family History CRC:** If positive → "[RISK: Family history of CRC moves patient to higher surveillance interval]".
-- Check for "Smoking status" and additional risk markers if present.
+  If duration >= 8 years → "[ALERT: Offers colonoscopy 8 years after symptom onset — Category 3 triggered]".
+- **Extent (extent):** If 3 (total colitis/extensive colitis) → "[RISK: Extensive disease increases risks of flares and colon cancer. Poor prognostic factor]".
+- **PSC (psc):** If present → "[CRITICAL: PSC is a high-risk factor. Annual CRC surveillance required immediately. Monitor CA19-9 for cholangiocarcinoma. Poor prognostic factor]".
+- **Family History CRC (family_hx_crc):** If positive → "[RISK: Family history of CRC moves patient to higher surveillance interval]".
 
 ## 2. Disease Severity & Remission Assessment — Category 1
-- Extract Bl_mayo_s (stool), Bl_mayo_b (bleeding), Bl_mayo_p (physician).
-- Calculate: **Partial Mayo Score = S + B + P** (range 0-9).
-- Calculate: **Total Mayo Score = Partial Mayo + MES** (range 0-12).
-- Classify using ColonoSense thresholds:
+- **Data Source (UC_baseline):** bl_mayo_total, bl_mayo_s, bl_mayo_b, bl_mayo_p.
+- **Data Source (UC_cpy):** mes_a, t, d, s, r.
+- **Logic:**
+  - **Total Mayo Score = Partial Mayo Score + MES.**
+  - **Partial Mayo:** Use `bl_mayo_total` from UC_baseline.
+  - **MES:** Use the **MAXIMUM** value of mes_a, t, d, s, r from UC_cpy.
+- **Severity Classification:**
   - **Remission: 0-2** | **Mild: 3-5** | **Moderate: 6-10** | **Severe: >10**
-- **Remission Checklist (ALL must be met):**
-  - Clinical: Partial Mayo <3, no sub-score >1
-  - Biochemical: CRP <1 mg/dL & fecal calprotectin <100 µg/g
-  - Endoscopic: MES 0 or 1
-  - Histologic: Nancy 0 or 1
-- State which remission criteria are MET and which are NOT MET.
-- **Prognosis:** Flag ALL poor prognostic factors: age <40, extensive colitis, PSC, MES 3, high CRP, low albumin (<3.5), steroid use (excluding Cortiment MMX).
+- **Remission Checklist (MET/NOT MET):**
+  - **Clinical Remission:** Partial Mayo <3 AND no sub-score (bl_mayo_s, b, p) > 1.
+  - **Biochemical Remission:** CRP <1 mg/dL AND fecal calprotectin <100 ug/g.
+  - **Endoscopic Remission:** MES (max) = 0 or 1.
+  - **Histologic Remission:** Nancy score 0 or 1 (Max of nancy_a, t, d, s, r).
+- **Poor Prognostic Factors (Flag if present):**
+  - Age <40 at diagnosis
+  - Extensive colitis (extent=3)
+  - MES 3
+  - Elevated CRP (>1 mg/dL)
+  - Low albumin (<3.5 g/dL)
+  - Steroid use (med_class=2 excluding med_name=Cortiment MMX)
 - Append: "[GOAL: Clinical remission is the short-term treatment goal]".
 
 ## 3. Laboratory Data (Biochemical Targets) — Category 1 & 4
@@ -90,20 +97,26 @@ CLINICAL_DATA_PARSER_PROMPT = """
 - **ANOMALY DETECTION:** By definition, Nancy 4 means an ulcer is seen. If ulcer is seen, it must be graded MES 3, meaning NO biopsy should be taken. If data shows Nancy 4 alongside MES 0, 1, or 2, output: "[DATA ERROR: Nancy 4 implies MES 3. Biopsy should not exist for this segment]".
 
 ## 5. Medication Guidelines & Validation — Category 2
-- Extract Med_class, Med_name, Route, Dose, Interval.
+- **Data Source (UC_med):** med_class, med_name, route, dose, interval, start_date, end_date.
+- **Medication Adjustment Logic:**
+    - Calculate **Medication Range** = End Medication Date minus Start Medication Date.
+    - Compare with **Expected Time from SOPs**.
+    - **No Adjustment:** If patient reached Endoscopic/Histologic remission AND Medication Range < Expected Time from SOPs.
+    - **Adjustment Needed:** If patient is only in Clinical/Biochemical remission OR if Medication Range > Expected Time despite reaching remission.
 - **Route Validation:**
   If PR → "[CONSTRAINT: PR can only cover the rectum]".
   If Enema → "[CONSTRAINT: Enema covers rectum and sigmoid]".
-- **Treat-to-Target Strategy:**
-  - Short-term goal: Clinical remission (Partial Mayo <3)
-  - Intermediate goal: Biochemical remission (normalized CRP + FC)
-  - Long-term goal: Endoscopic remission (MES 0 or 1)
+- **Treat-to-Target Strategy (Q2.1):**
+  - **Short-term:** Clinical remission achieved.
+  - **Intermediate:** Biochemical remission achieved.
+  - **Long-term:** Endoscopic remission achieved.
+  - **No Formal Target:** Histologic remission achieved.
 - **5-ASA Optimization:** If patient is on 5-ASA, verify dose is optimized to 4.8 g/d. If left-sided/proctitis, ensure rectal therapy is added before escalation.
 - **Escalation Criteria:** Consider advanced therapy for:
   - Moderate-severe disease
   - Steroid-dependent patients (>12 weeks use)
   - Patients failing optimized 5-ASA + immunomodulators
-- **Response Timeline Table (judge medication adequacy):**
+- **Response Timeline Table (judge medication adequacy vs Expected Time):**
   - Infliximab: clinical remission expected at 10 weeks
   - Adalimumab: clinical remission expected at 11 weeks
   - Vedolizumab: clinical remission expected at 14 weeks
@@ -116,11 +129,11 @@ CLINICAL_DATA_PARSER_PROMPT = """
   - General: Note that advanced therapy (biologics/small molecules) is for severe disease but entails more side effects and higher costs.
 
 ## 6. Cancer Surveillance — Category 3
-- **CRC Screening Trigger:** Start 8 years after symptom onset (date_onset).
-- **Surveillance Intervals:**
-  - High Risk (1 year): Severe inflammation, PSC (start immediately), CRC family history
-  - Intermediate (2-3 years): Mild-moderate inflammation or CRC family history
-  - Low Risk (5 years): Left-sided colitis or minimal inflammation
+- **CRC Screening Trigger:** Offers colonoscopy 8 years after symptom onset (date_onset).
+- **Surveillance Risk Intervals:**
+  - **High Risk (1 year):** Severe inflammation, PSC (start immediately), or CRC family history.
+  - **Intermediate (2-3 years):** Mild-moderate inflammation or CRC family history.
+  - **Low Risk (5 years):** Left-sided colitis or minimal inflammation.
 - **Malignancy Awareness:**
   - Skin cancer: yearly dermatological exam (especially if on thiopurines)
   - Cervical cancer: Pap smear per protocol

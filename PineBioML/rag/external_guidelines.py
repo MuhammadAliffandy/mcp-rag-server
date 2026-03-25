@@ -230,36 +230,43 @@ def query_external_guidelines(
     max_results: int = 3
 ) -> str:
     """
-    Guard RAG main entry point. Strictly offline.
+    Guard RAG main entry point.
     
     Flow:
     1. Extract patient context from question if not provided
-    2. Match against embedded clinical knowledge base (instant, reliable)
-    3. Synthesize final answer with proper citations
+    2. Match against embedded clinical knowledge base (PRIMARY SOURCE)
+    3. If no matches found in KB, perform web search (ENRICHMENT)
+    4. Synthesize final answer with proper citations
     """
     timestamp = datetime.datetime.now().isoformat()
-    print(f"[{timestamp}] [GuardRAG] Processing (OFFLINE): {question[:100]}...")
+    print(f"[{timestamp}] [GuardRAG] Processing: {question[:100]}...")
 
     # 1. Extract patient context from question text if not provided
     if not patient_context:
         patient_context = extract_patient_context(question)
-    print(f"[GuardRAG] Patient context: {patient_context or 'none detected'}")
-
+    
     # 2. Match embedded clinical knowledge (PRIMARY SOURCE)
     kb_matches = match_guideline(question, patient_context)
     kb_answer = format_guideline_answer(kb_matches, question)
 
     if kb_matches:
-        print(f"[GuardRAG] Embedded KB: {len(kb_matches)} match(es) — primary: {kb_matches[0]['id']}")
-    else:
-        print(f"[GuardRAG] Embedded KB: no matches")
-
-    # 3. Synthesize final answer directly from KB, NO WEB SEARCH
-    if kb_answer:
+        print(f"[GuardRAG] Internal KB Match: {len(kb_matches)} found.")
         return kb_answer
-    else:
-        # Nothing found — explicit fail-safe
-        return "No internal SOP found for this specific query. I am restricted from providing external or unverified recommendations."
+    
+    # 3. Only trigger web search if internal KB is empty
+    print(f"[GuardRAG] No internal KB match. Triggering web enrichment...")
+    web_results = fetch_web_guidelines(question, patient_context, max_results=max_results)
+    
+    if not web_results:
+        return "No internal SOP or reliable external guideline found for this specific query. I am restricted from providing unverified recommendations."
+
+    # 4. Synthesize from web results
+    web_context = "\n\n".join([
+        f"Source: {r['source_name']} ({r['url']})\nTitle: {r['title']}\nContent: {r['content'] or r['snippet']}"
+        for r in web_results
+    ])
+    
+    return _synthesize_web_only(question, web_context, patient_context)
 
 def _synthesize_combined(question: str, kb_answer: str, web_context: str, patient_context: str) -> str:
     """Combine embedded knowledge (primary) with web enrichment."""

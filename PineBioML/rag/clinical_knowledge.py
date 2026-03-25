@@ -5,7 +5,7 @@ Contains structured clinical guidelines from major authorities (ACG, ECCO, WHO, 
 organized by condition and severity. This provides RELIABLE, INSTANT guideline answers
 even without internet access, matching the ColonoSense tiered citation format.
 
-Tier Hierarchy:
+Tier Hierarchy (STRICT):
   - Tier 1: Global Guidelines (ACG, ECCO, AGA, WGO)
   - Tier 2: Local Guidelines (country/hospital-specific)
   - Tier 3: Meta-analyses (systematic reviews, Cochrane)
@@ -473,7 +473,10 @@ def format_guideline_answer(matches: List[Dict], question: str) -> str:
     recommendation_counter = 0
 
     # Output tiers in order 1 → 2 → 3 → 4
-    for tier_num in sorted(tier_groups.keys()):
+    TIER_ORDER = [1, 2, 3, 4]
+    for tier_num in TIER_ORDER:
+        if tier_num not in tier_groups:
+            continue
         tier_label = TIER_LABELS.get(tier_num, f"Tier {tier_num}")
         tier_matches = tier_groups[tier_num]
 

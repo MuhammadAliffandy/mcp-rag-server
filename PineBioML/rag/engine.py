@@ -543,14 +543,24 @@ ANSWER:"""
                 "You MUST be thorough, precise, and show ALL retrieved data — never summarise away important values. "
                 "You are a tool for doctors, not for patients. Be clinical and evidence-based. "
                 "CRITICAL: Every recommendation MUST follow the format: [Tier X] 1. Recommendation [Society/Author, Year]. "
-                "Tier hierarchy: [Tier 1] Global Guidelines → [Tier 2] Local Guidelines → [Tier 3] Meta-analyses → [Tier 4] Pivotal Trials. "
-                "Within the same tier, list from latest year to oldest. Present all available societies."
+                "Tier hierarchy: [Tier 1] Global guidelines → [Tier 2] Local guidelines → [Tier 3] Meta-analyses → [Tier 4] Pivotal trials. "
+                "Within the same tier, list from the latest year to oldest. Present all available societies."
+            )
+
+            sys_msg = (
+                "You are ColonoSense, a clinical decision support AI specializing in inflammatory bowel disease (IBD). "
+                "Your audience is a gastroenterologist or clinical physician. "
+                "You MUST mirror the user's language perfectly. "
+                "You MUST be thorough, precise, and show ALL retrieved data. "
+                "CRITICAL: Every recommendation MUST follow the format: [Tier X] 1. Recommendation [Society/Author, Year]. "
+                "Tier hierarchy (STRICT): [Tier 1] Global → [Tier 2] Local → [Tier 3] Meta-analyses → [Tier 4] Pivotal trials. "
+                "Search Tier 1 first; only move to lower Tiers if no information is found. "
+                "Within the same tier, list from the latest year to oldest. Present all available societies."
             )
 
             user_prompt = f"""
 [SYSTEM MANDATE]:
-You are generating a DETAILED clinical report for a physician. Show ALL data. Be exhaustive. This is a doctor assistant tool.
-EVERY recommendation MUST use [Tier X] format: `[Tier X] 1. Recommendation [Society/Author, Year]`
+You are generating a DETAILED clinical report for a physician. Use these EXACT templates based on the user's query intent.
 
 [USER REQUEST]: {question}
 
@@ -561,42 +571,53 @@ EVERY recommendation MUST use [Tier X] format: `[Tier X] 1. Recommendation [Soci
 [OUTPUT FORMAT — follow EXACTLY]:
 
 ### Category Recognized
-State which of the 7 categories: Disease Severity & Remission, Treatment Adjustment, Colon Cancer Surveillance, Monitor Tools and Interval, Risk of Complications, Lifestyle and Diet Modification, or Family Planning.
+State which of the 7 clinical categories.
 
-### Patient Context (Core RAG)
-This section MUST be detailed and data-rich. Follow these rules:
-- **Record count**: State how many data records/visits were retrieved.
-- **Data table**: Present ALL retrieved patient values in a Markdown table.
-- **Severity Classification**: If Category 1 — state Total Mayo Score and classify: Remission (0-2), Mild (3-5), Moderate (6-10), Severe (>10).
-- **Remission Checklist** (if Category 1):
-  | Criterion | Value | Status |
-  |---|---|---|
-  | Clinical (pMayo <3) | [value] | MET/NOT MET |
-  | Biochemical (CRP <1 & FC <100) | [values] | MET/NOT MET |
-  | Endoscopic (MES 0-1) | [value] | MET/NOT MET |
-  | Histologic (Nancy 0-1) | [value] | MET/NOT MET |
-- **Poor Prognostic Factors**: List if present: age <40, extensive colitis, PSC, MES 3, high CRP, low albumin (<3.5), steroid use (non-Cortiment MMX).
-- **Temporal analysis**: Describe trajectory across visits. Bold abnormal values.
-- If no patient data was retrieved, state explicitly: "No longitudinal records found for this patient."
+{f"#### Q1.1: Disease Severity Status" if "severity" in question.lower() or "q1.1" in question.lower() else ""}
+- **Patient ID:** [Value]
+- **Latest Colonoscopy date:** [Value]
+- **Disease severity:** [Remission | Mild | Moderate | Severe]
+
+{f"#### Q1.2: Remission Status Assessment & Q2.1: Recommended Targets" if "remission" in question.lower() or "target" in question.lower() or "q1.2" in question.lower() or "q2.1" in question.lower() else ""}
+- **Patient ID:** [Value]
+- **Last colonoscopy date:** [Value]
+- **Partial Mayo Score and Subscore:** [Value]
+- **CRP and Fecal Calprotectin:** [Value]
+- **MES Score:** [Value]
+- **Nancy Score:** [Value]
+- **Remission status:** [List Clinical, Bio-chemical, Endoscopic, Histologic if met. Conditions are cumulative.]
+- **Treat to target status:** [Short-term / Intermediate / Long-term / No Formal Target. Provide latest status only.]
+
+{f"#### Q1.3: Prognostic Factor Assessment" if "prognostic" in question.lower() or "q1.3" in question.lower() else ""}
+- **Patient ID:** [Value]
+- **Birthday:** [Value]
+- **Age at diagnosis:** [Value]
+- **Extensive Colitis status:** [Value]
+- **MES:** [Value]
+- **CRP:** [Value]
+- **Albumin:** [Value]
+- **Medical Class/Name:** [Value]
+- **Steroid Use:** [Value]
+- **Prognostic factor:** [YES/NO + Reason]
+
+{f"#### Q2.2: Medication Adjustment Status" if "adjustment" in question.lower() or "medication" in question.lower() or "q2.2" in question.lower() else ""}
+- **Patient ID:** [Value]
+- **Last colonoscopy date:** [Value]
+- **Remission status:** [Value]
+- **Treat to target status:** [Value]
+- **Medication Information:** [Value]
+- **Adjustment status:** [YES/NO] (NO if Endoscopic/Histologic remission AND Med Range < Expected Time. YES if only Clinical/Biochemical remission OR Med Range > Expected Time)
+- **Medical SOP list:** (See Guard RAG format below)
 
 ### Medical Guidelines (Guard RAG)
-This section MUST use [Tier X] citation format. Follow these rules:
-- Every recommendation: `[Tier X] 1. Recommendation [Society/Author, Year]`
-- **Map the guideline to the patient's data** — connect retrieved guidelines to the patient's specific values.
-- If Category 2: Include treat-to-target goals (clinical → biochemical → endoscopic) and response timeline.
-- If Category 3: Include CRC screening intervals (High 1yr / Intermediate 2-3yr / Low 5yr).
-- If NO guidelines were found, state: "No internal SOP matched this query. I am restricted from providing external or unverified recommendations."
-
-### Statistical Analysis (PineBio ML)
-- Show any ML-computed risk scores, trend predictions, or statistical correlations.
-- If no ML tools were executed, state: "Not applicable for this query category."
+MANDATORY: Use `[Tier X] 1. Recommendation [Society/Author, Year]` format.
+Search sequentially: [Tier 1] Global → [Tier 2] Local → [Tier 3] Meta-analyses → [Tier 4] Pivotal trials.
 
 ### Final Synthesis
-Provide a **stepwise, actionable clinical recommendation** for the treating physician:
-1. **Current Assessment**: One-line summary of the patient's current state.
-2. **Recommended Action**: What should the doctor do next? Use [Tier X] format for all recommendations.
-3. **Monitoring Plan**: What labs/scores to recheck and when?
-4. **Escalation Trigger**: Under what conditions should the doctor escalate therapy?
+1. **Current Assessment**: One-line summary.
+2. **Recommended Action**: Actionable steps using [Tier X] format.
+3. **Monitoring Plan**: Timeline for labs/scores.
+4. **Escalation Trigger**: When to escalate therapy.
 
 Respond in the SAME language as the user's question ({lang}).
             """
