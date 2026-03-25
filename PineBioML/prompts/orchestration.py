@@ -72,25 +72,25 @@ When retrieving information from the **Medical SOP** folder, strictly follow the
 # 6. CLINICAL REASONING FOR 7 CATEGORIES
 
 ## Category 1: Disease Severity Assessment
-- **Q1.1: Disease Severity Classification**
+- **Q1.1: Disease Severity Classification** (Keywords: "disease severity")
   - Logic: Total Mayo Score = Partial Mayo Score + MES.
   - Data Source: Partial Mayo (bl_mayo_total from UC_baseline); MES (Max value of mes_a, t, d, s, r from UC_cpy).
   - Thresholds: Remission (0-2), Mild (3-5), Moderate (6-10), Severe (>10).
-- **Q1.2: Remission Status Assessment**
+- **Q1.2: Remission Status Assessment** (Keywords: "remission status")
   - Clinical: Partial Mayo <3 AND no sub-score (bl_mayo_s, b, p) >1.
   - Biochemical: CRP <1 mg/dL AND fecal calprotectin <100 ug/g.
   - Endoscopic: MES = 0 or 1.
   - Histologic: Nancy score 0 or 1 (Max of nancy_a, t, d, s, r).
-- **Q1.3: Poor Prognostic Factors**
+- **Q1.3: Poor Prognostic Factors** (Keywords: "poor prognostic factor", "prognostic")
   - Flag if: age <40, extensive colitis (extent=3), MES 3, elevated CRP (>1), low albumin (<3.5), or steroid use (med_class=2 excluding med_name=Cortiment MMX).
 
 ## Category 2: Treatment Adjustment (Treat-to-Target)
-- **Q2.1: T2T Strategy Status**
+- **Q2.1: T2T Strategy Status** (Keywords: "targets", "treat-to-target")
   - Short-term: Clinical remission achieved.
   - Intermediate: Bio-chemical remission achieved.
   - Long-term: Endoscopic remission achieved.
   - No Formal Target: Histologic remission achieved.
-- **Q2.2: Medication Adjustment Logic**
+- **Q2.2: Medication Adjustment Logic** (Keywords: "medication be adjusted", "adjustment")
   - Med Range = End Medication Date minus Start Medication Date (from UC_med).
   - No Adjustment: If patient reached Endoscopic/Histologic remission AND Medication Range < Expected Time from SOPs.
   - Adjustment Needed: If patient is only in Clinical/Biochemical remission OR if Medication Range > Expected Time despite reaching remission.

@@ -574,44 +574,49 @@ You are generating a DETAILED clinical report for a physician. Use these EXACT t
 State which of the 7 clinical categories.
 
 {f"#### Q1.1: Disease Severity Status" if "severity" in question.lower() or "q1.1" in question.lower() else ""}
-- **Patient ID:** [Value]
-- **Latest Colonoscopy date:** [Value]
-- **Disease severity:** [Remission | Mild | Moderate | Severe]
+1. **Patient ID:** [Value]
+2. **Latest Colonoscopy date:** [Value]
+3. **Disease severity:** [Remission | Mild | Moderate | Severe]
 
 {f"#### Q1.2: Remission Status Assessment & Q2.1: Recommended Targets" if "remission" in question.lower() or "target" in question.lower() or "q1.2" in question.lower() or "q2.1" in question.lower() else ""}
-- **Patient ID:** [Value]
-- **Last colonoscopy date:** [Value]
-- **Partial Mayo Score and Subscore:** [Value]
-- **CRP and Fecal Calprotectin:** [Value]
-- **MES Score:** [Value]
-- **Nancy Score:** [Value]
-- **Remission status:** [List Clinical, Bio-chemical, Endoscopic, Histologic if met. Conditions are cumulative.]
-- **Treat to target status:** [Short-term / Intermediate / Long-term / No Formal Target. Provide latest status only.]
+1. **Patient ID:** [Value]
+2. **Last colonoscopy date:** [Value]
+3. **Partial Mayo Score and Subscore:** [Value]
+4. **CRP and Fecal Calprotectin:** [Value]
+5. **MES Score:** [Value]
+6. **Nancy Score:** [Value]
+7. **Remission status:** [List Clinical, Bio-chemical, Endoscopic, Histologic if met. Use ✅/❌]
+8. **Treat to target status:** [Short term target / Intermediate target / Long term target / No formal target. Provide the latest status only.]
 
 {f"#### Q1.3: Prognostic Factor Assessment" if "prognostic" in question.lower() or "q1.3" in question.lower() else ""}
-- **Patient ID:** [Value]
-- **Birthday:** [Value]
-- **Age at diagnosis:** [Value]
-- **Extensive Colitis status:** [Value]
-- **MES:** [Value]
-- **CRP:** [Value]
-- **Albumin:** [Value]
-- **Medical Class/Name:** [Value]
-- **Steroid Use:** [Value]
-- **Prognostic factor:** [YES/NO + Reason]
+1. **Patient ID:** [Value]
+2. **Birthday:** [Value]
+3. **Age at diagnosis:** [Value]
+4. **Extensive Colitis status:** [Value]
+5. **MES:** [Value]
+6. **CRP:** [CRP value and elevated or not]
+7. **Albumin:** [Albumin value and low albumin or not]
+8. **Medical Class:** [Value]
+9. **Medical Name:** [Value]
+10. **Steroid Use:** [Yes or No]
+11. **Prognostic factor:** [Prognosis poor (Yes) or Prognosis not poor (No)]
 
-{f"#### Q2.2: Medication Adjustment Status" if "adjustment" in question.lower() or "medication" in question.lower() or "q2.2" in question.lower() else ""}
-- **Patient ID:** [Value]
-- **Last colonoscopy date:** [Value]
-- **Remission status:** [Value]
-- **Treat to target status:** [Value]
-- **Medication Information:** [Value]
-- **Adjustment status:** [YES/NO] (NO if Endoscopic/Histologic remission AND Med Range < Expected Time. YES if only Clinical/Biochemical remission OR Med Range > Expected Time)
-- **Medical SOP list:** (See Guard RAG format below)
+{f"#### Q2.2: Medication Adjustment Status" if "adjust" in question.lower() or "medication" in question.lower() or "q2.2" in question.lower() else ""}
+1. **Patient ID:** [Value]
+2. **Last colonoscopy date:** [Value]
+3. **Remission status:** [Value]
+4. **Treat to target status:** [Value]
+5. **Medication Information:** [Value]
+6. **Adjustment status:** [No Adjustment / Adjustment]
+7. **Medical SOP:** (See Guard RAG format below)
 
-### Medical Guidelines (Guard RAG)
-MANDATORY: Use `[Tier X] 1. Recommendation [Society/Author, Year]` format.
+### Medical Guidelines (Guard RAG - Single Source of Truth)
 Search sequentially: [Tier 1] Global → [Tier 2] Local → [Tier 3] Meta-analyses → [Tier 4] Pivotal trials.
+MANDATORY Output Formatting:
+[Tier 1] 1. Recommendation [Society, year]
+[Tier 2] 1. Recommendation [Society, year]
+[Tier 3] 1. Recommendation [Author, year]
+[Tier 4] 1. Recommendation [Author, trial name, year]
 
 ### Final Synthesis
 1. **Current Assessment**: One-line summary.
