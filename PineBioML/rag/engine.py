@@ -220,6 +220,42 @@ ANSWER:"""
             # Fetch more candidates to allow for Python-side filtering
             fetch_k = 50 if patient_id_filter else 10
             
+            # ─── COMPREHENSIVE PATIENT DATA EXTRACTION ────────────────────
+            # When a patient ID is specified, fetch ALL tabular rows for that
+            # patient across ALL sheets (UC_baseline, UC_cpy, UC_lab, etc.)
+            # This ensures the orchestrator always has complete clinical data.
+            comprehensive_patient_data = ""
+            if patient_id_filter:
+                try:
+                    clean_pid = str(patient_id_filter).strip().lower()
+                    all_tab_docs = self.vector_store.get(
+                        where={"type": "tabular_row"},
+                        include=["documents", "metadatas"]
+                    )
+                    
+                    rows_by_sheet = {}
+                    if all_tab_docs and all_tab_docs.get("documents"):
+                        for doc_text, meta in zip(all_tab_docs["documents"], all_tab_docs["metadatas"]):
+                            p_ids = str(meta.get("patient_ids", "")).lower().strip()
+                            id_variants = [clean_pid, f"{clean_pid}.0", f"patient_{clean_pid}", f"id {clean_pid}", f"id{clean_pid}"]
+                            if any(v == p_ids or v in p_ids.split(',') for v in id_variants):
+                                sheet = meta.get("sheet_name", "Unknown")
+                                if sheet not in rows_by_sheet:
+                                    rows_by_sheet[sheet] = []
+                                rows_by_sheet[sheet].append(doc_text)
+                    
+                    if rows_by_sheet:
+                        parts = [f"\n=== COMPREHENSIVE PATIENT {patient_id_filter} DATA ==="]
+                        for sheet_name, rows in rows_by_sheet.items():
+                            parts.append(f"\n--- SHEET: {sheet_name} ---")
+                            for row in rows:
+                                parts.append(row)
+                        comprehensive_patient_data = "\n".join(parts)
+                        pine_logger(f"📊 Comprehensive extraction: {sum(len(r) for r in rows_by_sheet.values())} rows across sheets: {list(rows_by_sheet.keys())}")
+                except Exception as comp_err:
+                    pine_logger(f"⚠️ Comprehensive extraction error: {comp_err}")
+            # ─── END COMPREHENSIVE EXTRACTION ─────────────────────────────
+            
             # Get SESSION DOCUMENTS (User Uploads - Priority)
             session_docs_raw = self.vector_store.similarity_search(
                 question, k=fetch_k, 
@@ -242,13 +278,13 @@ ANSWER:"""
                 # Filter session docs
                 for d in session_docs_raw:
                     p_ids = str(d.metadata.get("patient_ids", "")).lower()
-                    if clean_filter in p_ids.split(',') or f"patient_{clean_filter}" in p_ids:
+                    if clean_filter in p_ids.split(',') or f"patient_{clean_filter}" in p_ids or f"id {clean_filter}" in p_ids:
                         session_docs.append(d)
                 
                 # Filter knowledge docs 
                 for d in knowledge_docs_raw:
                     p_ids = str(d.metadata.get("patient_ids", "")).lower()
-                    if clean_filter in p_ids.split(',') or f"patient_{clean_filter}" in p_ids:
+                    if clean_filter in p_ids.split(',') or f"patient_{clean_filter}" in p_ids or f"id {clean_filter}" in p_ids:
                         knowledge_docs.append(d)
                         
                 pine_logger(f"🔍 Filtered to {len(session_docs)} session docs and {len(knowledge_docs)} knowledge docs for Patient {clean_filter}")
@@ -257,7 +293,12 @@ ANSWER:"""
                 knowledge_docs = knowledge_docs_raw
             
             # Format context previews
-            session_preview = "\n---\n".join([
+            # Prepend comprehensive patient data to session preview so it's always visible
+            session_preview = ""
+            if comprehensive_patient_data:
+                session_preview = comprehensive_patient_data + "\n\n---\n\n"
+            
+            session_preview += "\n---\n".join([
                 d.page_content[:1500] 
                 for d in session_docs 
                 if "[DEEP SUMMARY]" not in d.page_content
@@ -552,10 +593,13 @@ ANSWER:"""
                 "Your audience is a gastroenterologist or clinical physician. "
                 "You MUST mirror the user's language perfectly. "
                 "You MUST be thorough, precise, and show ALL retrieved data. "
+                "You MUST NOT hallucinate medical advice. If data is not in the xlsx, say 'Data not available'. "
+                "CURRENT SYSTEM DATE: 2026-02-11 — use this for ALL duration calculations. "
                 "CRITICAL: Every recommendation MUST follow the format: [Tier X] 1. Recommendation [Society/Author, Year]. "
                 "Tier hierarchy (STRICT): [Tier 1] Global → [Tier 2] Local → [Tier 3] Meta-analyses → [Tier 4] Pivotal trials. "
-                "Search Tier 1 first; only move to lower Tiers if no information is found. "
-                "Within the same tier, list from the latest year to oldest. Present all available societies."
+                "Query Tier 1 first; only fallback to lower Tiers if no information is found. "
+                "Within the same tier, list from the latest year to oldest. Present all available societies. "
+                "INTERNET FALLBACK RULE: Only search internet if Guard RAG returns zero results across all 4 tiers. If used, state [External Web Search]."
             )
 
             user_prompt = f"""
@@ -606,9 +650,11 @@ State which of the 7 clinical categories.
 2. **Last colonoscopy date:** [Value]
 3. **Remission status:** [Value]
 4. **Treat to target status:** [Value]
-5. **Medication Information:** [Value]
-6. **Adjustment status:** [No Adjustment / Adjustment]
-7. **Medical SOP:** (See Guard RAG format below)
+5. **Index Drug:** [Name of the medication with the latest start_date among active meds (end_date null or >= 2026-02-11)]
+6. **Med Duration:** [2026-02-11 minus start_date in weeks]
+7. **STRIDE-II Expected Time:** [Expected weeks from Guard RAG for this drug class]
+8. **Adjustment status:** [No Adjustment / Continue and reassess in X weeks / Adjustment]
+9. **Medical SOP:** (See Guard RAG format below)
 
 ### Medical Guidelines (Guard RAG - Single Source of Truth)
 Search sequentially: [Tier 1] Global → [Tier 2] Local → [Tier 3] Meta-analyses → [Tier 4] Pivotal trials.

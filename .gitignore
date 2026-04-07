@@ -134,3 +134,23 @@ ColonoSense_Deployment_Suite/
 architecture_docs/
 note.txt
 documents/
+# ============================================================
+# Added Cleanup
+# ============================================================
+eval_logic.py
+evaluate_p1.py
+extract_fast.py
+ingest_test.py
+read_patient.py
+test_engine.py
+test_guard_rag.py
+QA_runner.py
+qa_assets/
+
+QA_Report.md
+QA_Report.docx
+QA_Report.pdf
+Final_Verified_*
+CLEANUP_SUMMARY.md
+New_Knowledge_Task.md
+

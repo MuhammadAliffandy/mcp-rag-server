@@ -18,6 +18,8 @@ Do NOT summarize away details. Every variable carries clinical risk.
 Do not simply repeat the raw data — output an "Enriched Explanation" that weaves raw facts with bracketed insights.
 You are writing for a gastroenterologist — be precise and exhaustive.
 
+CURRENT SYSTEM DATE: 2026-02-11 — Use this date for ALL duration and age calculations.
+
 CRITICAL FORMAT RULE: Every recommendation must follow the format:
 [Tier X] 1. Recommendation [Society/Author, Year]
 
@@ -67,12 +69,13 @@ CLINICAL_DATA_PARSER_PROMPT = """
   - **Endoscopic Remission:** MES (max) = 0 or 1.
   - **Histologic Remission:** Nancy score 0 or 1 (Max of nancy_a, t, d, s, r).
 - **Poor Prognostic Factors (Flag if present):**
-  - Age <40 at diagnosis
+  - Age <40 at diagnosis (refer to the DETERMINISTIC PYTHON CALCULATIONS section)
   - Extensive colitis (extent=3)
   - MES 3
   - Elevated CRP (>1 mg/dL)
   - Low albumin (<3.5 g/dL)
-  - Steroid use (med_class=2 excluding med_name=Cortiment MMX)
+  - Steroid use (med_class=2 AND med_name != 'Cortiment MMX')
+  - If ANY factor is true → "∆ POOR PROGNOSIS" and list factors. Otherwise → "There was no poor prognostic factor identified".
 - Append: "[GOAL: Clinical remission is the short-term treatment goal]".
 
 ## 3. Laboratory Data (Biochemical Targets) — Category 1 & 4
@@ -98,11 +101,18 @@ CLINICAL_DATA_PARSER_PROMPT = """
 
 ## 5. Medication Guidelines & Validation — Category 2
 - **Data Source (UC_med):** med_class, med_name, route, dose, interval, start_date, end_date.
-- **Medication Adjustment Logic:**
-    - Calculate **Medication Range** = End Medication Date minus Start Medication Date.
-    - Compare with **Expected Time from SOPs**.
-    - **No Adjustment:** If patient reached Endoscopic/Histologic remission AND Medication Range < Expected Time from SOPs.
-    - **Adjustment Needed:** If patient is only in Clinical/Biochemical remission OR if Medication Range > Expected Time despite reaching remission.
+- **CURRENT SYSTEM DATE:** 2026-02-11
+- **Index Drug Identification:**
+    - Filter `UC_med` for active medications (`end_date` is null or >= 2026-02-11).
+    - The medication with the latest `start_date` is the **Index Drug**.
+- **Duration Logic:** `med_duration` = (2026-02-11 - `start_date`) in weeks.
+- **STRIDE-II Reference:** Retrieve expected time for the specific drug class to reach Clinical, Biochemical, and Endoscopic targets from Guard RAG.
+- **Medication Adjustment Logic (SEQUENTIAL — follow in order):**
+    1. If patient reached **Endoscopic or Histologic remission** → **"No Adjustment"**.
+    2. If patient has **NOT** reached Endoscopic remission, compare `med_duration` with expected time **sequentially**:
+       - **Check Clinical Remission:** If duration < expected → "Continue and reassess in [expected - duration] weeks". If duration > expected → "Adjustment". If achieved → move to next.
+       - **Check Bio-chemical Remission:** Apply same logic.
+       - **Check Endoscopic Remission:** Apply same logic.
 - **Route Validation:**
   If PR → "[CONSTRAINT: PR can only cover the rectum]".
   If Enema → "[CONSTRAINT: Enema covers rectum and sigmoid]".
@@ -110,21 +120,20 @@ CLINICAL_DATA_PARSER_PROMPT = """
   - **Short-term:** Clinical remission achieved.
   - **Intermediate:** Biochemical remission achieved.
   - **Long-term:** Endoscopic remission achieved.
-  - **No Formal Target:** Histologic remission achieved.
+  - **Future (not formal):** Histologic remission achieved.
+  - Logic: State the **highest target achieved** based on remission assessment.
 - **5-ASA Optimization:** If patient is on 5-ASA, verify dose is optimized to 4.8 g/d. If left-sided/proctitis, ensure rectal therapy is added before escalation.
 - **Escalation Criteria:** Consider advanced therapy for:
   - Moderate-severe disease
   - Steroid-dependent patients (>12 weeks use)
   - Patients failing optimized 5-ASA + immunomodulators
-- **Response Timeline Table (judge medication adequacy vs Expected Time):**
+- **Response Timeline Table (STRIDE-II reference — judge medication adequacy vs Expected Time):**
+- **Response Timeline Table (STRIDE-II reference — judge medication adequacy vs Expected Time):**
   - Infliximab: clinical remission expected at 10 weeks
   - Adalimumab: clinical remission expected at 11 weeks
   - Vedolizumab: clinical remission expected at 14 weeks
   - Tofacitinib: clinical remission expected at 8 weeks
 - **Guideline Triggers based on patient profile:**
-  - If moderate-to-severe UC → "[Tier 1] Suggest vedolizumab rather than adalimumab for induction/maintenance [ACG, 2019]".
-  - If extensive mild-to-moderate UC → "[Tier 1] Use standard-dose mesalamine (2-3 g/d) rather than low-dose [ACG, 2019]".
-  - If Age >= 50 and using Thiopurine → "[Tier 1] Balance thiopurine convenience/cost against lower efficacy, slow onset, and increased risk of skin cancers/lymphoma [ECCO, 2023]".
   - If Female (planning pregnancy) and using Methotrexate → "[CRITICAL GUIDELINE: Discontinue maintenance methotrexate prior to conception]".
   - General: Note that advanced therapy (biologics/small molecules) is for severe disease but entails more side effects and higher costs.
 
@@ -152,9 +161,14 @@ If Event = 0, interpret the specific Event_type_1:
 - Append: "[GOAL: Ultimate objective is to avoid these events to preserve quality of life and lifespan]".
 
 [OUTPUT FORMAT]:
+[OUTPUT FORMAT]:
 Do NOT simply repeat the raw data. Output an "Enriched Explanation" that weaves the raw facts with
 all triggered bracketed insights, risks, guidelines, and goals based on the patient's specific data profile.
 Use Markdown formatting. Group by section (Demographics, Severity & Remission, Labs, Endoscopy, Medication, Cancer Surveillance, Events).
+
+**CRITICAL RULE FOR CALCULATION**: You MUST use the pre-calculated metrics found under `=== DETERMINISTIC PYTHON CALCULATIONS (TRUST THIS) ===` for Age at Diagnosis, Medication Duration, MAX(MES), and MAX(Nancy). DO NOT calculate these yourself.
+**CRITICAL RULE FOR MISSING DATA**: Any value that is missing, NaN, or None MUST be explicitly stated as "Data Unavailable". Do NOT assume a "0" or "Remission" for missing scores.
+**CRITICAL RULE FOR CITATIONS**: Do NOT hallucinate guideline citations. Use the retrieved guideline files metadata (Guard RAG) to assign Tier mapping dynamically. If no document is found in the RAG for a specific tier, omit that tier rather than injecting a template.
 
 **MANDATORY SECTIONS:**
 1. **Severity Classification** — State the Total Mayo Score and severity category

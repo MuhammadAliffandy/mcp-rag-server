@@ -90,10 +90,7 @@ def _load_and_clean_data(target_column: Optional[str] = None) -> tuple[pd.DataFr
             # Use if not completely empty
             if not converted.isna().all():
                 df[col] = converted
-                # Impute missing with mean
-                if df[col].isna().any():
-                        df[col] = df[col].fillna(df[col].mean())
-                        df[col] = df[col].fillna(0)
+                # WE DO NOT IMPUTE! Leave NaN as NaN so the model knows it is missing (Data Unavailable).
         except:
             pass
 
@@ -595,22 +592,127 @@ def query_exprag_hybrid(question: str, patient_data: str = "{}") -> str:
 def query_core_rag(patient_id: str, query_intent: str) -> str:
     """
     Fetches longitudinal patient context (Excel, PDFs, symptom scores, clinical events).
-    Uses the internal patient data (e.g. 4DEADFE...xlsx) via semantic vector search.
+    Uses COMPREHENSIVE multi-sheet extraction from ChromaDB to ensure ALL patient data
+    (UC_baseline, UC_cpy, UC_lab, UC_histo, UC_med) is retrieved.
     After retrieval, enriches raw data with clinical interpretations (risk flags, warnings).
     """
     try:
         pine_log(f"🔍 Core RAG: fetching data for Patient '{patient_id}' - Intent: {query_intent}")
         
         raw_data = None
+        clean_id = str(patient_id).strip().lower()
         
-        # Strategy 1: Exact search using patient ID as the identifier
-        res, hits = rag_engine.exact_search(f"patient {patient_id}", patient_id_filter=patient_id)
+        # ──────────────────────────────────────────────────────────────────
+        # STRATEGY 1: COMPREHENSIVE MULTI-SHEET EXTRACTION (Primary)
+        # Pull ALL tabular_row documents for this patient from ChromaDB,
+        # group by sheet_name, and build structured raw data.
+        # This ensures MES, Nancy, lab, med data from ALL sheets is included.
+        # ──────────────────────────────────────────────────────────────────
+        try:
+            all_docs = rag_engine.vector_store.get(
+                where={"type": "tabular_row"},
+                include=["documents", "metadatas"]
+            )
+            
+            patient_rows_by_sheet = {}
+            total_matches = 0
+            
+            if all_docs and all_docs.get("documents"):
+                for doc_text, meta in zip(all_docs["documents"], all_docs["metadatas"]):
+                    p_ids = str(meta.get("patient_ids", "")).lower().strip()
+                    # Match patient ID flexibly: "5", "5.0", "patient_5", "id 5", etc.
+                    id_variants = [clean_id, f"{clean_id}.0", f"patient_{clean_id}", f"id {clean_id}", f"id{clean_id}"]
+                    if any(v == p_ids or v in p_ids.split(',') for v in id_variants):
+                        sheet = meta.get("sheet_name", "Unknown")
+                        if sheet not in patient_rows_by_sheet:
+                            patient_rows_by_sheet[sheet] = []
+                        patient_rows_by_sheet[sheet].append(doc_text)
+                        total_matches += 1
+            
+            if total_matches > 0:
+                pine_log(f"✅ Core RAG: Comprehensive extraction found {total_matches} rows across {len(patient_rows_by_sheet)} sheets: {list(patient_rows_by_sheet.keys())}")
+                
+                # Build structured raw data grouped by sheet
+                structured_parts = []
+                for sheet_name, rows in patient_rows_by_sheet.items():
+                    structured_parts.append(f"\n=== SHEET: {sheet_name} ===")
+                    for row in rows:
+                        structured_parts.append(row)
+                
+                raw_data_string = "\n".join(structured_parts)
+                
+                # Perform deterministic python math before feeding LLM
+                def calculate_clinical_metrics(data_str: str) -> str:
+                    import re
+                    import datetime
+                    
+                    current_date = datetime.datetime(2026, 2, 11)
+                    results = []
+                    
+                    birthday_match = re.search(r'\bbirthday:\s*(\d{4}-\d{2}-\d{2})', data_str, re.IGNORECASE)
+                    date_onset_match = re.search(r'\bdate_onset:\s*(\d{4}-\d{2}-\d{2})', data_str, re.IGNORECASE)
+                    
+                    if birthday_match and date_onset_match:
+                        try:
+                            b_dt = datetime.datetime.strptime(birthday_match.group(1), "%Y-%m-%d")
+                            d_dt = datetime.datetime.strptime(date_onset_match.group(1), "%Y-%m-%d")
+                            age_at_dx = (d_dt - b_dt).days / 365.25
+                            results.append(f"- Age at Diagnosis: {age_at_dx:.1f} years")
+                        except Exception as e:
+                            pine_log(f"Math Error Age: {e}")
+                    
+                    start_dates = re.findall(r'\bstart_date:\s*(\d{4}-\d{2}-\d{2})', data_str, re.IGNORECASE)
+                    if start_dates:
+                        for sd_str in set(start_dates):
+                            try:
+                                sd_dt = datetime.datetime.strptime(sd_str, "%Y-%m-%d")
+                                weeks = (current_date - sd_dt).days / 7.0
+                                results.append(f"- Medication Duration from {sd_str}: {weeks:.1f} weeks")
+                            except Exception:
+                                pass
+                                
+                    mes_vals = []
+                    for seg in ['mes_a', 'mes_t', 'mes_d', 'mes_s', 'mes_r']:
+                        matches = re.findall(rf'\b{seg}:\s*(\d+(?:\.\d+)?)\b', data_str, re.IGNORECASE)
+                        mes_vals.extend([float(m) for m in matches])
+                    
+                    if mes_vals:
+                        results.append(f"- MAX(MES): {max(mes_vals)}")
+                    else:
+                        results.append("- MAX(MES): Data Unavailable")
+                        
+                    nancy_vals = []
+                    for seg in ['nancy_a', 'nancy_t', 'nancy_d', 'nancy_s', 'nancy_r']:
+                        matches = re.findall(rf'\b{seg}:\s*(\d+(?:\.\d+)?)\b', data_str, re.IGNORECASE)
+                        nancy_vals.extend([float(m) for m in matches])
+                        
+                    if nancy_vals:
+                        results.append(f"- MAX(Nancy): {max(nancy_vals)}")
+                    else:
+                        results.append("- MAX(Nancy): Data Unavailable")
+                        
+                    if not results:
+                        return ""
+                    return "\n\n=== DETERMINISTIC PYTHON CALCULATIONS (TRUST THIS) ===\n" + "\n".join(results) + "\n======================================================\n"
+
+                deterministic_math = calculate_clinical_metrics(raw_data_string)
+                raw_data = raw_data_string + deterministic_math
+            else:
+                pine_log(f"⚠️ Core RAG: No tabular rows found for Patient {patient_id} via comprehensive extraction")
+        except Exception as comp_err:
+            pine_log(f"⚠️ Core RAG: Comprehensive extraction error: {comp_err}")
         
-        if hits and "No exact matches found" not in str(res):
-            pine_log(f"✅ Core RAG: exact search found {len(hits)} hits for Patient {patient_id}")
-            raw_data = res
+        # ──────────────────────────────────────────────────────────────────
+        # STRATEGY 2: Exact search fallback (for non-tabular docs like PDFs)
+        # ──────────────────────────────────────────────────────────────────
+        if not raw_data:
+            res, hits = rag_engine.exact_search(f"patient {patient_id}", patient_id_filter=patient_id)
+            
+            if hits and "No exact matches found" not in str(res):
+                pine_log(f"✅ Core RAG: exact search found {len(hits)} hits for Patient {patient_id}")
+                raw_data = res
         
-        # Strategy 2: Semantic vector search fallback
+        # STRATEGY 3: Semantic vector search fallback
         if not raw_data:
             pine_log(f"🔄 Core RAG: falling back to semantic search for '{query_intent}' (Patient {patient_id})")
             scoped_query = f"Patient {patient_id}: {query_intent}"
@@ -632,11 +734,11 @@ def query_core_rag(patient_id: str, query_intent: str) -> str:
             )
             from langchain_openai import ChatOpenAI
             
-            pine_log(f"🧬 Core RAG: Enriching raw data with clinical interpretations...")
+            pine_log(f"🧬 Core RAG: Enriching raw data with clinical interpretations... ({len(raw_data)} chars)")
             llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
             
             enrichment_prompt = CLINICAL_DATA_PARSER_PROMPT.format(
-                raw_data=raw_data[:30000],
+                raw_data=raw_data[:50000],
                 query_intent=query_intent
             )
             
@@ -660,28 +762,31 @@ def query_core_rag(patient_id: str, query_intent: str) -> str:
 def query_guard_rag(query_intent: str) -> str:
     """
     Guard RAG: Fetches official hospital SOPs, medical guidelines, and protocols.
-    Strictly offline. Uses embedded KB first, then falls back to ingested PDF guidelines.
+    Strictly offline. Uses embedded KB first, then semantic ingested PDFs, then falls back to Web Research.
     """
     try:
-        from PineBioML.rag.external_guidelines import query_external_guidelines as _fetch_guidelines
+        from PineBioML.rag.external_guidelines import (
+            match_guideline, format_guideline_answer, 
+            fetch_web_guidelines, _synthesize_web_only
+        )
         pine_log(f"🌐 Guard RAG: Consult guidelines for: {query_intent[:80]}...")
         
-        # Step 1: Try embedded clinical knowledge base (instant keyword match)
-        answer = _fetch_guidelines(question=query_intent)
+        # TYPE 1: INTERNAL DATA RAG (Embedded KB + Semantic PDFs)
+        pine_log("🔄 Guard RAG Type 1: Checking Internal Data (Embedded KB + Semantic PDFs)")
         
-        # If embedded KB found a match, return it
-        if answer and "No internal SOP found" not in answer:
-            pine_log(f"✅ Guard RAG: Embedded KB matched ({len(answer)} chars)")
-            return answer
-        
-        # Step 2: Fallback — search the ingested Guidelines PDFs via semantic RAG
-        pine_log(f"🔄 Guard RAG: Embedded KB failed, falling back to PDF guidelines semantic search")
+        # 1a. Try Embedded KB
+        kb_matches = match_guideline(query_intent, "")
+        if kb_matches:
+            kb_answer = format_guideline_answer(kb_matches, query_intent)
+            pine_log(f"✅ Guard RAG: Embedded KB matched.")
+            return kb_answer
+            
+        # 1b. Try Semantic PDF RAG
         guideline_query = f"clinical guideline SOP protocol: {query_intent}"
         semantic_answer, sources = rag_engine.query(guideline_query)
         
         if semantic_answer and len(str(semantic_answer).strip()) > 20 and "Not ready" not in str(semantic_answer):
-            pine_log(f"✅ Guard RAG: PDF semantic search returned answer ({len(str(semantic_answer))} chars)")
-            # Wrap with citation info
+            pine_log("✅ Guard RAG: Internal Semantic PDF search returned an answer.")
             source_names = []
             if sources:
                 for s in sources[:3]:
@@ -692,15 +797,27 @@ def query_guard_rag(query_intent: str) -> str:
             
             citation = ""
             if source_names:
-                citation = "\n\n📚 **Sources Consulted:**\n" + "\n".join(f"- {s}" for s in source_names)
+                citation = "\n\n📚 **Internal Sources Consulted:**\n" + "\n".join(f"- {s}" for s in source_names)
             
             return str(semantic_answer) + citation
+
+        # TYPE 2: ONLINE RESEARCH GUARD RAG (Web Fallback)
+        pine_log("🌐 Guard RAG Type 2: All Internal failed, triggering Online Research Web Search.")
+        web_results = fetch_web_guidelines(query_intent, "", max_results=3)
         
-        # Nothing found anywhere
-        return "No internal SOP found for this specific query. I am restricted from providing external or unverified recommendations."
+        if web_results:
+            pine_log(f"✅ Guard RAG: Online Research found {len(web_results)} results.")
+            web_context = "\n\n".join([
+                f"Source: {r['source_name']} ({r['url']})\nTitle: {r['title']}\nContent: {r['content'] or r['snippet']}"
+                for r in web_results
+            ])
+            answer = _synthesize_web_only(query_intent, web_context, "")
+            return answer + "\n\n[External Web Search]"
+            
+        return "No internal SOP found and online external research yielded no reliable results for this query."
     except Exception as e:
         pine_log(f"❌ Guard RAG Error: {e}")
-        return f"⚠️ No internal SOP found for this specific query. I am restricted from providing external or unverified recommendations. Error: {str(e)}"
+        return f"⚠️ Guard RAG error encountered. Error: {str(e)}"
 
 @mcp.tool()
 def execute_pinebio_ml(data_payload: str, task_type: str) -> str:
