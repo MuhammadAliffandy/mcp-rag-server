@@ -577,102 +577,20 @@ ANSWER:"""
             lang = self.detect_language(question)
             llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.2)
             
-            sys_msg = (
-                "You are ColonoSense, a clinical decision support AI specializing in inflammatory bowel disease (IBD). "
-                "Your audience is a gastroenterologist or clinical physician. "
-                "You MUST mirror the user's language perfectly. "
-                "You MUST be thorough, precise, and show ALL retrieved data — never summarise away important values. "
-                "You are a tool for doctors, not for patients. Be clinical and evidence-based. "
-                "CRITICAL: Every recommendation MUST follow the format: [Tier X] 1. Recommendation [Society/Author, Year]. "
-                "Tier hierarchy: [Tier 1] Global guidelines → [Tier 2] Local guidelines → [Tier 3] Meta-analyses → [Tier 4] Pivotal trials. "
-                "Within the same tier, list from the latest year to oldest. Present all available societies."
-            )
+            # Python-side intent detection for Category 1 & 2 triggers
+            q_lower = question.lower()
+            cat_id = None
+            if any(k in q_lower for k in ["severity", "classification", "severity of patient"]):
+                cat_id = "Q1.1"
+            elif any(k in q_lower for k in ["remission", "target", "remission status"]):
+                cat_id = "Q1.2"
+            elif any(k in q_lower for k in ["adjust", "medication", "change medication"]) and any(k in q_lower for k in ["should", "need", "dosage", "adjust"]):
+                cat_id = "Q2.2"
 
-            sys_msg = (
-                "You are ColonoSense, a clinical decision support AI specializing in inflammatory bowel disease (IBD). "
-                "Your audience is a gastroenterologist or clinical physician. "
-                "You MUST mirror the user's language perfectly. "
-                "You MUST be thorough, precise, and show ALL retrieved data. "
-                "You MUST NOT hallucinate medical advice. If data is not in the xlsx, say 'Data not available'. "
-                "CURRENT SYSTEM DATE: 2026-02-11 — use this for ALL duration calculations. "
-                "CRITICAL: Every recommendation MUST follow the format: [Tier X] 1. Recommendation [Society/Author, Year]. "
-                "Tier hierarchy (STRICT): [Tier 1] Global → [Tier 2] Local → [Tier 3] Meta-analyses → [Tier 4] Pivotal trials. "
-                "Query Tier 1 first; only fallback to lower Tiers if no information is found. "
-                "Within the same tier, list from the latest year to oldest. Present all available societies. "
-                "INTERNET FALLBACK RULE: Only search internet if Guard RAG returns zero results across all 4 tiers. If used, state [External Web Search]."
-            )
-
-            user_prompt = f"""
-[SYSTEM MANDATE]:
-You are generating a DETAILED clinical report for a physician. Use these EXACT templates based on the user's query intent.
-
-[USER REQUEST]: {question}
-
-[TOOL OUTPUTS & RAG CONTEXT]:
-{tool_outputs[:50000] if tool_outputs else "No tool findings."}
-{rag_context or ""}
-
-[OUTPUT FORMAT — follow EXACTLY]:
-
-### Category Recognized
-State which of the 7 clinical categories.
-
-{f"#### Q1.1: Disease Severity Status" if "severity" in question.lower() or "q1.1" in question.lower() else ""}
-1. **Patient ID:** [Value]
-2. **Latest Colonoscopy date:** [Value]
-3. **Disease severity:** [Remission | Mild | Moderate | Severe]
-
-{f"#### Q1.2: Remission Status Assessment & Q2.1: Recommended Targets" if "remission" in question.lower() or "target" in question.lower() or "q1.2" in question.lower() or "q2.1" in question.lower() else ""}
-1. **Patient ID:** [Value]
-2. **Last colonoscopy date:** [Value]
-3. **Partial Mayo Score and Subscore:** [Value]
-4. **CRP and Fecal Calprotectin:** [Value]
-5. **MES Score:** [Value]
-6. **Nancy Score:** [Value]
-7. **Remission status:** [List Clinical, Bio-chemical, Endoscopic, Histologic if met. Use ✅/❌]
-8. **Treat to target status:** [Short term target / Intermediate target / Long term target / No formal target. Provide the latest status only.]
-
-{f"#### Q1.3: Prognostic Factor Assessment" if "prognostic" in question.lower() or "q1.3" in question.lower() else ""}
-1. **Patient ID:** [Value]
-2. **Birthday:** [Value]
-3. **Age at diagnosis:** [Value]
-4. **Extensive Colitis status:** [Value]
-5. **MES:** [Value]
-6. **CRP:** [CRP value and elevated or not]
-7. **Albumin:** [Albumin value and low albumin or not]
-8. **Medical Class:** [Value]
-9. **Medical Name:** [Value]
-10. **Steroid Use:** [Yes or No]
-11. **Prognostic factor:** [Prognosis poor (Yes) or Prognosis not poor (No)]
-
-{f"#### Q2.2: Medication Adjustment Status" if "adjust" in question.lower() or "medication" in question.lower() or "q2.2" in question.lower() else ""}
-1. **Patient ID:** [Value]
-2. **Last colonoscopy date:** [Value]
-3. **Remission status:** [Value]
-4. **Treat to target status:** [Value]
-5. **Index Drug:** [Name of the medication with the latest start_date among active meds (end_date null or >= 2026-02-11)]
-6. **Med Duration:** [2026-02-11 minus start_date in weeks]
-7. **STRIDE-II Expected Time:** [Expected weeks from Guard RAG for this drug class]
-8. **Adjustment status:** [No Adjustment / Continue and reassess in X weeks / Adjustment]
-9. **Medical SOP:** (See Guard RAG format below)
-
-### Medical Guidelines (Guard RAG - Single Source of Truth)
-Search sequentially: [Tier 1] Global → [Tier 2] Local → [Tier 3] Meta-analyses → [Tier 4] Pivotal trials.
-MANDATORY Output Formatting:
-[Tier 1] 1. Recommendation [Society, year]
-[Tier 2] 1. Recommendation [Society, year]
-[Tier 3] 1. Recommendation [Author, year]
-[Tier 4] 1. Recommendation [Author, trial name, year]
-
-### Final Synthesis
-1. **Current Assessment**: One-line summary.
-2. **Recommended Action**: Actionable steps using [Tier X] format.
-3. **Monitoring Plan**: Timeline for labs/scores.
-4. **Escalation Trigger**: When to escalate therapy.
-
-Respond in the SAME language as the user's question ({lang}).
-            """
-            return llm.invoke([("system", sys_msg), ("human", user_prompt)]).content
+            from PineBioML.prompts.synthesis import get_synthesis_prompt
+            prompt = get_synthesis_prompt(lang, question, rag_context, tool_outputs, category_id=cat_id)
+            
+            return llm.invoke([("system", "You are ColonoSense, a clinical decision support AI specializing in inflammatory bowel disease (IBD)."), ("human", prompt)]).content
         except Exception as e: return f"Synthesis error: {e}"
 
     def has_doc_type(self, doc_type: str) -> bool:

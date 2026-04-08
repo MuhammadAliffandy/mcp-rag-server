@@ -658,9 +658,17 @@ if st.session_state.get("processing_pending", False):
                         "results": combined_findings,
                         "rag_context": st.session_state.get("current_rag_context", "")
                     }))
-                    st.markdown("### 📝 Clinical Synthesis")
-                    st.info(synth_res)
-                    res += f"\n\n### Clinical Synthesis\n{synth_res}"
+                    
+                    # Clean Rendering Logic:
+                    # If synth_res starts with our category header, we overwrite the display to be clean.
+                    if synth_res.strip().startswith("#### Q"):
+                        st.markdown(synth_res)
+                        # For Category 1 & 2, we ONLY store the synthesis in history, skipping logs
+                        res = synth_res
+                    else:
+                        st.markdown("### 📝 Clinical Synthesis")
+                        st.info(synth_res)
+                        res += f"\n\n### Clinical Synthesis\n{synth_res}"
         else:
             st.markdown(answer)
             res = answer

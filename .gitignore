@@ -60,10 +60,11 @@ output/
 src/pinebio/outputs/
 
 # ============================================================
-# Logs
+# Logs & Text Outputs
 # ============================================================
 logs/
 *.log
+*output.txt
 log.txt
 server_debug.log
 
