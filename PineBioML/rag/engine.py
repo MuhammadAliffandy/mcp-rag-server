@@ -577,15 +577,58 @@ ANSWER:"""
             lang = self.detect_language(question)
             llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.2)
             
-            # Python-side intent detection for Category 1 & 2 triggers
+            # Python-side intent detection for ALL 18 clinical trial question categories
             q_lower = question.lower()
             cat_id = None
-            if any(k in q_lower for k in ["severity", "classification", "severity of patient"]):
+
+            # ── CATEGORY 1: Disease Severity ─────────────────────────────
+            if any(k in q_lower for k in ["severity", "classify", "classification", "how severe", "severity of patient", "disease severity"]):
                 cat_id = "Q1.1"
-            elif any(k in q_lower for k in ["remission", "target", "remission status"]):
+            elif any(k in q_lower for k in ["remission status", "remission of the patient", "what is the remission"]):
                 cat_id = "Q1.2"
-            elif any(k in q_lower for k in ["adjust", "medication", "change medication"]) and any(k in q_lower for k in ["should", "need", "dosage", "adjust"]):
+            elif any(k in q_lower for k in ["poor prognostic", "prognostic factor", "prognosis"]):
+                cat_id = "Q1.3"
+
+            # ── CATEGORY 2: Treatment Adjustment ─────────────────────────
+            elif any(k in q_lower for k in ["treatment target", "treat-to-target", "treat to target", "achieved treatment", "achieved target", "target strategy"]):
+                cat_id = "Q2.1"
+            elif (any(k in q_lower for k in ["adjust", "medication adjustment", "should the medication", "change medication", "medication be adjusted"])
+                  and any(k in q_lower for k in ["should", "need", "dosage", "adjust", "current status"])):
                 cat_id = "Q2.2"
+            elif any(k in q_lower for k in ["next option", "recommended next", "next treatment", "next step", "escalate", "switch", "optimize current", "add on"]):
+                cat_id = "Q2.3"
+
+            # ── CATEGORY 3: Cancer Surveillance ──────────────────────────
+            elif any(k in q_lower for k in ["colorectal cancer", "colon cancer", "crc risk", "surveillance colonoscopy", "cancer screening", "screened for colorectal"]):
+                cat_id = "Q3.1"
+            elif any(k in q_lower for k in ["other type of cancer", "other cancer", "types of cancer", "cancer should be aware", "cancer screening"]) and "colorectal" not in q_lower:
+                cat_id = "Q3.2"
+
+            # ── CATEGORY 4: Monitor Tools and Interval ────────────────────
+            elif any(k in q_lower for k in ["non-invasive monitor", "monitoring exam", "disease activit", "next exam", "disease monitoring", "follow up exam"]):
+                cat_id = "Q4.1"
+            elif any(k in q_lower for k in ["therapeutic drug monitoring", "tdm", "drug level", "drug monitoring"]):
+                cat_id = "Q4.2"
+            elif any(k in q_lower for k in ["medication-specific monitor", "medication specific monitor", "specific monitor", "medication history monitor"]):
+                cat_id = "Q4.3"
+            elif any(k in q_lower for k in ["opportunistic infection", "vaccination", "vaccine", "infection risk", "immunization"]):
+                cat_id = "Q4.4"
+
+            # ── CATEGORY 5: Lifestyle and Diet ────────────────────────────
+            elif any(k in q_lower for k in ["dietary recommendation", "diet recommendation", "what to eat", "food recommendation", "dietary advice"]):
+                cat_id = "Q5.1"
+            elif any(k in q_lower for k in ["nutritional supplement", "supplement", "deficiency", "nutritional screen", "vitamin"]):
+                cat_id = "Q5.2"
+            elif any(k in q_lower for k in ["lifestyle modification", "lifestyle change", "lifestyle", "quit smoking", "physical activity", "exercise"]):
+                cat_id = "Q5.3"
+
+            # ── CATEGORY 6: Family Planning ────────────────────────────────
+            elif any(k in q_lower for k in ["pregnancy", "lactation", "conceive", "pregnant", "breastfeed", "family planning", "safe during pregnancy", "safe to continue"]):
+                cat_id = "Q6.1"
+            elif any(k in q_lower for k in ["risk to the patient", "maternal risk", "risk to mother", "maternally", "patient risk"]) and any(k in q_lower for k in ["pregnan", "disease activity"]):
+                cat_id = "Q6.2"
+            elif any(k in q_lower for k in ["risk to the fetus", "fetal risk", "neonatal risk", "risk to baby", "neonatally", "baby risk"]):
+                cat_id = "Q6.3"
 
             from PineBioML.prompts.synthesis import get_synthesis_prompt
             prompt = get_synthesis_prompt(lang, question, rag_context, tool_outputs, category_id=cat_id)
