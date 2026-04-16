@@ -701,6 +701,134 @@ def query_core_rag(patient_id: str, query_intent: str) -> str:
                 pine_log(f"⚠️ Core RAG: No tabular rows found for Patient {patient_id} via comprehensive extraction")
         except Exception as comp_err:
             pine_log(f"⚠️ Core RAG: Comprehensive extraction error: {comp_err}")
+
+        # ──────────────────────────────────────────────────────────────────
+        # MANDATORY EXCEL BASELINE ANCHOR
+        # Directly read the UC Excel file and inject a guaranteed structured
+        # patient data block regardless of what ChromaDB returned.
+        # This prevents any category from receiving "Not provided" for core fields.
+        # ──────────────────────────────────────────────────────────────────
+        try:
+            import datetime as _dt
+            _EVAL_DATE   = _dt.datetime(2026, 2, 11)
+            _EXCEL_FILE  = os.path.join(INTERNAL_KNOWLEDGE_PATH,
+                "4DEADFE0FD06EA10E459256A2E85237AB43BD9EB_UC_20260304(follow_up_20260211)_long.xlsx")
+            _SHEET_HDR   = {"UC_baseline": 1, "UC_cpy": 0, "UC_lab": 0, "UC_histo": 0, "UC_med": 1}
+
+            def _pid_match(df, pid):
+                try:
+                    pid_i = int(float(pid))
+                    return df[df["id"].apply(
+                        lambda x: int(float(x)) if pd.notnull(x)
+                                  and str(x).replace(".", "", 1).replace("-","",1).isdigit() else -999
+                    ) == pid_i]
+                except Exception:
+                    return df[df["id"].astype(str).str.strip() == str(pid)]
+
+            anchor_lines = ["\n\n=== ✅ STRUCTURED PATIENT ANCHOR (direct Excel — TRUST ALL VALUES) ==="]
+
+            # --- UC_baseline ---
+            df_b  = pd.read_excel(_EXCEL_FILE, sheet_name="UC_baseline", header=_SHEET_HDR["UC_baseline"])
+            b_rows = _pid_match(df_b, patient_id)
+            if not b_rows.empty:
+                b = b_rows.iloc[-1]
+                anchor_lines.append("[UC_baseline]")
+                for col in ["id","bl_mayo_total","bl_mayo_s","bl_mayo_b","bl_mayo_p",
+                             "date_onset","birthday","extent","psc","family_hx_crc",
+                             "sex","age","smoking","duration"]:
+                    if col in b.index and pd.notnull(b[col]):
+                        anchor_lines.append(f"  {col}: {b[col]}")
+                # Compute age at diagnosis
+                try:
+                    onset = pd.to_datetime(b["date_onset"])
+                    bday  = pd.to_datetime(b["birthday"])
+                    anchor_lines.append(f"  age_at_diagnosis: {round((onset - bday).days / 365.25, 1)} years")
+                except Exception:
+                    pass
+
+            # --- UC_cpy (MES) ---
+            df_c  = pd.read_excel(_EXCEL_FILE, sheet_name="UC_cpy",  header=_SHEET_HDR["UC_cpy"])
+            c_rows = _pid_match(df_c, patient_id)
+            if not c_rows.empty:
+                lc    = c_rows.sort_values("date_cpy").iloc[-1]
+                anchor_lines.append("[UC_cpy — latest colonoscopy]")
+                anchor_lines.append(f"  date_cpy: {lc.get('date_cpy', 'N/A')}")
+                mes_dict = {}
+                for seg in ["mes_a","mes_t","mes_d","mes_s","mes_r"]:
+                    if seg in lc.index and pd.notnull(lc[seg]):
+                        val = float(lc[seg])
+                        mes_dict[seg] = val
+                        anchor_lines.append(f"  {seg}: {val}")
+                if mes_dict:
+                    anchor_lines.append(f"  MAX(MES): {max(mes_dict.values())}")
+
+            # --- UC_histo (Nancy) ---
+            df_h  = pd.read_excel(_EXCEL_FILE, sheet_name="UC_histo", header=_SHEET_HDR["UC_histo"])
+            h_rows = _pid_match(df_h, patient_id)
+            if not h_rows.empty:
+                lh    = h_rows.sort_values("date_cpy").iloc[-1]
+                anchor_lines.append("[UC_histo — latest histology]")
+                nancy_dict = {}
+                for seg in ["nancy_a","nancy_t","nancy_d","nancy_s","nancy_r"]:
+                    if seg in lh.index and pd.notnull(lh[seg]):
+                        val = float(lh[seg])
+                        nancy_dict[seg] = val
+                        anchor_lines.append(f"  {seg}: {val}")
+                if nancy_dict:
+                    anchor_lines.append(f"  MAX(Nancy): {max(nancy_dict.values())}")
+
+            # --- UC_lab ---
+            df_l  = pd.read_excel(_EXCEL_FILE, sheet_name="UC_lab",  header=_SHEET_HDR["UC_lab"])
+            l_rows = _pid_match(df_l, patient_id)
+            if not l_rows.empty:
+                anchor_lines.append("[UC_lab — latest values]")
+                for item, label in [("crp","CRP (mg/dL)"),("fc","FC (µg/g)"),("alb","Albumin (g/dL)")]:
+                    rows = l_rows[l_rows["lab_item"].astype(str).str.lower() == item]
+                    if not rows.empty:
+                        rows = rows.sort_values("lab_date")
+                        anchor_lines.append(f"  {label}: {rows.iloc[-1]['lab_value']}  (date: {rows.iloc[-1]['lab_date']})")
+
+            # --- UC_med ---
+            df_m  = pd.read_excel(_EXCEL_FILE, sheet_name="UC_med",  header=_SHEET_HDR["UC_med"])
+            m_rows = _pid_match(df_m, patient_id).copy()
+            if not m_rows.empty:
+                m_rows["start_date"] = pd.to_datetime(m_rows["start_date"], errors="coerce")
+                m_rows["end_date"]   = pd.to_datetime(m_rows["end_date"],   errors="coerce")
+                active = []
+                for _, row in m_rows.iterrows():
+                    st_, en = row["start_date"], row["end_date"]
+                    if pd.notnull(st_) and st_ <= _EVAL_DATE:
+                        if pd.isnull(en) or en >= _EVAL_DATE:
+                            dur_w = round(((_EVAL_DATE - st_).days) / 7.0, 1)
+                            active.append(
+                                f"  {row.get('med_name','?')}  class={row.get('med_class','?')}  "
+                                f"dose={row.get('dose','?')}  route={row.get('route','?')}  "
+                                f"interval={row.get('interval','?')}  "
+                                f"start={str(st_.date())}  duration={dur_w}w"
+                            )
+                if active:
+                    anchor_lines.append("[UC_med — active medications]")
+                    anchor_lines.extend(active)
+                    # steroid dependency
+                    strd = [r for _, r in m_rows.iterrows()
+                            if r.get("med_class") == 2
+                            and "cortiment" not in str(r.get("med_name","")).lower()
+                            and (pd.isnull(r["end_date"]) or r["end_date"] >= _EVAL_DATE)
+                            and pd.notnull(r["start_date"])
+                            and round((_EVAL_DATE - r["start_date"]).days / 7.0, 1) > 12]
+                    anchor_lines.append(f"  STEROID_DEPENDENT: {'Yes' if strd else 'No'}")
+
+            anchor_lines.append("=== END PATIENT ANCHOR ===")
+            anchor_block = "\n".join(anchor_lines)
+
+            if raw_data:
+                raw_data = anchor_block + "\n\n" + raw_data
+            else:
+                raw_data = anchor_block
+            pine_log(f"✅ Core RAG: Mandatory Excel anchor injected ({len(anchor_block)} chars)")
+        except Exception as anchor_err:
+            pine_log(f"⚠️ Core RAG: Excel anchor injection failed: {anchor_err}")
+
         
         # ──────────────────────────────────────────────────────────────────
         # STRATEGY 2: Exact search fallback (for non-tabular docs like PDFs)

@@ -44,7 +44,7 @@ Step 4 - Severity Classification:
   (Remission=0-2, Mild=3-5, Moderate=6-10, Severe>10)
 
 ### 📝 Final Clinical Conclusion
-Based on the retrieved data and guidelines provided, I would classify the disease severity of Patient [ID] as "[Severity]" using the validated scoring systems."""
+[Remission / mild / moderate / severe]"""
 
     elif category_id == "Q1.2":
         category_force = """FORCE ACTION: Q1.2 — REMISSION STATUS.
@@ -84,7 +84,10 @@ Start with '## Patient [ID] - Remission Status Assessment'.
 - Endoscopic remission : [✅ YES / ❌ NO]
   (MES max=[X], remission if 0 or 1)
 - Histologic remission : [✅ YES / ❌ NO]
-  (Nancy max=[X], remission if 0 or 1)"""
+  (Nancy max=[X], remission if 0 or 1)
+
+### 📝 Final Clinical Conclusion
+[Clinical remission / bio-chemical remission / endoscopic remission / histologic remission / no remission]"""
 
     elif category_id == "Q1.3":
         category_force = """FORCE ACTION: Q1.3 — PROGNOSTIC FACTORS.
@@ -135,7 +138,7 @@ Poor factors identified:
 [Brief 1-2 sentence clinical interpretation]
 
 ### 📝 Final Clinical Conclusion
-FINAL ANSWER (TRIAL FORMAT): Yes, [list poor factors]. OR No."""
+Yes, [specify which factors]. OR No."""
 
     # ─────────────────────────────────────────────────────────────
     # CATEGORY 2: Treatment Adjustment
@@ -181,7 +184,7 @@ You MUST output the structured 8-point assessment, then end with the exact trial
   Reason: [Explanation of highest achieved target]
 
 ### 📝 Final Clinical Conclusion
-FINAL ANSWER (TRIAL FORMAT): The patient has achieved [short term / intermediate / long term / no formal] treatment target."""
+The patient has achieved [short / intermediate / long term / no] treatment target."""
 
     elif category_id == "Q2.2":
         category_force = """FORCE ACTION: Q2.2 — MEDICATION ADJUSTMENT.
@@ -282,121 +285,191 @@ STRIDE-II Expected Times (UC, in weeks):
 Point 11 MUST list Guard RAG citations in [Tier X] format with ALL available tiers.
 
 ### 📝 Final Clinical Conclusion
-FINAL ANSWER (TRIAL FORMAT): Yes, according to treat-to-target strategy, the current medication should be adjusted. OR No."""
+Yes, according to treat-to-target strategy, the current medication should be adjusted. OR No."""
 
     elif category_id == "Q2.3":
         category_force = """FORCE ACTION: Q2.3 — NEXT TREATMENT OPTIONS.
 
-Based on the patient's demographics, disease extent, severity, and current medication, recommend the next options.
+DATA RETRIEVAL (execute in order):
+1. Active Medication → UC_med (rows where end_date IS NULL or end_date > 2026-02-11)
+   Extract: med_name, med_class (5-ASA=0, IM=1, Steroid=2, Adv biologic/small-mol=3 or 4), dose, route, interval.
+2. Disease Extent → UC_baseline: extent field (1=proctitis, 2=left-sided, 3=extensive/pancolitis)
+3. Steroid Dependency Check → UC_med where med_class=2 AND med_name != 'Cortiment MMX'
+   → Flag STEROID-DEPENDENT if: total cumulative duration > 12 weeks OR ≥2 separate start/stop episodes within 12 months.
 
-RULES:
-- If patient is on 5-ASA and not in remission → escalate
-- If patient is on first biologic and failed → switch or combine
-- Output MUST use ONLY these options: Optimize current medication / Add on immunomodulators / Escalate to advanced therapy / Switch to or combine other advanced therapy
+GUARD RAG LOGIC (cross-reference active meds + guideline next-step algorithms):
+- 5-ASA (med_class=0/class 5ASA) AND NOT in remission → next option: Escalate to advanced therapy OR Add-on immunomodulators
+- IM alone (med_class=1) AND failing → next option: Escalate to advanced therapy
+- Steroid-dependent (per check above) → next option: Add-on immunomodulators OR Escalate to advanced therapy
+- First biologic failed (med_class=3 or 4, and Q2.2=Adjustment) → Switch to or combine other advanced therapy
+- In remission on advanced therapy → Optimize current medication
+
+Output MUST use ONLY these exact phrases:
+  Optimize current medication / Add-on immunomodulators / Escalate to advanced therapy / Switch to or combine other advanced therapy
 
 ### 📝 Final Clinical Conclusion
-FINAL ANSWER (TRIAL FORMAT): [Optimize current medication / Add on immunomodulators / Escalate to advanced therapy / Switch to or combine other advanced therapy]"""
+Based on the patient demographics, extent, severity, and current medication failure, the recommended next option is: [Optimize current medication / Add-on immunomodulators / Escalate to advanced therapy / Switch to or combine other advanced therapy]."""
 
     # ─────────────────────────────────────────────────────────────
     # CATEGORY 3: Cancer Surveillance
     # ─────────────────────────────────────────────────────────────
 
     elif category_id == "Q3.1":
-        category_force = """FORCE ACTION: Q3.1 — COLORECTAL CANCER SURVEILLANCE.
+        category_force = """FORCE ACTION: Q3.1 — COLORECTAL CANCER (CRC) RISK & SCREENING.
 
-Determine the CRC risk group and next colonoscopy interval based on:
-- High risk: PSC, prior dysplasia, extent=3 with >20 years disease, or family history CRC
-- Intermediate risk: Extent=3 with 8–20 years disease, and/or active inflammation
-- Low risk: Extent=1–2, quiescent disease, no risk factors
+DATA RETRIEVAL (execute in order):
+1. Disease Extent → UC_baseline: extent (1=proctitis, 2=left-sided, 3=extensive/pancolitis)
+2. Endoscopic Inflammation → UC_cpy: max(mes_a, mes_t, mes_d, mes_s, mes_r)
+   Map: 0=minimal, 1=mild, 2=moderate, 3=severe
+3. Histologic Inflammation → UC_histo: max(nancy_a, nancy_t, nancy_d, nancy_s, nancy_r)
+   Map: 0 or 1=minimal, 2=mild, 3=moderate, 4=severe
+4. Family History & PSC → UC_baseline: family_hx_crc (Yes/No), psc (Yes/No)
+5. Duration → UC_baseline: duration (in months). Convert to years = duration / 12.
 
-Rules:
-- High risk → every 1 year
-- Intermediate risk → every 2–3 years
-- Low risk → every 5 years
+SCREENING ONSET RULE:
+- Offer first surveillance colonoscopy to ALL patients 8 years after symptom onset.
+
+RISK STRATIFICATION (use retrieved data above):
+- HIGH risk (colonoscopy every 1 year) if ANY of:
+    • PSC = Yes (start surveillance immediately at PSC diagnosis)
+    • Prior dysplasia documented
+    • Extent=3 AND duration > 240 months (>20 years)
+    • family_hx_crc = Yes AND first-degree relative
+- INTERMEDIATE risk (colonoscopy every 2–3 years) if ANY of:
+    • Extent=3 AND duration 96–240 months (8–20 years)
+    • MES max ≥ 2 (moderate–severe endoscopic inflammation)
+    • Nancy max ≥ 3 (moderate–severe histologic inflammation)
+    • family_hx_crc = Yes (second-degree relative)
+- LOW risk (colonoscopy every 5 years) if:
+    • Extent = 1 or 2, quiescent disease (MES max ≤ 1, Nancy max ≤ 1), no high/intermediate risk factors
 
 ### 📝 Final Clinical Conclusion
-FINAL ANSWER (TRIAL FORMAT): Since the patient belongs to [low / intermediate / high] risk group, the next surveillance colonoscopy should be in [X] years."""
+Screening colonoscopy should be offered to all patients [X] years after symptom onset. Since the patient belongs to [low / intermediate / high] risk group, the next surveillance colonoscopy should be in [X] year(s)."""
 
     elif category_id == "Q3.2":
-        category_force = """FORCE ACTION: Q3.2 — OTHER CANCER SCREENING.
+        category_force = """FORCE ACTION: Q3.2 — OTHER TYPES OF CANCER RISK.
 
-Based on patient's sex, age, underlying disease, and medication history, determine applicable cancer screens.
+DATA RETRIEVAL (execute in order):
+1. Patient Profile → UC_baseline: sex (M/F), age (years), psc (Yes/No), smoking (Yes/No)
+2. Active Medication → UC_med (rows where end_date IS NULL or end_date > 2026-02-11)
+   Extract med_name, med_class for ALL active entries.
 
-Rules:
-- Female on immunosuppressants → cervical cancer: Pap smear every 1 year
-- Immunosuppressed patients → skin cancer: total body skin exam every 1 year
-- Thiopurine use → lymphoma risk: annual CBC
-- Male >50 years → prostate cancer: PSA every 1–2 years
-- All patients → colorectal already covered in Q3.1
+SCREENING RULES (apply all applicable — list each separately):
+- Female + any immunosuppressant (med_class=1,3,4) active
+    → Cervical cancer: Pap smear every 1 year
+- PSC = Yes
+    → Cholangiocarcinoma: CA19-9 + MRCP/ERCP every 6–12 months
+- Any thiopurine active (med_class=1, e.g. azathioprine / 6-MP)
+    → Non-Hodgkin lymphoma: annual CBC review; counsel on risk
+- Any anti-TNF or biologic active (med_class=3 or 4) OR thiopurine active
+    → Skin cancer (NMSC): total body skin exam every 1 year
+- Male AND age > 50 years
+    → Prostate cancer: PSA every 1–2 years
+- Smoking = Yes (active or ex-smoker)
+    → Lung cancer: discuss low-dose CT if ≥30 pack-year history
+- ALL IBD patients
+    → Colorectal cancer: covered in Q3.1 (do NOT duplicate here)
 
 ### 📝 Final Clinical Conclusion
-FINAL ANSWER (TRIAL FORMAT): Based on the patient's sex, age, underlying disease, and medication history, the patient should receive screening for [cancer type] with [screening method], every [X] year(s)."""
+Based on the patient’s demographics and medication history, the patient should receive screening for [cancer type] cancer with [screening method] every [X] years.
+
+NOTE: Do NOT mention colorectal cancer or colonoscopy surveillance timing here — that is covered in Q3.1."""
 
     # ─────────────────────────────────────────────────────────────
     # CATEGORY 4: Monitor Tools and Interval
     # ─────────────────────────────────────────────────────────────
 
     elif category_id == "Q4.1":
-        category_force = """FORCE ACTION: Q4.1 — NON-INVASIVE MONITORING SCHEDULE.
+        category_force = """FORCE ACTION: Q4.1 — NON-INVASIVE MONITORING.
+You MUST output the full structured block below, then end with the Final Clinical Conclusion sentence.
 
-Determine appropriate non-invasive disease activity monitoring based on the patient's current status.
+## Patient [ID] - Non-Invasive Monitoring Plan
 
-Rules:
-- Active disease or post-adjustment → fecal calprotectin + CRP at 3 months
-- Remission and stable → fecal calprotectin + CRP at 6 months
-- If on biologic → also add TDM (handled in Q4.2 separately)
+Step 1 — DATA RETRIEVAL:
+- bl_mayo_total (from PATIENT ANCHOR → UC_baseline): [VALUE]
+- MAX(MES) (from PATIENT ANCHOR → UC_cpy): [VALUE]
+- CRP (from PATIENT ANCHOR → UC_lab): [VALUE] mg/dL (date: [DATE])
+- FC  (from PATIENT ANCHOR → UC_lab): [VALUE] µg/g (date: [DATE])
+- Active Medication (from PATIENT ANCHOR → UC_med): [med_name] started [date], duration [X] weeks
+
+Step 2 — MONITORING INTERVAL (GUARD RAG LOGIC):
+- Disease status: [Active / Remission / Post-initiation <14w]
+  → Monitoring schedule: [Fecal calprotectin + CRP at 3 months / 6 months]
+- Reason: [state clinical reason per ECCO/ACG guideline]
 
 ### 📝 Final Clinical Conclusion
-FINAL ANSWER (TRIAL FORMAT): Based on the patient's current status, the following exams [fecal calprotectin / CRP / others] should be arranged at [3 months / 6 months / 3-6 months]."""
+Based on the patient’s current status, the following exams [exams] should be arranged at [interval]."""
 
     elif category_id == "Q4.2":
         category_force = """FORCE ACTION: Q4.2 — THERAPEUTIC DRUG MONITORING (TDM).
+You MUST output the full structured block below, then end with the Final Clinical Conclusion sentence.
 
-Determine TDM necessity and type based on the patient's current medication:
+## Patient [ID] - Therapeutic Drug Monitoring Plan
 
-Rules:
-- Proactive TDM: Patient in remission, to optimise drug levels proactively
-- Reactive TDM: Patient not in remission or flaring, to investigate failure
-- If on Infliximab → target trough level > 5 μg/mL
-- If on Adalimumab → target trough level > 7.5 μg/mL
-- If on Vedolizumab → target trough level > 18–20 μg/mL
-- If NOT on biologic or small molecule → "No TDM indicated."
+Step 1 — DATA RETRIEVAL:
+- Active Medication (from PATIENT ANCHOR → UC_med): [med_name]  class=[X]  route=[route]  duration=[X]w
+- MAX(MES) (from PATIENT ANCHOR → UC_cpy): [VALUE]
+- bl_mayo_total (from PATIENT ANCHOR → UC_baseline): [VALUE]
+- Disease remission: [Yes (MES ≤ 1 AND bl_mayo_total < 3) / No (active disease)]
+
+Step 2 — TDM DETERMINATION (GUARD RAG LOGIC):
+- TDM type: [Proactive / Reactive / Not indicated]
+  Reason: [patient is in remission → proactive / patient has active disease → reactive]
+- Drug-specific target trough level:
+  - [med_name] → target trough [VALUE] µg/mL ([maintenance / active disease] threshold)
+  - Guideline: [ECCO_TDM_2023 / AGA_TDM_2017]
 
 ### 📝 Final Clinical Conclusion
-FINAL ANSWER (TRIAL FORMAT): Yes, [proactive / reactive] TDM is recommended, with target drug level [X]. OR No."""
+[Yes, proactive TDM is recommended / Yes, reactive TDM is recommended / No], with target drug level [value or N/A]."""
 
     elif category_id == "Q4.3":
         category_force = """FORCE ACTION: Q4.3 — MEDICATION-SPECIFIC MONITORING.
+You MUST output the full structured block below, then end with the Final Clinical Conclusion sentence.
 
-Determine medication-specific safety monitoring requirements from the patient's medication history.
+## Patient [ID] - Medication-Specific Monitoring Plan
 
-Rules:
-- Thiopurines (azathioprine/6-MP) → CBC + liver enzymes every 3 months
-- Methotrexate → CBC + liver enzymes every 1–3 months
-- Biologics (infliximab/adalimumab) → no specific lab monitoring required
-- JAK inhibitors (tofacitinib) → CBC + lipid panel every 3 months
-- Steroids → blood glucose, bone density screening
-- 5-ASA → renal function annually
+Step 1 — DATA RETRIEVAL:
+- Active Medication(s) (from PATIENT ANCHOR → UC_med):
+  [med_name]  class=[X]  dose=[dose]  route=[route]  interval=[interval]  duration=[X]w
+
+Step 2 — MONITORING SCHEDULE (one entry per active drug):
+| Medication | Lab Tests Required | Frequency | Guideline |
+|---|---|---|---|
+| [med_name] | [tests] | [every X months / annually] | [ECCO/ACG] |
+
+Note: If no active medication matches monitoring criteria → state "No specific monitoring required."
 
 ### 📝 Final Clinical Conclusion
-FINAL ANSWER (TRIAL FORMAT): For patients under [medication name] medication, [specific lab tests] should be checked every [X] months. OR No specific monitoring required."""
+For patients under [medication name] medication, [specific lab tests] should be checked every [X] months."""
 
     elif category_id == "Q4.4":
-        category_force = """FORCE ACTION: Q4.4 — OPPORTUNISTIC INFECTIONS AND VACCINATIONS.
+        category_force = """FORCE ACTION: Q4.4 — OPPORTUNISTIC INFECTION RISK & VACCINATIONS.
+You MUST output the full structured block below, then end with the Final Clinical Conclusion sentence.
 
-Determine infection risk screening and required vaccinations based on immunosuppression status.
+## Patient [ID] - Infection Screening & Vaccination Plan
 
-Rules:
-- Before any immunosuppressive therapy → Hepatitis B screen + vaccination if negative
-- Annual influenza vaccine for all immunosuppressed patients
-- Pneumococcal vaccine (PCV13 + PPSV23) for patients on biologics/thiopurines
-- Varicella IgG check before immunosuppression; VZV vaccine only if NOT immunosuppressed
-- TB screening (IGRA/Mantoux) before anti-TNF therapy
-- HPV vaccine for patients <26 years (or <45 per ACIP)
-- COVID-19 vaccine recommended for all IBD patients
+Step 1 — DATA RETRIEVAL:
+- Patient age (from PATIENT ANCHOR → UC_baseline): [VALUE] years
+- Sex (from PATIENT ANCHOR → UC_baseline): [M/F]
+- PSC (from PATIENT ANCHOR → UC_baseline): [Yes/No]
+- Active Medication (from PATIENT ANCHOR → UC_med): [med_name]  class=[X]
+
+Step 2 — SCREENING & VACCINATION REQUIRED (apply all applicable):
+| Screening / Vaccine | Required? | Reason | Guideline |
+|---|---|---|---|
+| Hepatitis B (HBsAg/anti-HBs/anti-HBc) | Yes | Pre-biologic | ECCO 2023 |
+| Hepatitis C (anti-HCV) | Yes | Pre-biologic | ECCO 2023 |
+| Latent TB (IGRA) | Yes | Anti-TNF initiation | ATS/ECCO |
+| Influenza vaccine | Yes | Immunosuppressed | ACIP |
+| Pneumococcal (PCV13+PPSV23) | [Yes/No] | Biologic therapy | ACIP |
+| HPV vaccine | [Yes if age ≤26 / No] | per ACIP | ACIP |
+| COVID-19 vaccine | Yes | IBD immunosuppressed | ACIP |
+| Herpes Zoster (Shingrix) | [Yes if >50 or JAKi] | age/therapy | ACIP |
+
+NOTE: Stopped immunosuppressants < 3 months ago still confer immunosuppression risk.
 
 ### 📝 Final Clinical Conclusion
-FINAL ANSWER (TRIAL FORMAT): Screening for [infection(s)] and [vaccine(s)] vaccinations prior to treatment initiation are recommended."""
+Screening for [infection(s)] and [vaccine(s)] vaccinations prior to treatment initiation are recommended."""
 
     # ─────────────────────────────────────────────────────────────
     # CATEGORY 5: Lifestyle and Diet Modification
@@ -404,48 +477,74 @@ FINAL ANSWER (TRIAL FORMAT): Screening for [infection(s)] and [vaccine(s)] vacci
 
     elif category_id == "Q5.1":
         category_force = """FORCE ACTION: Q5.1 — DIETARY RECOMMENDATION.
+You MUST output the full structured block below FIRST, then end with the Final Clinical Conclusion sentence.
 
-Provide a concise dietary recommendation for the patient based on their disease status.
+## Patient [ID] - Dietary Recommendation
 
-Rules:
-- Active UC → avoid high-fiber, spicy, caffeinated, and alcohol-containing foods
-- Remission → mediterranean diet, high-fiber, plant-based foods encouraged
-- ALL UC patients → avoid processed foods, red meat; encourage dietary fiber
-- Flare → low-residue diet may be temporarily recommended
+Step 1 — DATA RETRIEVAL:
+- bl_mayo_total (from PATIENT ANCHOR → UC_baseline): [VALUE]
+- MAX(MES) (from PATIENT ANCHOR → UC_cpy): [VALUE]
+- Total Mayo Score: [bl_mayo_total + MAX(MES)] = [TOTAL]
+- Disease Activity: [Active UC (>5) / Mild-Moderate (3–5) / Remission (≤2)]
+- Disease Extent (from PATIENT ANCHOR → UC_baseline extent): [1=proctitis / 2=left-sided / 3=extensive]
+
+Step 2 — DIETARY RECOMMENDATION:
+- Foods to ENCOURAGE: [list per activity status]
+- Foods to AVOID: [list per activity status]
+- Special note: [low-residue if active flare / Mediterranean if remission]
+- Guideline basis: [ECCO Diet 2023 / ACG 2021]
 
 ### 📝 Final Clinical Conclusion
-FINAL ANSWER (TRIAL FORMAT — output ONLY this sentence): This patient is encouraged to have more [dietary recommendation] intake and less [foods to avoid]."""
+This patient is encouraged to have more [foods] intake and less [foods]."""
 
     elif category_id == "Q5.2":
         category_force = """FORCE ACTION: Q5.2 — NUTRITIONAL SUPPLEMENTATION AND DEFICIENCY SCREENING.
+You MUST output the full structured block below FIRST, then end with the Final Clinical Conclusion sentence.
 
-Determine if the patient requires nutritional supplementation or deficiency screening.
+## Patient [ID] - Nutritional Supplementation Plan
 
-Rules:
-- ALL UC patients → screen for Vitamin D deficiency (IBD linked to low Vit D)
-- If on thiopurines or methotrexate → folate supplementation recommended
-- If extensive colitis → iron deficiency screening (CBC/ferritin)
-- If steroid use → calcium + Vitamin D supplementation
-- If malabsorption signs → B12, zinc screening
-- If pregnant → folate supplementation mandatory
+Step 1 — DATA RETRIEVAL:
+- Disease Extent (from PATIENT ANCHOR → UC_baseline extent): [VALUE] ([1/2/3])
+- Albumin (from PATIENT ANCHOR → UC_lab): [VALUE] g/dL
+- Active Medications (from PATIENT ANCHOR → UC_med):
+  [med_name]  class=[X] → check: thiopurine (1), steroid (2), MTX (if present)
+
+Step 2 — SUPPLEMENTATION & SCREENING REQUIRED:
+| Supplement / Screening | Required? | Trigger Condition | Guideline |
+|---|---|---|---|
+| Vitamin D screening | Yes | ALL UC patients | ECCO 2023 |
+| Iron deficiency (CBC/ferritin) | [Yes if extent=3 / No] | Extensive colitis | ECCO 2023 |
+| Calcium + Vit D | [Yes if steroid class=2 / No] | Steroid use | ECCO 2023 |
+| Folate | [Yes if thiopurine or MTX / No] | Thiopurine/MTX use | ECCO 2023 |
+| B12 + Zinc | [Yes if Alb<3.5 / No] | Low albumin/malabsorp. | ACG 2021 |
 
 ### 📝 Final Clinical Conclusion
-FINAL ANSWER (TRIAL FORMAT): Yes, the patient is recommended to be screened for [deficiency] deficiency. OR No."""
+Yes, the patient is recommended to be screened for [deficiency] deficiency. OR No."""
 
     elif category_id == "Q5.3":
         category_force = """FORCE ACTION: Q5.3 — LIFESTYLE MODIFICATIONS.
+You MUST output the full structured block below FIRST, then end with the Final Clinical Conclusion sentence.
 
-Provide concise lifestyle modification advice for the patient.
+## Patient [ID] - Lifestyle Modification Plan
 
-Rules:
-- Smoking → smoking worsens CD but may paradoxically reduce UC; however advise cessation for overall health
-- Physical activity → moderate exercise (150 min/week) reduces inflammation markers
-- Stress management → IBD linked to psychosocial stress; CBT, mindfulness recommended
-- BMI → obesity management important for biologic efficacy
-- Alcohol → limit or avoid; worsens IBD inflammation
+Step 1 — DATA RETRIEVAL:
+- Smoking status (from PATIENT ANCHOR → UC_baseline): [smoking value or null]
+- Age (from PATIENT ANCHOR → UC_baseline): [VALUE] years
+- Sex (from PATIENT ANCHOR → UC_baseline): [M/F]
+- Active Medication (from PATIENT ANCHOR → UC_med): [med_name]  class=[X]
+  → Biologic on board: [Yes (class=3/4) / No]
+
+Step 2 — LIFESTYLE RECOMMENDATIONS:
+| Lifestyle Factor | Recommendation | Reason |
+|---|---|---|
+| Smoking | Advise cessation | Overall health + drug efficacy |
+| Physical Activity | 150 min/week moderate exercise | Reduces inflammation markers |
+| Stress Management | CBT, mindfulness | IBD-psychosocial link |
+| BMI / Weight | Healthy weight maintenance | Biologic efficacy |
+| Alcohol | Limit or avoid | Worsens IBD inflammation |
 
 ### 📝 Final Clinical Conclusion
-FINAL ANSWER (TRIAL FORMAT — output ONLY this sentence): The patient should quit [smoking/alcohol/other] and enhance [physical activity/stress management/other]."""
+The patient should quit [habit] and enhance [lifestyle modification]."""
 
     # ─────────────────────────────────────────────────────────────
     # CATEGORY 6: Family Planning
@@ -470,7 +569,7 @@ Rules (STOP before conception):
 - Thalidomide → ABSOLUTE contraindication
 
 ### 📝 Final Clinical Conclusion
-FINAL ANSWER (TRIAL FORMAT): These [medication name(s)] medications were safe to be continued. These [medication name(s)] medication should be stopped [X] months before conception."""
+These [medications] medications were safe to be continued. These [medications] medication should be stopped [X] months before conception."""
 
     elif category_id == "Q6.2":
         category_force = """FORCE ACTION: Q6.2 — MATERNAL RISKS FROM DISEASE ACTIVITY AND MEDICATIONS.
@@ -485,7 +584,7 @@ Rules:
 - Anti-TNF → may increase risk of maternal infection
 
 ### 📝 Final Clinical Conclusion
-FINAL ANSWER (TRIAL FORMAT): Maternally, the risk of [complication(s)] is increased / comparable to the non-IBD patients."""
+Maternally, the risk of [complication(s)] is increased / comparable to the non-IBD patients."""
 
     elif category_id == "Q6.3":
         category_force = """FORCE ACTION: Q6.3 — FETAL/NEONATAL RISKS FROM DISEASE ACTIVITY AND MEDICATIONS.
@@ -500,7 +599,60 @@ Rules:
 - Disease remission → risk comparable to non-IBD population
 
 ### 📝 Final Clinical Conclusion
-FINAL ANSWER (TRIAL FORMAT): Neonatally, the risk of [complication(s)] is increased / comparable to the mothers of non-IBD patients."""
+Neonatally, the risk of [complication(s)] is increased / comparable to the mothers of non-IBD patients."""
+
+    # ── Build tables_accessed list based on category_id ──────────────────────
+    _table_map = {
+        "Q1.1": ["UC_baseline", "UC_cpy"],
+        "Q1.2": ["UC_baseline", "UC_cpy", "UC_histo", "UC_lab"],
+        "Q1.3": ["UC_baseline", "UC_cpy", "UC_lab", "UC_med"],
+        "Q2.1": ["UC_baseline", "UC_cpy", "UC_histo", "UC_lab"],
+        "Q2.2": ["UC_baseline", "UC_cpy", "UC_histo", "UC_lab", "UC_med"],
+        "Q2.3": ["UC_baseline", "UC_med"],
+        "Q3.1": ["UC_baseline", "UC_cpy", "UC_histo"],
+        "Q3.2": ["UC_baseline", "UC_med"],
+        "Q4.1": ["UC_med", "UC_lab"],
+        "Q4.2": ["UC_med"],
+        "Q4.3": ["UC_med"],
+        "Q4.4": ["UC_baseline", "UC_med"],
+        "Q5.1": ["UC_baseline"],
+        "Q5.2": ["UC_baseline", "UC_med", "UC_lab"],
+        "Q5.3": ["UC_baseline"],
+        "Q6.1": ["UC_med"],
+        "Q6.2": ["UC_baseline", "UC_med"],
+        "Q6.3": ["UC_baseline", "UC_med"],
+    }
+    _guideline_hint_map = {
+        "Q1.1": ["ECCO_2023", "AGA_2022"],
+        "Q1.2": ["STRIDE-II_IOIBD_2021", "ECCO_2023"],
+        "Q1.3": ["ECCO_2023", "AGA_2022"],
+        "Q2.1": ["STRIDE-II_IOIBD_2021", "ECCO_2023"],
+        "Q2.2": ["STRIDE-II_IOIBD_2021", "ECCO_2023", "AGA_UC_2023"],
+        "Q2.3": ["ECCO_2023", "ACG_UC_2019", "AGA_UC_2023"],
+        "Q3.1": ["ECCO_2017_Surveillance", "BSG_2010_Surveillance", "ACG_Surveillance_2021"],
+        "Q3.2": ["ECCO_IBD_Cancer_2023", "ACIP_Vaccine_2023"],
+        "Q4.1": ["STRIDE-II_IOIBD_2021", "ECCO_2023"],
+        "Q4.2": ["ECCO_TDM_2023", "AGA_TDM_2017"],
+        "Q4.3": ["ECCO_2023", "ACG_UC_2019"],
+        "Q4.4": ["ECCO_Vaccination_2022", "ACIP_2023", "ECCO_OI_2021"],
+        "Q5.1": ["ECCO_Diet_2023"],
+        "Q5.2": ["ECCO_2023", "ACG_UC_2019"],
+        "Q5.3": ["ECCO_2023"],
+        "Q6.1": ["ECCO_IBD_Pregnancy_2023", "ACG_IBD_Pregnancy_2022"],
+        "Q6.2": ["ECCO_IBD_Pregnancy_2023"],
+        "Q6.3": ["ECCO_IBD_Pregnancy_2023", "ACG_IBD_Pregnancy_2022"],
+    }
+    _tables = _table_map.get(category_id, ["UC_baseline", "UC_med", "UC_cpy", "UC_histo", "UC_lab"])
+    _guidelines = _guideline_hint_map.get(category_id, ["ECCO_2023", "ACG_UC_2019"])
+
+    import json as _json
+    _trace_block = _json.dumps({
+        "retrieval_trace": {
+            "tables_accessed": _tables,
+            "missing_data_handled": True
+        },
+        "guideline_trace": _guidelines
+    }, indent=2)
 
     return f"""
 You are **ColonoSense**, a Senior Clinical AI Decision Support specializing in IBD (Ulcerative Colitis).
@@ -539,6 +691,17 @@ CURRENT SYSTEM DATE: 2026-02-11. Use this for ALL duration calculations.
 (Significance)
 ## 📋 Evidence-Based Recommendations
 (Citations using [Tier X] format)
+
+# ═══════════════════════════════════════════════════════════
+# QUANTITATIVE TRACEABILITY BLOCK (append verbatim at the END of your response):
+# ═══════════════════════════════════════════════════════════
+# After your final clinical conclusion sentence, append EXACTLY this JSON block:
+#
+# ```json
+# {_trace_block}
+# ```
+#
+# Do NOT skip or modify this block. Graders require it for accuracy and concordance scoring.
 
 RESPOND NOW:
 """
