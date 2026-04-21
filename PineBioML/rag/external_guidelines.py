@@ -15,7 +15,7 @@ import re
 import time
 import datetime
 from typing import List, Dict, Tuple, Optional
-from langchain_openai import ChatOpenAI
+from PineBioML.model.llm_factory import get_llm
 
 from .clinical_knowledge import (
     CLINICAL_GUIDELINES,
@@ -271,7 +271,7 @@ def query_external_guidelines(
 def _synthesize_combined(question: str, kb_answer: str, web_context: str, patient_context: str) -> str:
     """Combine embedded knowledge (primary) with web enrichment."""
     try:
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
+        llm = get_llm(model_name="gpt-4o-mini", temperature=0.1)
 
         system = (
             "You are a Clinical Decision Support AI. You have been given a PRIMARY guideline answer "
@@ -299,7 +299,7 @@ def _synthesize_combined(question: str, kb_answer: str, web_context: str, patien
 def _synthesize_web_only(question: str, web_context: str, patient_context: str) -> str:
     """Synthesize from web content only (no embedded KB match)."""
     try:
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
+        llm = get_llm(model_name="gpt-4o-mini", temperature=0.1)
 
         system = (
             "You are a Senior Clinical Decision Support AI. Synthesize medical guideline content "
@@ -322,7 +322,7 @@ def _synthesize_web_only(question: str, web_context: str, patient_context: str) 
 def _synthesize_fallback(question: str, patient_context: str) -> str:
     """LLM general medical knowledge when no specific sources found."""
     try:
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
+        llm = get_llm(model_name="gpt-4o-mini", temperature=0.1)
 
         system = (
             "You are a Senior Clinical Decision Support AI with extensive knowledge of "

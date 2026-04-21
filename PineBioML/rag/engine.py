@@ -4,7 +4,7 @@ import json
 import datetime
 import sys
 import warnings
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from PineBioML.model.llm_factory import get_llm, get_embeddings
 from langchain_community.vectorstores import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_classic.chains import RetrievalQA
@@ -29,7 +29,7 @@ PATIENT_ID_RE = re.compile(r"\b(?:id|patient|idx)\s*[:#]?\s*(\d+)\b", re.IGNOREC
 
 class RAGEngine:
     def __init__(self, persist_directory: str = "./chroma_db"):
-        self.embeddings = OpenAIEmbeddings()
+        self.embeddings = get_embeddings()
         self.persist_directory = persist_directory
         self.vector_store = None
         self.qa_chain = None
@@ -79,7 +79,7 @@ class RAGEngine:
         self._initialize_qa_chain()
 
     def _initialize_qa_chain(self):
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
+        llm = get_llm(model_name="gpt-4o-mini", temperature=0)
         retriever = self.vector_store.as_retriever(search_kwargs={"k": 20})
         template = """
 You are a Medical Bio-ML Expert. Use the provided context to answer the QUESTION.
@@ -575,7 +575,7 @@ ANSWER:"""
         """Final clinical synthesis wrapping all findings with strict ColonoSense formatting and tiered evidence."""
         try:
             lang = self.detect_language(question)
-            llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.2)
+            llm = get_llm(model_name="gpt-4o-mini", temperature=0.2)
             
             # Python-side intent detection for ALL 18 clinical trial question categories
             q_lower = question.lower()

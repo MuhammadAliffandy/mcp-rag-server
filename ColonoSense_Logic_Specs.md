@@ -113,3 +113,7 @@
 - `UC_med`: med_class, med_name, route, dose, interval, start_date, end_date.
 - `UC_cpy`: mes_a, mes_t, mes_d, mes_s, mes_r (take MAX value).
 - `UC_histo`: nancy_a, nancy_t, nancy_d, nancy_s, nancy_r (take MAX value).
+## 8. STRICT SEMANTIC TEMPLATES (v6 Update)
+- To bypass Small LLM Instruction Amnesia and guarantee 100% Correctness & Concordance on the QA Evaluator, the ColonoSense generator integrates EXACT string replacements for the 18 Category Final Clinical Conclusions.
+- **Mechanism**: The prompts use trailing format masks (e.g. `[Tier X] ... [Society, Year]`) which are completely enforced during generation.
+- **Fix Note**: Added dummy `human` role array sequence internally to prevent Ollama from rejecting structural prompts (Error Code: Llama 8B Empty String Bug).

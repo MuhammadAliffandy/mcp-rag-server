@@ -310,14 +310,17 @@ def generate_response(pid: str, category: str) -> str:
     try:
         from src.api.mcp_server import query_core_rag, query_guard_rag
         from PineBioML.prompts.synthesis import get_synthesis_prompt
-        from langchain_openai import ChatOpenAI
+        from PineBioML.model.llm_factory import get_llm
 
         raw  = query_core_rag(str(pid), question)
         sop  = query_guard_rag(question)
         tools = f"Core RAG:\n{raw}\n\nGuard RAG:\n{sop}"
         prompt = get_synthesis_prompt("English", question, raw, tools, category_id=category)
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
-        return llm.invoke([("system", prompt)]).content
+        llm = get_llm(model_name="gpt-4o-mini", temperature=0)
+        return llm.invoke([
+            ("system", prompt),
+            ("human", "Please answer the question according to the system instructions.")
+        ]).content
     except Exception as e:
         return f"[Agent Error] {e}"
 
@@ -421,8 +424,8 @@ Return ONLY JSON:
 
 def _run_judge(system_prompt: str, gt: dict, response: str, category: str) -> dict:
     try:
-        from langchain_openai import ChatOpenAI
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
+        from PineBioML.model.llm_factory import get_llm
+        llm = get_llm(model_name="gpt-4o-mini", temperature=0)
         gt_clean = {k: v for k, v in gt.items() if k not in ["error"] and not isinstance(v, list) or k in ["active_meds", "poor_factors"]}
         user_msg = f"""CATEGORY: {category}
 GROUND_TRUTH:
@@ -430,7 +433,8 @@ GROUND_TRUTH:
 
 AGENT_RESPONSE:
 {response[:6000]}"""
-        res = llm.invoke([("system", system_prompt), ("human", user_msg)])
+        llm_with_json = llm.bind(response_format={"type": "json_object"})
+        res = llm_with_json.invoke([("system", system_prompt), ("human", user_msg)])
         content = res.content.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
         return json.loads(content)
     except Exception as e:

@@ -860,10 +860,10 @@ def query_core_rag(patient_id: str, query_intent: str) -> str:
                 CLINICAL_DATA_PARSER_SYSTEM,
                 CLINICAL_DATA_PARSER_PROMPT
             )
-            from langchain_openai import ChatOpenAI
+            from PineBioML.model.llm_factory import get_llm
             
             pine_log(f"🧬 Core RAG: Enriching raw data with clinical interpretations... ({len(raw_data)} chars)")
-            llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
+            llm = get_llm(model_name="gpt-4o-mini", temperature=0.1)
             
             enrichment_prompt = CLINICAL_DATA_PARSER_PROMPT.format(
                 raw_data=raw_data[:50000],

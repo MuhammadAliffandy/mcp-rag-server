@@ -9,7 +9,7 @@ import json
 import re
 from typing import List, Dict, Any, Tuple
 from pydantic import BaseModel, Field
-from langchain_openai import ChatOpenAI
+from PineBioML.model.llm_factory import get_llm
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -49,10 +49,8 @@ class PureOrchestrator:
             temperature: LLM temperature (lower = more deterministic)
         """
         # Force JSON output mode
-        self.llm = ChatOpenAI(
-            model_name=model_name, 
-            temperature=temperature,
-            model_kwargs={"response_format": {"type": "json_object"}}  # Force JSON!
+        self.llm = get_llm(model_name=model_name, temperature=temperature).bind(
+            response_format={"type": "json_object"}
         )
         self.parser = JsonOutputParser(pydantic_object=AgenticDecision)
         

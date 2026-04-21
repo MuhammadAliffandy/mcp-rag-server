@@ -20,7 +20,7 @@ import argparse
 import math
 import datetime
 import pandas as pd
-from langchain_openai import ChatOpenAI
+from PineBioML.model.llm_factory import get_llm
 from dotenv import load_dotenv
 
 # ── path setup ───────────────────────────────────────────────────────────────
@@ -31,7 +31,13 @@ load_dotenv()
 EXCEL_FILE = "internal_docs/4DEADFE0FD06EA10E459256A2E85237AB43BD9EB_UC_20260304(follow_up_20260211)_long.xlsx"
 EVAL_DATE  = datetime.datetime(2026, 2, 11)
 
-
+SHEET_HEADER = {
+    "UC_baseline": 1,
+    "UC_cpy"     : 0,
+    "UC_lab"     : 0,
+    "UC_histo"   : 0,
+    "UC_med"     : 1,
+}
 # ═════════════════════════════════════════════════════════════════════════════
 # STEP 1: GROUND TRUTH EXTRACTOR
 # ═════════════════════════════════════════════════════════════════════════════
@@ -44,7 +50,7 @@ def extract_ground_truth(pid) -> dict:
 
     try:
         # --- BASELINE ---
-        df_b = pd.read_excel(EXCEL_FILE, sheet_name="UC_baseline", header=1)
+        df_b = pd.read_excel(EXCEL_FILE, sheet_name="UC_baseline", header=SHEET_HEADER["UC_baseline"])
         try:
             pid_int = int(pid)
             b_rows = df_b[df_b["id"].apply(lambda x: int(x) if pd.notnull(x) else -1) == pid_int]
@@ -70,7 +76,7 @@ def extract_ground_truth(pid) -> dict:
                 gt["age_at_diagnosis"] = None
 
         # --- COLONOSCOPY (MES) ---
-        df_c   = pd.read_excel(EXCEL_FILE, sheet_name="UC_cpy", header=1)
+        df_c   = pd.read_excel(EXCEL_FILE, sheet_name="UC_cpy", header=SHEET_HEADER["UC_cpy"])
         try:
             pid_int = int(pid)
             c_rows = df_c[df_c["id"].apply(lambda x: int(x) if pd.notnull(x) else -1) == pid_int]
@@ -89,7 +95,7 @@ def extract_ground_truth(pid) -> dict:
             gt["mes_values"]    = {}
 
         # --- LAB ---
-        df_l   = pd.read_excel(EXCEL_FILE, sheet_name="UC_lab", header=1)
+        df_l   = pd.read_excel(EXCEL_FILE, sheet_name="UC_lab", header=SHEET_HEADER["UC_lab"])
         try:
             pid_int = int(pid)
             l_rows = df_l[df_l["id"].apply(lambda x: int(x) if pd.notnull(x) else -1) == pid_int]
@@ -103,7 +109,7 @@ def extract_ground_truth(pid) -> dict:
                     gt[key] = float(rows.iloc[-1]["lab_value"])
 
         # --- HISTOLOGY (Nancy) ---
-        df_h   = pd.read_excel(EXCEL_FILE, sheet_name="UC_histo", header=1)
+        df_h   = pd.read_excel(EXCEL_FILE, sheet_name="UC_histo", header=SHEET_HEADER["UC_histo"])
         try:
             pid_int = int(pid)
             h_rows = df_h[df_h["id"].apply(lambda x: int(x) if pd.notnull(x) else -1) == pid_int]
@@ -120,7 +126,7 @@ def extract_ground_truth(pid) -> dict:
             gt["nancy_values"] = {}
 
         # --- MEDICATIONS ---
-        df_m   = pd.read_excel(EXCEL_FILE, sheet_name="UC_med", header=1)
+        df_m   = pd.read_excel(EXCEL_FILE, sheet_name="UC_med", header=SHEET_HEADER["UC_med"])
         try:
             pid_int = int(pid)
             m_rows = df_m[df_m["id"].apply(lambda x: int(x) if pd.notnull(x) else -1) == pid_int].copy()
@@ -223,8 +229,8 @@ def generate_agent_response(pid, category: str) -> dict:
     # Import synthesis prompt for category-forced strict output
     try:
         from PineBioML.prompts.synthesis import get_synthesis_prompt
-        from langchain_openai import ChatOpenAI
-        synth_llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
+        from PineBioML.model.llm_factory import get_llm
+        synth_llm = get_llm(model_name="gpt-4o-mini", temperature=0)
         use_strict_synth = True
     except Exception:
         use_strict_synth = False
@@ -254,7 +260,10 @@ def generate_agent_response(pid, category: str) -> dict:
                 tool_outputs=tool_outputs,
                 category_id=cat,
             )
-            resp = synth_llm.invoke([("system", synth_prompt)])
+            resp = synth_llm.invoke([
+                ("system", synth_prompt),
+                ("human", "Please generate the clinical answer based on the instructions.")
+            ])
             final_answer = resp.content
         else:
             final_answer = synthesize_medical_results(q, tool_outputs, raw_patient)
@@ -312,7 +321,7 @@ Return ONLY a JSON object, no markdown:
 
 def evaluate_with_llm(ground_truth: dict, agent_response: str, category: str) -> dict:
     """Sends ground truth + agent response to LLM judge and returns QA report."""
-    llm = ChatOpenAI(model_name="gpt-4o", temperature=0)
+    llm = get_llm(model_name="gpt-4o", temperature=0)
 
     gt_summary = {k: v for k, v in ground_truth.items() if k != "errors"}
     user_msg = f"""

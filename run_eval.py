@@ -251,7 +251,7 @@ def call_agent(pid: str, category: str) -> str:
     try:
         from src.api.mcp_server import query_core_rag, query_guard_rag
         from PineBioML.prompts.synthesis import get_synthesis_prompt
-        from langchain_openai import ChatOpenAI
+        from PineBioML.model.llm_factory import get_llm
 
         print(f"  {DIM}[Core RAG]  fetching patient data...{RST}")
         raw  = query_core_rag(str(pid), question)
@@ -263,7 +263,7 @@ def call_agent(pid: str, category: str) -> str:
         prompt = get_synthesis_prompt("English", question, raw, tools, category_id=category)
 
         print(f"  {DIM}[Synthesis] running LLM...{RST}")
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
+        llm = get_llm(model_name="gpt-4o-mini", temperature=0)
         return llm.invoke([("system", prompt)]).content
 
     except Exception as e:
@@ -275,8 +275,8 @@ def call_agent(pid: str, category: str) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 def _judge(system_prompt: str, gt: dict, response: str, category: str) -> dict:
     try:
-        from langchain_openai import ChatOpenAI
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
+        from PineBioML.model.llm_factory import get_llm
+        llm = get_llm(model_name="gpt-4o-mini", temperature=0)
 
         # Clean ground truth: remove heavy list fields
         gt_clean = {k: v for k, v in gt.items() if k not in ("error", "mes_values", "nancy_values")}
@@ -285,7 +285,8 @@ def _judge(system_prompt: str, gt: dict, response: str, category: str) -> dict:
             f"GROUND_TRUTH:\n{json.dumps(gt_clean, indent=2, default=str)[:3000]}\n\n"
             f"AGENT_RESPONSE:\n{response[:5000]}"
         )
-        res     = llm.invoke([("system", system_prompt), ("human", user_msg)])
+        llm_with_json = llm.bind(response_format={"type": "json_object"})
+        res     = llm_with_json.invoke([("system", system_prompt), ("human", user_msg)])
         content = res.content.strip()
         # Strip markdown fences
         content = re.sub(r'^```json\s*', '', content)

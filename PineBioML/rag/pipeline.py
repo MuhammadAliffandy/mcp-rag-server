@@ -142,14 +142,14 @@ class EXPRAGPipeline:
         Executes the full EXPRAG pipeline and performs the final LLM reasoning.
         Returns structured result with REASON and ANSWER.
         """
-        from langchain_openai import ChatOpenAI
+        from PineBioML.model.llm_factory import get_llm
         
         # 1. Generate the overpowered prompt
         pipeline_res = self.run_full_pipeline(current_patient_data, query, options)
         full_prompt = pipeline_res['prompt']
         
         # 2. Call LLM (Mirroring EXPRAG strict temperature)
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.0)
+        llm = get_llm(model_name="gpt-4o-mini", temperature=0.0)
         response = llm.invoke(full_prompt).content
         
         # 3. Parse formatted output

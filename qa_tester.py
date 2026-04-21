@@ -23,7 +23,7 @@ Usage:
 
 import os, sys, json, re, datetime, argparse
 import pandas as pd
-from langchain_openai import ChatOpenAI
+from PineBioML.model.llm_factory import get_llm
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
@@ -179,7 +179,7 @@ def extract_gt(pid) -> dict:
 def call_agent(pid: str, prompt: str, category: str) -> str:
     from src.api.mcp_server import query_core_rag, query_guard_rag
     from PineBioML.prompts.synthesis import get_synthesis_prompt
-    from langchain_openai import ChatOpenAI
+    from PineBioML.model.llm_factory import get_llm
 
     raw   = query_core_rag(str(pid), prompt)
     sop   = query_guard_rag(prompt)
@@ -193,7 +193,7 @@ def call_agent(pid: str, prompt: str, category: str) -> str:
         tool_outputs=tools,
         category_id=cat_id,
     )
-    llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
+    llm = get_llm(model_name="gpt-4o-mini", temperature=0)
     return llm.invoke([("system", sys_p)]).content
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -312,9 +312,10 @@ def evaluate_q2_2(response: str, gt: dict, prompt_id: str) -> dict:
             errors.append(f"Patient NOT in endoscopic remission but agent said 'No Adjustment' without 'Continue' or 'Adjustment'.")
 
     # RULE 4: LLM judge for tier citation format
-    llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
+    llm = get_llm(model_name="gpt-4o-mini", temperature=0)
     try:
-        judge_resp = llm.invoke([
+        llm_with_json = llm.bind(response_format={"type": "json_object"})
+        judge_resp = llm_with_json.invoke([
             ("system", TIER_JUDGE),
             ("human", f"AGENT_RESPONSE:\n{text}")
         ])

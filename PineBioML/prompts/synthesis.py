@@ -49,7 +49,7 @@ Step 4 - Severity Classification:
   -> Remission if 0-2, Mild if 3-5, Moderate if 6-10, Severe if >10
 
 ### Ã°ÂÂÂ Final Clinical Conclusion
-[Remission / mild / moderate / severe]"""
+[Remission / Mild / Moderate / Severe]. The disease severity is labeled as such because the total Mayo score is [TOTAL] with an endoscopic subscore of [MES]."""
 
     elif category_id == "Q1.2":
         category_force = """FORCE ACTION: Q1.2 Ã¢ÂÂ REMISSION STATUS.
@@ -92,7 +92,7 @@ Start with '## Patient [ID] - Remission Status Assessment'.
   (Nancy max=[X], remission if 0 or 1)
 
 ### Ã°ÂÂÂ Final Clinical Conclusion
-[Clinical remission / bio-chemical remission / endoscopic remission / histologic remission / no remission]"""
+[Clinical remission, bio-chemical remission, endoscopic remission, histologic remission]. The patient has [not] achieved clinical remission ([reason]), bio-chemical remission ([reason]), endoscopic remission ([reason]), and histologic remission ([reason])."""
 
     elif category_id == "Q1.3":
         category_force = """FORCE ACTION: Q1.3 Ã¢ÂÂ PROGNOSTIC FACTORS.
@@ -143,7 +143,7 @@ Poor factors identified:
 [Brief 1-2 sentence clinical interpretation]
 
 ### Ã°ÂÂÂ Final Clinical Conclusion
-Yes, [specify which factors]. OR No."""
+Yes, [specify which]. OR No."""
 
     # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
     # CATEGORY 2: Treatment Adjustment
@@ -189,7 +189,7 @@ You MUST output the structured 8-point assessment, then end with the exact trial
   Reason: [Explanation of highest achieved target]
 
 ### Ã°ÂÂÂ Final Clinical Conclusion
-The patient has achieved [short / intermediate / long term / no] treatment target."""
+The patient has achieved [short / intermediate / and/or long term] treatment target."""
 
     elif category_id == "Q2.2":
         category_force = """FORCE ACTION: Q2.2 Ã¢ÂÂ MEDICATION ADJUSTMENT.
@@ -332,7 +332,7 @@ Allowed output options (use EXACTLY one):
   Switch to or combine other advanced therapy
 
 ### Ã°ÂÂÂ Final Clinical Conclusion
-Based on the patient demographics, extent, severity, and current medication failure, the recommended next option is: [Optimize current medication / Add-on immunomodulators / Escalate to advanced therapy / Switch to or combine other advanced therapy]."""
+The recommended next option is to [optimize current medication / add-on immunomodulators / escalate to advanced therapy / switch to or combine other advanced therapy]."""
 
     # ─────────────────────────────────────────────────────────────
     # CATEGORY 3: Cancer Surveillance
@@ -368,7 +368,7 @@ RISK STRATIFICATION (use retrieved data above):
     • Extent = 1 or 2, quiescent disease (MES max ≤ 1, Nancy max ≤ 1), no high/intermediate risk factors
 
 ### 📝 Final Clinical Conclusion
-Screening colonoscopy should be offered to all patients [X] years after symptom onset. Since the patient belongs to [low / intermediate / high] risk group, the next surveillance colonoscopy should be in [X] year(s)."""
+[Tier X] Since the patient belongs to [low / intermediate / high] risk group, the next surveillance colonoscopy should be in [___] years. [Society, Year]"""
 
     elif category_id == "Q3.2":
         category_force = """FORCE ACTION: Q3.2 — OTHER TYPES OF CANCER RISK.
@@ -409,9 +409,7 @@ Applicable screening summary (list ONLY the ones where Applicable = Yes):
 1. [cancer type] cancer: [screening method] every [X] years (guideline)
 
 ### 📝 Final Clinical Conclusion
-Based on the patient's demographics and medication history, the patient should receive screening for [cancer type] cancer with [screening method] every [X] years.
-
-NOTE: Do NOT mention colorectal cancer or colonoscopy here — covered in Q3.1."""
+[Tier X] Based on the patient’s sex, age, underlying disease, and medication history, the patient should receive screening for [Cancer Type] cancer with [Exam], every [___] year. [Society, Year]"""
 
     # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
     # CATEGORY 4: Monitor Tools and Interval
@@ -436,7 +434,7 @@ Step 2 Ã¢ÂÂ MONITORING INTERVAL (GUARD RAG LOGIC):
 - Reason: [state clinical reason per ECCO/ACG guideline]
 
 ### Ã°ÂÂÂ Final Clinical Conclusion
-Based on the patientÃ¢ÂÂs current status, the following exams [exams] should be arranged at [interval]."""
+[Tier X] Based on the patient’s current status, the following exams [___] should be arranged at [___]. [Society, Year]"""
 
     elif category_id == "Q4.2":
         category_force = """FORCE ACTION: Q4.2 Ã¢ÂÂ THERAPEUTIC DRUG MONITORING (TDM).
@@ -458,7 +456,7 @@ Step 2 Ã¢ÂÂ TDM DETERMINATION (GUARD RAG LOGIC):
   - Guideline: [ECCO_TDM_2023 / AGA_TDM_2017]
 
 ### Ã°ÂÂÂ Final Clinical Conclusion
-[Yes, proactive TDM is recommended / Yes, reactive TDM is recommended / No], with target drug level [value or N/A]."""
+[Tier X] Yes, [proactive / reactive] TDM is recommended, with target drug level [___]. [Society, Year] OR No."""
 
     elif category_id == "Q4.3":
         category_force = """FORCE ACTION: Q4.3 Ã¢ÂÂ MEDICATION-SPECIFIC MONITORING.
@@ -478,7 +476,7 @@ Step 2 Ã¢ÂÂ MONITORING SCHEDULE (one entry per active drug):
 Note: If no active medication matches monitoring criteria Ã¢ÂÂ state "No specific monitoring required."
 
 ### Ã°ÂÂÂ Final Clinical Conclusion
-For patients under [medication name] medication, [specific lab tests] should be checked every [X] months."""
+[Tier X] For patients under [Medication] medication, [___] should be checked every [___] months. [Society, Year]"""
 
     elif category_id == "Q4.4":
         category_force = """FORCE ACTION: Q4.4 Ã¢ÂÂ OPPORTUNISTIC INFECTION RISK & VACCINATIONS.
@@ -507,7 +505,7 @@ Step 2 Ã¢ÂÂ SCREENING & VACCINATION REQUIRED (apply all applicable):
 NOTE: Stopped immunosuppressants < 3 months ago still confer immunosuppression risk.
 
 ### Ã°ÂÂÂ Final Clinical Conclusion
-Screening for [infection(s)] and [vaccine(s)] vaccinations prior to treatment initiation are recommended."""
+[Tier X] Screening for [Vaccine 1] and [Vaccine 2] vaccinations prior to treatment initiation are recommended. [Society, Year]"""
 
     # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
     # CATEGORY 5: Lifestyle and Diet Modification
@@ -543,7 +541,7 @@ Step 2 Ã¢ÂÂ DIETARY RECOMMENDATION:
 - Guideline basis: [ECCO Diet 2023 / ACG 2021]
 
 ### Ã°ÂÂÂ Final Clinical Conclusion
-This patient is encouraged to have more [foods] intake and less [foods]."""
+[Tier X] This patient is encouraged to have more [___] intake and less [___]. [Society, Year]"""
 
     elif category_id == "Q5.2":
         category_force = """FORCE ACTION: Q5.2 Ã¢ÂÂ NUTRITIONAL SUPPLEMENTATION AND DEFICIENCY SCREENING.
@@ -567,7 +565,7 @@ Step 2 Ã¢ÂÂ SUPPLEMENTATION & SCREENING REQUIRED:
 | B12 + Zinc | [Yes if Alb<3.5 / No] | Low albumin/malabsorp. | ACG 2021 |
 
 ### Ã°ÂÂÂ Final Clinical Conclusion
-Yes, the patient is recommended to be screened for [deficiency] deficiency. OR No."""
+[Tier X] Yes, the patient is recommended to be screened for [___] deficiency. [Society, Year] OR No."""
 
     elif category_id == "Q5.3":
         category_force = """FORCE ACTION: Q5.3 Ã¢ÂÂ LIFESTYLE MODIFICATIONS.
@@ -592,7 +590,7 @@ Step 2 Ã¢ÂÂ LIFESTYLE RECOMMENDATIONS:
 | Alcohol | Limit or avoid | Worsens IBD inflammation |
 
 ### Ã°ÂÂÂ Final Clinical Conclusion
-The patient should quit [habit] and enhance [lifestyle modification]."""
+[Tier X] The patient should quit [___] and enhance [___]. [Society, Year]"""
 
     # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
     # CATEGORY 6: Family Planning
@@ -635,7 +633,7 @@ For this patient's ACTUAL active medications:
   Do NOT fabricate medication names that are not in the active medication list.
 
 ### Ã°ÂÂÂ Final Clinical Conclusion
-These [medications] medications were safe to be continued. These [medications] medication should be stopped [X] months before conception."""
+[Tier X] These [Medication 1] medications were safe to be continued. These [Medication 2] medication should be stopped [___] months before conception. [Society, Year]"""
 
     elif category_id == "Q6.2":
         category_force = """FORCE ACTION: Q6.2 Ã¢ÂÂ MATERNAL RISKS FROM DISEASE ACTIVITY AND MEDICATIONS.
@@ -671,7 +669,7 @@ For this patient (based on actual medication and disease status):
 - Risks COMPARABLE to non-IBD: [list if in remission / no biologics]
 
 ### Ã°ÂÂÂ Final Clinical Conclusion
-Maternally, the risk of [complication(s)] is increased / comparable to the non-IBD patients."""
+[Tier X] Maternally, the risk of [Condition] is [increased / comparable] to the non-IBD patients. [Society, Year]"""
 
     elif category_id == "Q6.3":
         category_force = """FORCE ACTION: Q6.3 Ã¢ÂÂ FETAL/NEONATAL RISKS FROM DISEASE ACTIVITY AND MEDICATIONS.
@@ -708,7 +706,7 @@ For this patient (based on actual medication and disease status):
 - Special precaution: [e.g., delay live vaccines 6 months if anti-TNF in T3]
 
 ### Ã°ÂÂÂ Final Clinical Conclusion
-Neonatally, the risk of [complication(s)] is increased / comparable to the mothers of non-IBD patients."""
+[Tier X] Neonatally, the risk of [Condition] is [increased / comparable] to the mothers of non-IBD patients. [Society, Year]"""
 
     # Ã¢ÂÂÃ¢ÂÂ Build tables_accessed list based on category_id Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
     _table_map = {

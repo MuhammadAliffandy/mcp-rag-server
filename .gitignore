@@ -155,3 +155,11 @@ Final_Verified_*
 CLEANUP_SUMMARY.md
 New_Knowledge_Task.md
 
+
+# ColonoSense QA Data
+qa_report_patient_*.json
+eval_all_output.txt
+eval_report_*.json
+.env*
+*.log
+fix_templates.py
