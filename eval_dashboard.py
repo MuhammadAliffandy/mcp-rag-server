@@ -463,36 +463,76 @@ def _extract_json_robust(text: str) -> dict:
     return {}
 
 
+def _val_found_in_text(raw_val, text: str) -> bool:
+    """
+    Smart value matching: checks multiple representations of a value in response text.
+    Handles: float vs int ('4.0' vs '4'), partial drug names, formatted numbers.
+    """
+    if raw_val is None:
+        return False
+    val_str = str(raw_val).strip()
+    if not val_str or val_str in ("None", "", "nan"):
+        return True  # nothing to check
+
+    # Try direct string match first
+    if val_str in text:
+        return True
+
+    # Try numeric normalization: '4.0' → '4', '3.0' → '3'
+    try:
+        fval = float(val_str)
+        # Try integer form if it's a whole number
+        if fval == int(fval):
+            if str(int(fval)) in text:
+                return True
+        # Try 1-decimal form
+        if f"{fval:.1f}" in text:
+            return True
+    except (ValueError, TypeError):
+        pass
+
+    # Try case-insensitive for drug names / categories
+    if val_str.lower() in text.lower():
+        return True
+
+    return False
+
+
 def _run_judge_deterministic_retrieval(gt: dict, response: str) -> dict:
     """
     Dim 1 — Data Retrieval Accuracy: 100% deterministic Python, no LLM needed.
-    Checks if key numeric values from ground_truth appear in the response text.
-    Uses dashboard field names: total_mayo, severity, index_drug.name etc.
+    Uses smart numeric matching to handle float/int format differences.
+    Dashboard GT field names: bl_mayo_total, max_mes, crp, fc, index_drug.name etc.
     """
     idx_drug = gt.get("index_drug") or {}
+
+    # Define fields to check with their GT values
     fields = {
-        "patient_id":     str(gt.get("patient_id", "")),
-        "bl_mayo_total":  str(gt.get("bl_mayo_total", "")),
-        "bl_mayo_s":      str(gt.get("bl_mayo_s", "")),
-        "bl_mayo_b":      str(gt.get("bl_mayo_b", "")),
-        "bl_mayo_p":      str(gt.get("bl_mayo_p", "")),
-        "max_mes":        str(gt.get("max_mes", "")),
-        "max_nancy":      str(gt.get("max_nancy", "")),
-        "crp":            str(gt.get("crp", "")),
-        "fc":             str(gt.get("fc", "")),
-        "index_drug":     str(idx_drug.get("name", "") or idx_drug.get("med_name", "")),
+        "patient_id":    gt.get("patient_id"),
+        "bl_mayo_total": gt.get("bl_mayo_total"),
+        "bl_mayo_s":     gt.get("bl_mayo_s"),
+        "bl_mayo_b":     gt.get("bl_mayo_b"),
+        "bl_mayo_p":     gt.get("bl_mayo_p"),
+        "max_mes":       gt.get("max_mes"),
+        "max_nancy":     gt.get("max_nancy"),
+        "crp":           gt.get("crp"),
+        "fc":            gt.get("fc"),
+        "index_drug":    idx_drug.get("name") or idx_drug.get("med_name"),
     }
+
     field_scores = {}
-    incorrect = []
+    incorrect    = []
+
     for key, val in fields.items():
-        val_str = str(val).strip()
-        if val_str and val_str not in ("None", "", "0", "0.0"):
-            found = val_str in response
-            field_scores[key] = 1 if found else 0
-            if not found:
-                incorrect.append(f"{key}={val_str}")
-        else:
-            field_scores[key] = 1  # no GT value to check — skip
+        # Skip fields with no meaningful GT value
+        if val is None or str(val).strip() in ("None", "", "0", "0.0"):
+            field_scores[key] = 1  # not penalized if data doesn't exist
+            continue
+
+        found = _val_found_in_text(val, response)
+        field_scores[key] = 1 if found else 0
+        if not found:
+            incorrect.append(f"{key}={val}")
 
     correct_count = sum(field_scores.values())
     total_fields  = len(field_scores)
