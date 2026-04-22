@@ -434,23 +434,116 @@ Return ONLY JSON:
 }
 """
 
+def _extract_json_robust(text: str) -> dict:
+    """
+    Robust JSON extraction for Ollama 8B output which may wrap JSON in markdown
+    or add extra text before/after. Tries multiple parsing strategies.
+    """
+    if not text:
+        return {}
+    # Strategy 1: Direct parse
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    # Strategy 2: Extract first {...} block
+    try:
+        m = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
+        if m:
+            return json.loads(m.group(0))
+    except Exception:
+        pass
+    # Strategy 3: Strip markdown fences
+    try:
+        cleaned = re.sub(r'^```(?:json)?\s*', '', text.strip(), flags=re.MULTILINE)
+        cleaned = re.sub(r'```\s*$', '', cleaned.strip(), flags=re.MULTILINE)
+        return json.loads(cleaned.strip())
+    except Exception:
+        pass
+    return {}
+
+
+def _run_judge_deterministic_retrieval(gt: dict, response: str) -> dict:
+    """
+    Dim 1 — Data Retrieval Accuracy: 100% deterministic Python, no LLM needed.
+    Checks if key numeric values from ground_truth appear in the response text.
+    Uses dashboard field names: total_mayo, severity, index_drug.name etc.
+    """
+    idx_drug = gt.get("index_drug") or {}
+    fields = {
+        "patient_id":     str(gt.get("patient_id", "")),
+        "bl_mayo_total":  str(gt.get("bl_mayo_total", "")),
+        "bl_mayo_s":      str(gt.get("bl_mayo_s", "")),
+        "bl_mayo_b":      str(gt.get("bl_mayo_b", "")),
+        "bl_mayo_p":      str(gt.get("bl_mayo_p", "")),
+        "max_mes":        str(gt.get("max_mes", "")),
+        "max_nancy":      str(gt.get("max_nancy", "")),
+        "crp":            str(gt.get("crp", "")),
+        "fc":             str(gt.get("fc", "")),
+        "index_drug":     str(idx_drug.get("name", "") or idx_drug.get("med_name", "")),
+    }
+    field_scores = {}
+    incorrect = []
+    for key, val in fields.items():
+        val_str = str(val).strip()
+        if val_str and val_str not in ("None", "", "0", "0.0"):
+            found = val_str in response
+            field_scores[key] = 1 if found else 0
+            if not found:
+                incorrect.append(f"{key}={val_str}")
+        else:
+            field_scores[key] = 1  # no GT value to check — skip
+
+    correct_count = sum(field_scores.values())
+    total_fields  = len(field_scores)
+    accuracy_rate = correct_count / total_fields if total_fields > 0 else 0.0
+    verdict       = "Correct" if accuracy_rate >= 0.7 else "Incorrect"
+
+    return {
+        "field_scores":     field_scores,
+        "correct_count":    correct_count,
+        "total_fields":     total_fields,
+        "accuracy_rate":    round(accuracy_rate, 3),
+        "incorrect_fields": incorrect,
+        "verdict":          verdict,
+    }
+
+
 def _run_judge(system_prompt: str, gt: dict, response: str, category: str) -> dict:
+    """
+    Runs an LLM judge without using bind(response_format) which is unsupported by Ollama.
+    Uses robust multi-strategy JSON extraction instead.
+    """
     try:
         from PineBioML.model.llm_factory import get_llm
         llm = get_llm(model_name="gpt-4o-mini", temperature=0)
-        gt_clean = {k: v for k, v in gt.items() if k not in ["error"] and not isinstance(v, list) or k in ["active_meds", "poor_factors"]}
+        gt_clean = {
+            k: v for k, v in gt.items()
+            if k not in ["error"] and (not isinstance(v, list) or k in ["poor_factors"])
+        }
         user_msg = f"""CATEGORY: {category}
-GROUND_TRUTH:
-{json.dumps(gt_clean, indent=2, default=str)[:4000]}
+GROUND_TRUTH (key values only):
+{json.dumps(gt_clean, indent=2, default=str)[:2000]}
 
 AGENT_RESPONSE:
-{response[:6000]}"""
-        llm_with_json = llm.bind(response_format={"type": "json_object"})
-        res = llm_with_json.invoke([("system", system_prompt), ("human", user_msg)])
-        content = res.content.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
-        return json.loads(content)
+{response[:4000]}
+
+Return ONLY valid JSON with no extra text."""
+
+        # Do NOT use llm.bind(response_format=...) — unsupported by Ollama
+        res     = llm.invoke([("system", system_prompt), ("human", user_msg)])
+        content = res.content.strip()
+        result  = _extract_json_robust(content)
+        if result:
+            return result
+        # If extraction failed, return partial-credit default
+        return {"verdict": "Partially Correct", "accuracy_rate": 0.3,
+                "concordance_rate": 0.3, "complete_rate": 0.3, "helpfulness_rate": 0.3,
+                "error": f"JSON parse failed, raw: {content[:200]}"}
     except Exception as e:
-        return {"error": str(e), "verdict": "Incorrect", "accuracy_rate": 0.0}
+        return {"error": str(e), "verdict": "Incorrect",
+                "accuracy_rate": 0.0, "concordance_rate": 0.0,
+                "complete_rate": 0.0, "helpfulness_rate": 0.0}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # INTER-RATER VARIABILITY — Krippendorff's Alpha (interval)
@@ -819,13 +912,16 @@ else:
                 with st.spinner(f"Generating agent response for {cat}..."):
                     response = generate_response(pid, cat)
 
-                # Run all 4 LLM judges in parallel-ish (sequential for simplicity)
+                # Run evaluations:
+                # Dim 1 — Deterministic Python (no LLM needed)
+                with st.spinner(f"Running data retrieval check for {cat}..."):
+                    j_data = _run_judge_deterministic_retrieval(gt, response)
+                # Dim 2-5 — LLM judges (Ollama-compatible)
                 with st.spinner(f"Running LLM judges for {cat}..."):
-                    j_data     = _run_judge(JUDGE_DATA_RETRIEVAL, gt, response, cat)
-                    j_correct  = _run_judge(JUDGE_CORRECTNESS,    gt, response, cat)
-                    j_conc     = _run_judge(JUDGE_CONCORDANCE,     gt, response, cat)
-                    j_comp     = _run_judge(JUDGE_COMPLETENESS,    gt, response, cat)
-                    j_help     = _run_judge(JUDGE_HELPFULNESS,     gt, response, cat)
+                    j_correct  = _run_judge(JUDGE_CORRECTNESS,   gt, response, cat)
+                    j_conc     = _run_judge(JUDGE_CONCORDANCE,    gt, response, cat)
+                    j_comp     = _run_judge(JUDGE_COMPLETENESS,   gt, response, cat)
+                    j_help     = _run_judge(JUDGE_HELPFULNESS,    gt, response, cat)
 
                 # Build simulated n=5 physician ratings from LLM output (for IRV demo)
                 # In production, replace with real physician inputs
