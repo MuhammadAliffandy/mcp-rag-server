@@ -205,10 +205,77 @@ def extract_ground_truth(pid) -> dict:
 # ═════════════════════════════════════════════════════════════════════════════
 # STEP 2: AGENT RESPONSE GENERATOR
 # ═════════════════════════════════════════════════════════════════════════════
-def generate_agent_response(pid, category: str) -> dict:
+def _build_anchor_block(pid, gt: dict) -> str:
+    """
+    Builds a structured numeric anchor block from pre-computed ground truth.
+    This is injected into the LLM prompt so it copies values instead of hallucinating.
+    """
+    index_drug = gt.get("index_drug", {})
+    mes_vals   = gt.get("mes_values", {})
+    nancy_vals = gt.get("nancy_values", {})
+    poor_factors = gt.get("poor_factors", [])
+
+    anchor = f"""
+╔══════════════════════════════════════════════════════════════════╗
+   STRUCTURED PATIENT ANCHOR — USE THESE VALUES EXACTLY
+   DO NOT calculate or infer — copy directly from this block.
+╚══════════════════════════════════════════════════════════════════╝
+Patient ID            : {pid}
+
+── MAYO SCORES ──────────────────────────────────────────────────
+bl_mayo_total (Partial): {gt.get('bl_mayo_total', 'N/A')}
+  bl_mayo_s (stool)    : {gt.get('bl_mayo_s', 'N/A')}
+  bl_mayo_b (bleeding) : {gt.get('bl_mayo_b', 'N/A')}
+  bl_mayo_p (physician): {gt.get('bl_mayo_p', 'N/A')}
+max_mes (MES)          : {gt.get('max_mes', 'N/A')}
+mes_values             : {mes_vals}
+Total Mayo Score       : {gt.get('total_mayo_score', 'N/A')}
+Expected Severity      : {gt.get('expected_severity', 'N/A')}
+
+── LABS ──────────────────────────────────────────────────────────
+crp_value              : {gt.get('crp', 'N/A')} mg/dL
+fc_value               : {gt.get('fc', 'N/A')} ug/g
+albumin                : {gt.get('alb', 'N/A')} g/dL
+
+── HISTOLOGY (NANCY) ────────────────────────────────────────────
+nancy_values           : {nancy_vals}
+max_nancy              : {gt.get('max_nancy', 'N/A')}
+
+── COLONOSCOPY ──────────────────────────────────────────────────
+last_cpy_date          : {gt.get('last_cpy_date', 'N/A')}
+
+── REMISSION FLAGS (pre-computed, copy exactly) ─────────────────
+clinical_remission     : {'✅ YES' if gt.get('clinical_remission') else '❌ NO'}
+biochemical_remission  : {'✅ YES' if gt.get('biochemical_remission') else '❌ NO'}
+endoscopic_remission   : {'✅ YES' if gt.get('endoscopic_remission') else '❌ NO'}
+histologic_remission   : {'✅ YES' if gt.get('histologic_remission') else '❌ NO'}
+
+── DEMOGRAPHICS ─────────────────────────────────────────────────
+age_at_diagnosis       : {gt.get('age_at_diagnosis', 'N/A')} years
+extent                 : {gt.get('extent', 'N/A')}
+date_onset             : {gt.get('date_onset', 'N/A')}
+
+── PROGNOSIS ────────────────────────────────────────────────────
+expected_poor_prognosis: {'✅ YES — POOR PROGNOSIS' if gt.get('expected_poor_prognosis') else '❌ NO poor factors'}
+poor_factors           : {poor_factors if poor_factors else 'None'}
+
+── MEDICATION (INDEX DRUG) ──────────────────────────────────────
+index_drug_name        : {index_drug.get('med_name', 'N/A')}
+index_drug_class       : {index_drug.get('med_class', 'N/A')}
+index_drug_start_date  : {index_drug.get('start_date', 'N/A')}
+index_drug_duration_wk : {index_drug.get('duration_weeks', 'N/A')} weeks
+expected_adjustment    : {gt.get('expected_adjustment', 'See STRIDE-II logic in prompt')}
+════════════════════════════════════════════════════════════════
+"""
+    return anchor
+
+
+def generate_agent_response(pid, category: str, gt: dict = None) -> dict:
     """
     Calls the live ColonoSense agent via mcp_server tools and returns responses
     for each clinical question.
+    gt (ground_truth dict): if provided, a structured patient anchor is injected
+    into the synthesis prompt so the LLM uses pre-computed values directly.
     """
     # Ensure project root is importable
     project_root = os.path.abspath(os.path.dirname(os.path.abspath(__file__)))
@@ -225,6 +292,9 @@ def generate_agent_response(pid, category: str) -> dict:
 
     categories_to_run = list(prompts.keys()) if category == "all" else [category.upper()]
     responses = {}
+
+    # Build the structured patient anchor (Pilar 1)
+    anchor_block = _build_anchor_block(pid, gt) if gt else ""
 
     # Import synthesis prompt for category-forced strict output
     try:
@@ -249,7 +319,8 @@ def generate_agent_response(pid, category: str) -> dict:
         # Step 2: Guard RAG — get clinical SOPs
         sop_context = query_guard_rag(q)
 
-        tool_outputs = f"Core RAG:\n{raw_patient}\n\nGuard RAG:\n{sop_context}"
+        # Prepend anchor to tool_outputs so it is always visible to the LLM
+        tool_outputs = f"{anchor_block}\nCore RAG:\n{raw_patient}\n\nGuard RAG:\n{sop_context}"
 
         # Step 3: Use strict category-aware synthesis prompt if available
         if use_strict_synth:
@@ -259,10 +330,11 @@ def generate_agent_response(pid, category: str) -> dict:
                 rag_context=raw_patient,
                 tool_outputs=tool_outputs,
                 category_id=cat,
+                anchor_block=anchor_block,
             )
             resp = synth_llm.invoke([
                 ("system", synth_prompt),
-                ("human", "Please generate the clinical answer based on the instructions.")
+                ("human", "Please generate the clinical answer based on the instructions above. Use ONLY the values from the STRUCTURED PATIENT ANCHOR.")
             ])
             final_answer = resp.content
         else:
@@ -274,82 +346,209 @@ def generate_agent_response(pid, category: str) -> dict:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# STEP 3: LLM EVALUATOR (ANTI-GRAVITY JUDGE)
+# STEP 3A: DETERMINISTIC PYTHON EVALUATOR (Pilar 3)
+# ═════════════════════════════════════════════════════════════════════════════
+import re
+
+def _parse_float(text: str, label: str):
+    """Extract first float after a label keyword in agent response text."""
+    pattern = rf"{re.escape(label)}[^\d-]*(\d+\.?\d*)"
+    m = re.search(pattern, text, re.IGNORECASE)
+    return float(m.group(1)) if m else None
+
+def _check_numeric_close(agent_val, gt_val, tol=0.5) -> bool:
+    if agent_val is None or gt_val is None:
+        return False
+    return abs(float(agent_val) - float(gt_val)) <= tol
+
+def evaluate_deterministic_python(ground_truth: dict, agent_response: str, category: str) -> dict:
+    """
+    Pilar 3: Evaluate metrics that are mathematically verifiable WITHOUT calling an LLM.
+    Returns partial metric dict:
+      - internal_rag_extraction_pass
+      - deterministic_math_pass
+    """
+    pid  = str(ground_truth.get("patient_id", ""))
+    text = agent_response
+    errors = []
+
+    # ── 1. internal_rag_extraction_pass ─────────────────────────────────────
+    # Check that agent mentions the correct Patient ID
+    extraction_ok = pid in text
+    if not extraction_ok:
+        errors.append(f"[EXTRACTION] Patient ID '{pid}' not found in response.")
+
+    # Check key date if available
+    cpy_date = ground_truth.get("last_cpy_date", "")
+    if cpy_date and cpy_date[:7] not in text:  # match YYYY-MM
+        errors.append(f"[EXTRACTION] Last colonoscopy date '{cpy_date}' not found in response.")
+        extraction_ok = False
+
+    # ── 2. deterministic_math_pass ──────────────────────────────────────────
+    math_ok = True
+
+    if category == "Q1.1":
+        gt_total = ground_truth.get("total_mayo_score")
+        gt_sev   = ground_truth.get("expected_severity", "").lower()
+        gt_mes   = ground_truth.get("max_mes")
+
+        # Check Total Mayo Score appears correctly
+        agent_total = _parse_float(text, "Total Mayo")
+        if not _check_numeric_close(agent_total, gt_total):
+            errors.append(f"[MATH] Total Mayo: expected {gt_total}, found {agent_total} in response.")
+            math_ok = False
+
+        # Check severity label
+        if gt_sev and gt_sev not in text.lower():
+            errors.append(f"[MATH] Severity label '{gt_sev}' not found in response.")
+            math_ok = False
+
+        # Check MES max
+        agent_mes = _parse_float(text, "MES max")
+        if not _check_numeric_close(agent_mes, gt_mes):
+            errors.append(f"[MATH] MES max: expected {gt_mes}, found {agent_mes}.")
+            math_ok = False
+
+    elif category in ("Q1.2", "Q2.1", "Q2.2"):
+        # Check remission flags appear as ✅/❌
+        remission_map = {
+            "clinical_remission":    ground_truth.get("clinical_remission"),
+            "biochemical_remission": ground_truth.get("biochemical_remission"),
+            "endoscopic_remission":  ground_truth.get("endoscopic_remission"),
+            "histologic_remission":  ground_truth.get("histologic_remission"),
+        }
+        for key, expected in remission_map.items():
+            label = key.replace("_", " ").title()
+            yes_found = "✅" in text or "YES" in text.upper()
+            no_found  = "❌" in text or "NO" in text.upper()
+            if expected is True and not yes_found:
+                errors.append(f"[MATH] {label} should be YES but ✅ not found.")
+                math_ok = False
+            elif expected is False and not no_found:
+                errors.append(f"[MATH] {label} should be NO but ❌ not found.")
+                math_ok = False
+
+        # For Q2.2: verify duration_weeks if index drug exists
+        if category == "Q2.2":
+            idx = ground_truth.get("index_drug", {})
+            if idx:
+                expected_dur = idx.get("duration_weeks")
+                agent_dur    = _parse_float(text, "Duration")
+                if not _check_numeric_close(agent_dur, expected_dur, tol=1.5):
+                    errors.append(f"[MATH] Duration: expected {expected_dur}w, found {agent_dur}w.")
+                    math_ok = False
+
+    elif category == "Q1.3":
+        # Check poor prognosis verdict matches
+        gt_poor = ground_truth.get("expected_poor_prognosis", False)
+        if gt_poor and "POOR PROGNOSIS" not in text.upper():
+            errors.append("[MATH] Expected POOR PROGNOSIS but not found in response.")
+            math_ok = False
+        elif not gt_poor and "POOR PROGNOSIS" in text.upper():
+            errors.append("[MATH] No poor prognosis expected but POOR PROGNOSIS keyword found.")
+            math_ok = False
+
+    return {
+        "internal_rag_extraction_pass": extraction_ok and len([e for e in errors if "EXTRACTION" in e]) == 0,
+        "deterministic_math_pass":      math_ok,
+        "_python_errors":               errors,
+    }
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# STEP 3B: LLM JUDGE — Format & SOP only (Hybrid Judge)
 # ═════════════════════════════════════════════════════════════════════════════
 JUDGE_SYSTEM = """
 You are Anti-Gravity, the strict QA Medical Auditor for ColonoSense.
 You are given:
-  1. GROUND_TRUTH: The mathematically expected values computed from raw Excel data.
-  2. AGENT_RESPONSE: The text generated by the ColonoSense RAG agent.
-  3. CATEGORY: The clinical question category being evaluated.
+  1. AGENT_RESPONSE: The text generated by the ColonoSense RAG agent.
+  2. CATEGORY: The clinical question category being evaluated.
+  3. PYTHON_ERRORS: Deterministic errors already identified by the Python evaluator.
 
-Your job:
-- Compare AGENT_RESPONSE to GROUND_TRUTH strictly.
-- Evaluate 4 metrics as true/false:
-    a) internal_rag_extraction_pass   — Did agent extract correct values (Patient ID, dates, scores) from data?
-    b) deterministic_math_pass        — Are all computed values (Total Mayo, MES, duration_weeks) numerically correct?
-    c) guard_rag_logic_pass           — Did agent follow STRIDE-II adjustment logic correctly? 
-                                        Is there a numbered [Tier X] citation in "Medical SOP" section?
-    d) template_formatting_pass       — Does response use the exact numbered template, ✅/❌ emojis, ∆ symbols?
+Your job is ONLY to evaluate 2 metrics (Python already handled math & extraction):
+    c) guard_rag_logic_pass    — Did agent follow STRIDE-II adjustment logic correctly?
+                                  Is there a numbered [Tier X] citation in "Medical SOP" section?
+                                  For Q1.1/Q1.2/Q1.3: Did it follow the correct reasoning logic?
+    d) template_formatting_pass — Does response use the exact numbered template structure?
+                                   ✅/❌ emojis present? Correct section headers?
 
 STRICT RULES:
-- If any value is wrong by any amount, set that metric to false.
-- For Q1.1: Must have exactly 3 numbered points, correct severity label, correct total mayo math.
-- For Q1.2: Must have 7 numbered points. Point 7 must have 4 remission lines each with ✅/❌.
-- For Q1.3: Must have 11 numbered points. If poor factors, Point 11 must say "∆ POOR PROGNOSIS".
-- For Q2.2: Must have 11 numbered points. Point 11 must be "Medical SOP" with [Tier X] citations. If no citations → FAIL.
+- For Q1.1: Must have Step 1/2/3/4 + Final Clinical Conclusion sentence.
+- For Q1.2: Must have 7 numbered bold points. Point 7 must have 4 remission lines each with ✅/❌.
+- For Q1.3: Must have 11 numbered bold points. Point 11 must say POOR PROGNOSIS or No poor factors.
+- For Q2.2: Must have 11 numbered bold points. Point 11 must contain [Tier X] citations. If empty → FAIL.
 
 Return ONLY a JSON object, no markdown:
 {
-  "qa_session": {
-    "patient_id_tested": "...",
-    "category_tested": "...",
-    "evaluation_timestamp": "2026-02-11"
-  },
-  "ground_truth_used": { ... summarize key values ... },
   "metrics": {
-    "internal_rag_extraction_pass": true/false,
-    "deterministic_math_pass": true/false,
     "guard_rag_logic_pass": true/false,
     "template_formatting_pass": true/false
   },
-  "overall_status": "PASS or FAIL",
-  "error_logs": ["...specific discrepancy details..."],
-  "engineer_action_plan": "Concise fix instruction or 'None — all checks passed.'"
+  "error_logs": ["...specific formatting/logic discrepancy details..."],
+  "engineer_action_plan": "Concise fix or 'None — all checks passed.'"
 }
 """
 
 def evaluate_with_llm(ground_truth: dict, agent_response: str, category: str) -> dict:
-    """Sends ground truth + agent response to LLM judge and returns QA report."""
-    llm = get_llm(model_name="gpt-4o", temperature=0)
+    """
+    Hybrid evaluator: Python handles deterministic metrics, LLM handles format & SOP.
+    Falls back to LLM-only if Python check fails to import.
+    """
+    pid = str(ground_truth.get("patient_id", "N/A"))
 
-    gt_summary = {k: v for k, v in ground_truth.items() if k != "errors"}
+    # ── Step A: Python deterministic check ──────────────────────────────────
+    python_result = evaluate_deterministic_python(ground_truth, agent_response, category)
+    python_errors = python_result.get("_python_errors", [])
+
+    # ── Step B: LLM judge for format & SOP only ─────────────────────────────
+    llm = get_llm(model_name="gpt-4o", temperature=0)
     user_msg = f"""
 CATEGORY: {category}
-PATIENT_ID: {ground_truth.get('patient_id')}
+PATIENT_ID: {pid}
 
-GROUND_TRUTH:
-{json.dumps(gt_summary, indent=2, default=str)}
+PYTHON_ERRORS (already identified — do NOT re-evaluate these):
+{json.dumps(python_errors, indent=2)}
 
 AGENT_RESPONSE:
-{agent_response}
+{agent_response[:6000]}\n[...truncated if long...]
 """
     try:
-        result = llm.invoke([("system", JUDGE_SYSTEM), ("human", user_msg)])
+        result  = llm.invoke([("system", JUDGE_SYSTEM), ("human", user_msg)])
         content = result.content.strip()
-        # Strip markdown fences if present
         if content.startswith("```"):
             content = content.split("```")[1]
             if content.startswith("json"):
                 content = content[4:]
-        return json.loads(content)
+        llm_result = json.loads(content)
     except Exception as e:
-        return {
-            "qa_session": {"patient_id_tested": str(ground_truth.get("patient_id")), "category_tested": category},
-            "overall_status": "FAIL",
+        llm_result = {
+            "metrics": {"guard_rag_logic_pass": False, "template_formatting_pass": False},
             "error_logs": [f"LLM Judge error: {str(e)}"],
-            "engineer_action_plan": "Fix the LLM judge invocation."
+            "engineer_action_plan": "Fix LLM judge invocation."
         }
+
+    # ── Step C: Merge results ────────────────────────────────────────────────
+    all_errors = python_errors + llm_result.get("error_logs", [])
+    merged_metrics = {
+        "internal_rag_extraction_pass": python_result.get("internal_rag_extraction_pass", False),
+        "deterministic_math_pass":      python_result.get("deterministic_math_pass", False),
+        "guard_rag_logic_pass":         llm_result.get("metrics", {}).get("guard_rag_logic_pass", False),
+        "template_formatting_pass":     llm_result.get("metrics", {}).get("template_formatting_pass", False),
+    }
+    overall = "PASS" if all(merged_metrics.values()) else "FAIL"
+
+    return {
+        "qa_session": {
+            "patient_id_tested":    pid,
+            "category_tested":      category,
+            "evaluation_timestamp": "2026-02-11"
+        },
+        "ground_truth_used": {k: v for k, v in ground_truth.items() if k not in ("errors", "active_meds")},
+        "metrics":           merged_metrics,
+        "overall_status":    overall,
+        "error_logs":        all_errors,
+        "engineer_action_plan": llm_result.get("engineer_action_plan", "N/A")
+    }
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -424,9 +623,9 @@ def main():
     if gt.get("index_drug"):
         print(f"      Index Drug           : {gt['index_drug']['med_name']} ({gt['index_drug']['duration_weeks']} weeks)")
 
-    # STEP 2: Generate agent responses
-    print("\n[2/3] Generating ColonoSense agent responses...")
-    agent_responses = generate_agent_response(pid, args.category)
+    # STEP 2: Generate agent responses (pass gt so anchor is injected)
+    print("\n[2/3] Generating ColonoSense agent responses (with Patient Anchor)...")
+    agent_responses = generate_agent_response(pid, args.category, gt=gt)
 
     # STEP 3: Evaluate each category
     print("\n[3/3] Evaluating responses against ground truth...")

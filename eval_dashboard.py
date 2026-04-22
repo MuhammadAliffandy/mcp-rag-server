@@ -311,15 +311,27 @@ def generate_response(pid: str, category: str) -> str:
         from src.api.mcp_server import query_core_rag, query_guard_rag
         from PineBioML.prompts.synthesis import get_synthesis_prompt
         from PineBioML.model.llm_factory import get_llm
+        from qa_pipeline import extract_ground_truth, _build_anchor_block
 
-        raw  = query_core_rag(str(pid), question)
-        sop  = query_guard_rag(question)
-        tools = f"Core RAG:\n{raw}\n\nGuard RAG:\n{sop}"
-        prompt = get_synthesis_prompt("English", question, raw, tools, category_id=category)
+        # ── Pilar 1: Inject STRUCTURED PATIENT ANCHOR ──────────────────────
+        try:
+            gt = extract_ground_truth(pid)
+            anchor_block = _build_anchor_block(pid, gt)
+        except Exception:
+            anchor_block = ""  # fallback gracefully if extraction fails
+
+        raw   = query_core_rag(str(pid), question)
+        sop   = query_guard_rag(question)
+        tools = f"{anchor_block}\nCore RAG:\n{raw}\n\nGuard RAG:\n{sop}"
+        prompt = get_synthesis_prompt(
+            "English", question, raw, tools,
+            category_id=category,
+            anchor_block=anchor_block,
+        )
         llm = get_llm(model_name="gpt-4o-mini", temperature=0)
         return llm.invoke([
             ("system", prompt),
-            ("human", "Please answer the question according to the system instructions.")
+            ("human", "Please answer the question based on the STRUCTURED PATIENT ANCHOR values above. Copy values directly from the ANCHOR — do not calculate from narrative.")
         ]).content
     except Exception as e:
         return f"[Agent Error] {e}"

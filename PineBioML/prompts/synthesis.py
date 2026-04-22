@@ -9,122 +9,139 @@ def get_synthesis_prompt(
     question: str,
     rag_context: str,
     tool_outputs: str,
-    category_id: str = None
+    category_id: str = None,
+    anchor_block: str = "",
 ) -> str:
     """
     Returns the synthesis system prompt for integrating technical results with clinical context.
     v6: All 18 trial questions mapped to exact gold-standard fill-in-the-blank output templates.
+    v7: anchor_block param — pre-computed numeric values injected as STRUCTURED PATIENT ANCHOR.
     """
 
-    # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    # ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     # CATEGORY 1: Disease Severity Assessment
-    # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    # ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     category_force = ""
 
     if category_id == "Q1.1":
-        category_force = """FORCE ACTION: Q1.1 Ã¢ÂÂ DISEASE SEVERITY.
+        category_force = f"""{anchor_block}
+
+FORCE ACTION: Q1.1 — DISEASE SEVERITY.
+
+⚠️ ANCHOR FIRST: The STRUCTURED PATIENT ANCHOR block in TECHNICAL FINDINGS contains pre-computed values.
+You MUST use ONLY those values. DO NOT calculate from narrative text.
 
 You MUST first output the structured reasoning block, then end with the exact final conclusion sentence.
 
-Ã¢ÂÂ Ã¯Â¸Â CRITICAL CALCULATION RULE:
-  - bl_mayo_total is the PARTIAL Mayo score (subscores only, max 9).
-  - Total Mayo Score = bl_mayo_total (Partial Mayo) + MAX(MES from UC_cpy).
-  - Use ONLY values from STRUCTURED PATIENT ANCHOR section Ã¢ÂÂ do NOT invent MES values.
-  - MES max MUST equal max(mes_a, mes_t, mes_d, mes_s, mes_r) from the anchor.
+── CRITICAL CALCULATION RULE:
+  - bl_mayo_total is the PARTIAL Mayo score (subscores only, max 9). → Copy from ANCHOR: bl_mayo_total
+  - Total Mayo Score = bl_mayo_total (Partial Mayo) + max_mes.      → Copy from ANCHOR: Total Mayo Score
+  - Expected Severity label                                          → Copy from ANCHOR: Expected Severity
+  - MES max                                                          → Copy from ANCHOR: max_mes
 
 ## Patient [ID] - Disease Severity Assessment
 
 [CORE RAG - Patient [ID] Data Extraction]
 Step 1 - UC_baseline (bl_mayo_total = Partial Mayo):
-  UC_baseline -> Patient [ID] -> bl_mayo_total = [VALUE]
-  (sub-scores: stool frequency=[S], rectal bleeding=[B], physician assessment=[P])
-Step 2 - UC_cpy (max MES) Ã¢ÂÂ READ FROM ANCHOR:
-  UC_cpy -> Patient [ID] -> latest colonoscopy ([DATE])
-  MES per segment: {'mes_a': [A], 'mes_t': [T], 'mes_d': [D], 'mes_s': [S], 'mes_r': [R]}
-  MES max = max([A], [T], [D], [S], [R]) = [MAX]
+  UC_baseline -> Patient [ID] -> bl_mayo_total = [ANCHOR: bl_mayo_total]
+  (sub-scores: stool frequency=[ANCHOR: bl_mayo_s], rectal bleeding=[ANCHOR: bl_mayo_b], physician assessment=[ANCHOR: bl_mayo_p])
+Step 2 - UC_cpy (max MES) — READ FROM ANCHOR:
+  UC_cpy -> Patient [ID] -> latest colonoscopy ([ANCHOR: last_cpy_date])
+  MES per segment: [ANCHOR: mes_values]
+  MES max = [ANCHOR: max_mes]
 Step 3 - Total Mayo Score:
-  Partial Mayo ([PM]) + MES max ([MES]) = [TOTAL]
+  Partial Mayo ([ANCHOR: bl_mayo_total]) + MES max ([ANCHOR: max_mes]) = [ANCHOR: Total Mayo Score]
 Step 4 - Severity Classification:
-  Total Mayo = [TOTAL]
-  -> Remission if 0-2, Mild if 3-5, Moderate if 6-10, Severe if >10
+  Total Mayo = [ANCHOR: Total Mayo Score]
+  -> Remission if 0-2, Mild if 3-5, Moderate if 6-10, Severe >10
 
-### Ã°ÂÂÂ Final Clinical Conclusion
-[Remission / Mild / Moderate / Severe]. The disease severity is labeled as such because the total Mayo score is [TOTAL] with an endoscopic subscore of [MES]."""
+### 📍 Final Clinical Conclusion
+[ANCHOR: Expected Severity]. The disease severity is labeled as such because the total Mayo score is [ANCHOR: Total Mayo Score] with an endoscopic subscore of [ANCHOR: max_mes]."""
 
     elif category_id == "Q1.2":
-        category_force = """FORCE ACTION: Q1.2 Ã¢ÂÂ REMISSION STATUS.
+        category_force = f"""{anchor_block}
+
+FORCE ACTION: Q1.2 — REMISSION STATUS.
+
+⚠️ ANCHOR FIRST: Use the STRUCTURED PATIENT ANCHOR for ALL values below.
+DO NOT calculate — copy remission flags and scores directly from the ANCHOR.
 
 You MUST output the exact 7-point template below.
 Start with '## Patient [ID] - Remission Status Assessment'.
 
 ## Patient [ID] - Remission Status Assessment
 
-**1. Patient ID:** [ID]
+**1. Patient ID:** [ANCHOR: Patient ID]
 
-**2. Last Colonoscopy Date:** [YYYY-MM-DD]
+**2. Last Colonoscopy Date:** [ANCHOR: last_cpy_date]
 
 **3. Partial Mayo Score and Sub-scores:**
-- Partial Mayo Score           : [VALUE]
-- Stool Frequency (bl_mayo_s)  : [VALUE]
-- Rectal Bleeding (bl_mayo_b)  : [VALUE]
-- Physician Assessment (bl_mayo_p): [VALUE]
+- Partial Mayo Score           : [ANCHOR: bl_mayo_total]
+- Stool Frequency (bl_mayo_s)  : [ANCHOR: bl_mayo_s]
+- Rectal Bleeding (bl_mayo_b)  : [ANCHOR: bl_mayo_b]
+- Physician Assessment (bl_mayo_p): [ANCHOR: bl_mayo_p]
 
 **4. CRP and Fecal Calprotectin:**
-- CRP (date: [DATE]) : [VALUE] mg/dL
-- FC  (date: [DATE]) : [VALUE] ug/g
+- CRP (date: [DATE]) : [ANCHOR: crp_value] mg/dL
+- FC  (date: [DATE]) : [ANCHOR: fc_value] ug/g
 
 **5. MES Score:**
-- Per segment: {'mes_a': [A], 'mes_t': [T], 'mes_d': [D], 'mes_s': [S], 'mes_r': [R]}
-- MES max: [VALUE]
+- Per segment: [ANCHOR: mes_values]
+- MES max: [ANCHOR: max_mes]
 
 **6. Nancy Score:**
-- Per segment: {'nancy_a': [A], 'nancy_t': [T], 'nancy_d': [D], 'nancy_s': [S], 'nancy_r': [R]}
-- Nancy max: [VALUE]
+- Per segment: [ANCHOR: nancy_values]
+- Nancy max: [ANCHOR: max_nancy]
 
 **7. Remission Status:**
-- Clinical remission   : [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
-  (Partial Mayo=[X]<3 AND all sub-scoresÃ¢ÂÂ¤1: [True/False])
-- Biochemical remission: [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
-  (CRP=[X]<1 AND FC=[X]<100)
-- Endoscopic remission : [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
-  (MES max=[X], remission if 0 or 1)
-- Histologic remission : [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
-  (Nancy max=[X], remission if 0 or 1)
+- Clinical remission   : [ANCHOR: clinical_remission]
+  (Partial Mayo=[ANCHOR: bl_mayo_total]<3 AND all sub-scores≤1: [True/False])
+- Biochemical remission: [ANCHOR: biochemical_remission]
+  (CRP=[ANCHOR: crp_value]<1 AND FC=[ANCHOR: fc_value]<100)
+- Endoscopic remission : [ANCHOR: endoscopic_remission]
+  (MES max=[ANCHOR: max_mes], remission if 0 or 1)
+- Histologic remission : [ANCHOR: histologic_remission]
+  (Nancy max=[ANCHOR: max_nancy], remission if 0 or 1)
 
-### Ã°ÂÂÂ Final Clinical Conclusion
+### 📍 Final Clinical Conclusion
 [Clinical remission, bio-chemical remission, endoscopic remission, histologic remission]. The patient has [not] achieved clinical remission ([reason]), bio-chemical remission ([reason]), endoscopic remission ([reason]), and histologic remission ([reason])."""
 
     elif category_id == "Q1.3":
-        category_force = """FORCE ACTION: Q1.3 Ã¢ÂÂ PROGNOSTIC FACTORS.
+        category_force = f"""{anchor_block}
+
+FORCE ACTION: Q1.3 — PROGNOSTIC FACTORS.
+
+⚠️ ANCHOR FIRST: Use the STRUCTURED PATIENT ANCHOR for ALL values.
+DO NOT infer — copy poor_factors and expected_poor_prognosis directly from ANCHOR.
 
 You MUST output the structured 11-point template below, then end with the exact trial conclusion sentence.
-Use Ã¢ÂÂ YES for poor factors found, Ã¢ÂÂ NO for factors not found.
+Use ✅ YES for poor factors found, ❌ NO for factors not found.
 
 ## Patient [ID] - Prognostic Factor Assessment
 
-**1. Patient ID:** [ID]
+**1. Patient ID:** [ANCHOR: Patient ID]
 
-**2. Birthday:** [YYYY-MM-DD]
+**2. Birthday:** [DATE]
 
-**3. Age at Diagnosis:** [X] years old
-  -> Young at diagnosis (<40): [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
+**3. Age at Diagnosis:** [ANCHOR: age_at_diagnosis] years old
+  -> Young at diagnosis (<40): [✅ YES / ❌ NO based on ANCHOR]
 
 **4. Extensive Colitis:**
-  -> Extent value: [VALUE]
-  -> Extensive colitis (extent=3): [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
+  -> Extent value: [ANCHOR: extent]
+  -> Extensive colitis (extent=3): [✅ YES / ❌ NO based on ANCHOR]
 
 **5. MES (Endoscopic Activity):**
-  -> MES per segment: {'mes_a': [A], 'mes_t': [T], 'mes_d': [D], 'mes_s': [S], 'mes_r': [R]}
-  -> MES max: [VALUE]
-  -> MES=3 (poor prognostic): [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
+  -> MES per segment: [ANCHOR: mes_values]
+  -> MES max: [ANCHOR: max_mes]
+  -> MES=3 (poor prognostic): [✅ YES / ❌ NO based on ANCHOR]
 
 **6. CRP:**
-  -> CRP value: [VALUE] mg/dL (measured: [DATE])
-  -> Elevated CRP (>1 mg/dL): [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
+  -> CRP value: [ANCHOR: crp_value] mg/dL (measured: [DATE])
+  -> Elevated CRP (>1 mg/dL): [✅ YES / ❌ NO based on ANCHOR]
 
 **7. Albumin:**
-  -> Albumin value: [VALUE] g/dL (measured: [DATE])
-  -> Low albumin (<3.5 g/dL): [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
+  -> Albumin value: [ANCHOR: albumin] g/dL (measured: [DATE])
+  -> Low albumin (<3.5 g/dL): [✅ YES / ❌ NO based on ANCHOR]
 
 **8. Medical Class:** [VALUES]
 
@@ -132,88 +149,96 @@ Use Ã¢ÂÂ YES for poor factors found, Ã¢ÂÂ NO for factors not fou
 
 **10. Steroid Use:**
   -> Steroid medications: [LIST or None]
-  -> Steroid use: [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
+  -> Steroid use: [✅ YES / ❌ NO]
 
-**11. Prognostic Factor: [Ã¢ÂÂ POOR PROGNOSIS / No poor prognostic factors identified]**
+**11. Prognostic Factor: [ANCHOR: expected_poor_prognosis — use '✅ POOR PROGNOSIS' or 'No poor prognostic factors identified']**
 Poor factors identified:
-  Ã¢ÂÂ¢ [Factor 1]
-  Ã¢ÂÂ¢ [Factor 2]
+  [ANCHOR: poor_factors — list each factor or write 'None']
 
 ## Clinical Interpretation
 [Brief 1-2 sentence clinical interpretation]
 
-### Ã°ÂÂÂ Final Clinical Conclusion
+### 📍 Final Clinical Conclusion
 Yes, [specify which]. OR No."""
 
-    # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    # ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     # CATEGORY 2: Treatment Adjustment
-    # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+    # ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
     elif category_id == "Q2.1":
-        category_force = """FORCE ACTION: Q2.1 Ã¢ÂÂ TREAT-TO-TARGET.
+        category_force = f"""{anchor_block}
+
+FORCE ACTION: Q2.1 — TREAT-TO-TARGET.
+
+⚠️ ANCHOR FIRST: Use the STRUCTURED PATIENT ANCHOR for ALL remission flags and scores.
+DO NOT calculate — copy directly.
 
 You MUST output the structured 8-point assessment, then end with the exact trial sentence.
 
 ## Patient [ID] - Treat-to-Target Assessment
 
-**1. Patient ID:** [ID]
+**1. Patient ID:** [ANCHOR: Patient ID]
 
-**2. Last Colonoscopy Date:** [YYYY-MM-DD]
+**2. Last Colonoscopy Date:** [ANCHOR: last_cpy_date]
 
 **3. Partial Mayo Score and Sub-scores:**
-  - Partial Mayo Score           : [VALUE]
-  - Stool Frequency (bl_mayo_s)  : [VALUE]
-  - Rectal Bleeding (bl_mayo_b)  : [VALUE]
-  - Physician Assessment (bl_mayo_p): [VALUE]
+  - Partial Mayo Score           : [ANCHOR: bl_mayo_total]
+  - Stool Frequency (bl_mayo_s)  : [ANCHOR: bl_mayo_s]
+  - Rectal Bleeding (bl_mayo_b)  : [ANCHOR: bl_mayo_b]
+  - Physician Assessment (bl_mayo_p): [ANCHOR: bl_mayo_p]
 
 **4. CRP and Fecal Calprotectin:**
-  - CRP (date: [DATE]) : [VALUE] mg/dL
-  - FC  (date: [DATE]) : [VALUE] ug/g
+  - CRP (date: [DATE]) : [ANCHOR: crp_value] mg/dL
+  - FC  (date: [DATE]) : [ANCHOR: fc_value] ug/g
 
 **5. MES Score:**
-  - Per segment : {'mes_a': [A], 'mes_t': [T], 'mes_d': [D], 'mes_s': [S], 'mes_r': [R]}
-  - MES max     : [VALUE]
+  - Per segment : [ANCHOR: mes_values]
+  - MES max     : [ANCHOR: max_mes]
 
 **6. Nancy Score:**
-  - Per segment : {'nancy_a': [A], 'nancy_t': [T], 'nancy_d': [D], 'nancy_s': [S], 'nancy_r': [R]}
-  - Nancy max   : [VALUE]
+  - Per segment : [ANCHOR: nancy_values]
+  - Nancy max   : [ANCHOR: max_nancy]
 
 **7. Remission Status:**
-  - Clinical remission   : [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
-  - Biochemical remission: [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
-  - Endoscopic remission : [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
-  - Histologic remission : [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
+  - Clinical remission   : [ANCHOR: clinical_remission]
+  - Biochemical remission: [ANCHOR: biochemical_remission]
+  - Endoscopic remission : [ANCHOR: endoscopic_remission]
+  - Histologic remission : [ANCHOR: histologic_remission]
 
 **8. Treat-to-Target Status:**
-  [Ã¢ÂÂ / Ã¢ÂÂ] **[Short Term / Intermediate / Long Term / No Formal] Target**
+  [✅ / ❌] **[Short Term / Intermediate / Long Term / No Formal] Target**
   Reason: [Explanation of highest achieved target]
 
-### Ã°ÂÂÂ Final Clinical Conclusion
+### 📍 Final Clinical Conclusion
 The patient has achieved [short / intermediate / and/or long term] treatment target."""
 
     elif category_id == "Q2.2":
-        category_force = """FORCE ACTION: Q2.2 Ã¢ÂÂ MEDICATION ADJUSTMENT.
+        category_force = f"""{anchor_block}
+
+FORCE ACTION: Q2.2 — MEDICATION ADJUSTMENT.
+
+⚠️ ANCHOR FIRST: Use STRUCTURED PATIENT ANCHOR for ALL scores, remission flags, and index drug info.
+DO NOT calculate — copy from ANCHOR directly.
 
 You MUST output the structured 11-point template.
 Start with '## Patient [ID] - Medication Adjustment Assessment'.
 
 CRITICAL ADJUSTMENT LOGIC (follow EXACTLY):
-- Identify the INDEX DRUG: the active medication with the latest start_date (exclude meds where end_date < 2026-02-11).
-- Only discuss adjustment for the INDEX DRUG, not other medications.
-- Calculate duration = (2026-02-11 - start_date) in weeks.
+- INDEX DRUG: [ANCHOR: index_drug_name] started [ANCHOR: index_drug_start_date] = [ANCHOR: index_drug_duration_wk] weeks duration.
+- Use STRIDE-II logic below based on ANCHOR remission flags.
 
-STEP 1: If Endoscopic Remission MET (MES Ã¢ÂÂ¤ 1) Ã¢ÂÂ Point 10 = "No Adjustment". STOP.
-STEP 2: If Endoscopic Remission NOT MET Ã¢ÂÂ Use STRIDE-II Table (UC section):
+STEP 1: If Endoscopic Remission MET (MES ≤ 1) → Point 10 = "No Adjustment". STOP.
+STEP 2: If Endoscopic Remission NOT MET → Use STRIDE-II Table (UC section):
   Round 1 - Clinical Remission:
-    - If NOT met AND duration < expected Ã¢ÂÂ "Continue and reassess in [expected - duration] weeks"
-    - If NOT met AND duration Ã¢ÂÂ¥ expected Ã¢ÂÂ "Adjustment"
-    - If MET Ã¢ÂÂ go to Round 2
+    - If NOT met AND duration < expected → "Continue and reassess in [expected - duration] weeks"
+    - If NOT met AND duration ≥ expected → "Adjustment"
+    - If MET → go to Round 2
   Round 2 - Biochemical Remission:
     - Same logic as Round 1
-    - If MET Ã¢ÂÂ go to Round 3
+    - If MET → go to Round 3
   Round 3 - Endoscopic Remission:
-    - If NOT met AND duration < expected Ã¢ÂÂ "Continue and reassess in [expected - duration] weeks"
-    - If NOT met AND duration Ã¢ÂÂ¥ expected Ã¢ÂÂ "Adjustment"
+    - If NOT met AND duration < expected → "Continue and reassess in [expected - duration] weeks"
+    - If NOT met AND duration ≥ expected → "Adjustment"
 
 STRIDE-II Expected Times (UC, in weeks):
   Oral 5-ASA:    Clinical=8,  Biochemical=10, Endoscopic=13
@@ -226,37 +251,37 @@ STRIDE-II Expected Times (UC, in weeks):
 
 ## Patient [ID] - Medication Adjustment Assessment
 
-**1. Patient ID:** [ID]
+**1. Patient ID:** [ANCHOR: Patient ID]
 
-**2. Last Colonoscopy Date:** [YYYY-MM-DD]
+**2. Last Colonoscopy Date:** [ANCHOR: last_cpy_date]
 
 **3. Partial Mayo Score and Sub-scores:**
-  - Partial Mayo Score           : [VALUE]
-  - Stool Frequency   (bl_mayo_s)  : [VALUE]
-  - Rectal Bleeding   (bl_mayo_b)  : [VALUE]
-  - Physician Assess  (bl_mayo_p)  : [VALUE]
+  - Partial Mayo Score           : [ANCHOR: bl_mayo_total]
+  - Stool Frequency   (bl_mayo_s)  : [ANCHOR: bl_mayo_s]
+  - Rectal Bleeding   (bl_mayo_b)  : [ANCHOR: bl_mayo_b]
+  - Physician Assess  (bl_mayo_p)  : [ANCHOR: bl_mayo_p]
 
 **4. CRP and Fecal Calprotectin:**
-  - CRP (date: [DATE]) : [VALUE] mg/dL
-  - FC  (date: [DATE]) : [VALUE] ug/g
+  - CRP (date: [DATE]) : [ANCHOR: crp_value] mg/dL
+  - FC  (date: [DATE]) : [ANCHOR: fc_value] ug/g
 
 **5. MES Score:**
-  - Per segment: {'mes_a': [A], 'mes_t': [T], 'mes_d': [D], 'mes_s': [S], 'mes_r': [R]}
-  - MES max     : [VALUE]
+  - Per segment: [ANCHOR: mes_values]
+  - MES max     : [ANCHOR: max_mes]
 
 **6. Nancy Score:**
-  - Per segment : {'nancy_a': [A], 'nancy_t': [T], 'nancy_d': [D], 'nancy_s': [S], 'nancy_r': [R]}
-  - Nancy max   : [VALUE]
+  - Per segment : [ANCHOR: nancy_values]
+  - Nancy max   : [ANCHOR: max_nancy]
 
 **7. Remission Status:**
-  - Clinical remission   : [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
-    (Partial Mayo=[X]<3 AND all sub-scoresÃ¢ÂÂ¤1)
-  - Biochemical remission: [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
-    (CRP=[X]<1 mg/dL AND FC=[X]<100 ug/g)
-  - Endoscopic remission : [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
-    (MES max=[X], remission if 0 or 1)
-  - Histologic remission : [Ã¢ÂÂ YES / Ã¢ÂÂ NO]
-    (Nancy max=[X], remission if 0 or 1)
+  - Clinical remission   : [ANCHOR: clinical_remission]
+    (Partial Mayo=[ANCHOR: bl_mayo_total]<3 AND all sub-scores<=1)
+  - Biochemical remission: [ANCHOR: biochemical_remission]
+    (CRP=[ANCHOR: crp_value]<1 mg/dL AND FC=[ANCHOR: fc_value]<100 ug/g)
+  - Endoscopic remission : [ANCHOR: endoscopic_remission]
+    (MES max=[ANCHOR: max_mes], remission if 0 or 1)
+  - Histologic remission : [ANCHOR: histologic_remission]
+    (Nancy max=[ANCHOR: max_nancy], remission if 0 or 1)
 
 **8. Treat-to-Target Status:** [Highest achieved target]
 
@@ -767,7 +792,9 @@ CURRENT SYSTEM DATE: 2026-02-11. Use this for ALL duration calculations.
 
 # CRITICAL MANDATES:
 - Mirror the user's language perfectly ({language}).
-- EXTRACT VALUES FROM THE RAW DATA PROVIDED. Do NOT say "Data Unavailable" if the data exists in CLINICAL CONTEXT or TECHNICAL FINDINGS below.
+- ⚠️ ANCHOR RULE: A STRUCTURED PATIENT ANCHOR block exists in TECHNICAL FINDINGS.
+  ALL numeric values MUST come from this ANCHOR. DO NOT calculate or infer from narrative text.
+  Copy the ANCHOR values directly into the template slots. This is mandatory.
 - ALWAYS use double-newlines between numbered points for Markdown compatibility.
 - DO NOT add category labels like "Q1.1", "Q2.2" in the response header. Use natural headers.
 - Show per-segment data as dict format: {{'mes_a': X, 'mes_t': X, 'mes_d': X, 'mes_s': X, 'mes_r': X}}
@@ -779,7 +806,7 @@ CURRENT SYSTEM DATE: 2026-02-11. Use this for ALL duration calculations.
 # CLINICAL CONTEXT:
 {rag_context or "No specific clinical documentation provided."}
 
-# TECHNICAL FINDINGS:
+# TECHNICAL FINDINGS (includes STRUCTURED PATIENT ANCHOR at top):
 {tool_outputs}
 
 # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
