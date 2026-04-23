@@ -18,6 +18,41 @@ import os, sys, json, re, math, datetime, itertools
 import pandas as pd
 import numpy as np
 import streamlit as st
+
+def _clean_response_for_client(text: str) -> str:
+    """Convert raw LLM output to client-readable clinical format."""
+    if not text:
+        return text
+    SEG = {
+        "mes_a": "Ascending (A)", "mes_t": "Transverse (T)",
+        "mes_d": "Descending (D)", "mes_s": "Sigmoid (S)", "mes_r": "Rectum (R)",
+        "nancy_a": "Ascending (A)", "nancy_t": "Transverse (T)",
+        "nancy_d": "Descending (D)", "nancy_s": "Sigmoid (S)", "nancy_r": "Rectum (R)",
+        "bl_mayo_total": "Partial Mayo Score", "bl_mayo_s": "Stool Frequency",
+        "bl_mayo_b": "Rectal Bleeding", "bl_mayo_p": "Physician Assessment",
+        "max_mes": "MES Max", "max_nancy": "Nancy Max",
+    }
+    import re as _r
+    def _dict_to_table(m):
+        pairs = _r.findall(r"[\x27\x22]?(\w+)[\x27\x22]?\s*:\s*([\d.]+)", m.group(1))
+        if not pairs:
+            return m.group(0)
+        parts = []
+        for k, v in pairs:
+            label = SEG.get(k, k)
+            try:
+                fv = float(v); val = str(int(fv)) if fv == int(fv) else v
+            except Exception:
+                val = v
+            parts.append(f"{label}: {val}")
+        return " | ".join(parts)
+    text = _r.sub(r"\{([^{}]+)\}", _dict_to_table, text)
+    for k, v in SEG.items():
+        text = text.replace(k, v)
+    text = _r.sub(r"\b(\d+)\.0\b", r"\1", text)
+    text = text.replace(": True", ": Yes").replace(": False", ": No")
+    return text
+
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
