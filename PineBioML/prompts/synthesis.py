@@ -147,12 +147,12 @@ Use ✅ YES for poor factors found, ❌ NO for factors not found.
   -> Albumin value: [ANCHOR: albumin] g/dL (measured: [DATE])
   -> Low albumin (<3.5 g/dL): [✅ YES / ❌ NO based on ANCHOR]
 
-**8. Medical Class:** [VALUES]
+**8. Medical Class:** [ANCHOR: index_drug_class]
 
-**9. Medical Name:** [NAMES]
+**9. Medical Name:** [ANCHOR: index_drug_name]
 
 **10. Steroid Use:**
-  -> Steroid medications: [LIST or None]
+  -> Steroid medications: [List from RAG narrative if any, else None]
   -> Steroid use: [✅ YES / ❌ NO]
 
 **11. Prognostic Factor: [ANCHOR: expected_poor_prognosis — use '✅ POOR PROGNOSIS' or 'No poor prognostic factors identified']**
@@ -254,6 +254,8 @@ STRIDE-II Expected Times (UC, in weeks):
   Infliximab:    Clinical=10, Biochemical=11, Endoscopic=13
   Vedolizumab:   Clinical=14, Biochemical=15, Endoscopic=18
   Tofacitinib:   Clinical=11, Biochemical=11, Endoscopic=14
+  Risankizumab:  Clinical=12, Biochemical=12, Endoscopic=24
+  Ustekinumab:   Clinical=16, Biochemical=16, Endoscopic=24
 
 ## Patient [ID] - Medication Adjustment Assessment
 

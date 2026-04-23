@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 load_dotenv()
 
-EXCEL_FILE = "internal_docs/4DEADFE0FD06EA10E459256A2E85237AB43BD9EB_UC_20260304(follow_up_20260211)_long.xlsx"
+EXCEL_FILE = "internal_docs/AI_UC_20260304(follow_up_20260211)_long.xlsx"
 EVAL_DATE  = datetime.datetime(2026, 2, 11)
 
 # Correct header rows per sheet (confirmed by inspection)
@@ -146,8 +146,19 @@ def extract_gt(pid) -> dict:
         gt.update({"max_mes": 0.0, "last_cpy": None, "mes_values": {}})
         if not c_rows.empty:
             sc = "date_cpy" if "date_cpy" in df_c.columns else df_c.columns[1]
-            lc = c_rows.sort_values(sc).iloc[-1]
-            gt["last_cpy"] = str(lc.get(sc, ""))[:10]
+            c_rows = c_rows.copy()
+            c_rows[sc] = pd.to_datetime(c_rows[sc], errors="coerce")
+            c_rows_sorted = c_rows.sort_values(sc)
+            bl_date = pd.to_datetime(b.get("date_cpy"), errors="coerce") if "date_cpy" in b.index else None
+            lc = None
+            if bl_date is not None and pd.notnull(bl_date):
+                bl_match = c_rows_sorted[c_rows_sorted[sc] == bl_date]
+                if not bl_match.empty:
+                    lc = bl_match.iloc[-1]
+            if lc is None:
+                c_before = c_rows_sorted[c_rows_sorted[sc] <= EVAL_DATE]
+                lc = c_before.iloc[-1] if not c_before.empty else c_rows_sorted.iloc[0]
+            gt["last_cpy"] = str(lc[sc].date()) if pd.notnull(lc[sc]) else None
             mes_seg = {k: float(lc[k]) for k in ["mes_a","mes_t","mes_d","mes_s","mes_r"]
                        if k in lc.index and pd.notnull(lc[k])}
             gt["mes_values"] = mes_seg
@@ -158,7 +169,18 @@ def extract_gt(pid) -> dict:
         gt.update({"max_nancy": 0.0, "nancy_values": {}})
         if not h_rows.empty:
             sc = "date_cpy" if "date_cpy" in df_h.columns else df_h.columns[1]
-            lh = h_rows.sort_values(sc).iloc[-1]
+            h_rows = h_rows.copy()
+            h_rows[sc] = pd.to_datetime(h_rows[sc], errors="coerce")
+            h_rows_sorted = h_rows.sort_values(sc)
+            bl_date = pd.to_datetime(b.get("date_cpy"), errors="coerce") if "date_cpy" in b.index else None
+            lh = None
+            if bl_date is not None and pd.notnull(bl_date):
+                bl_match = h_rows_sorted[h_rows_sorted[sc] == bl_date]
+                if not bl_match.empty:
+                    lh = bl_match.iloc[-1]
+            if lh is None:
+                h_before = h_rows_sorted[h_rows_sorted[sc] <= EVAL_DATE]
+                lh = h_before.iloc[-1] if not h_before.empty else h_rows_sorted.iloc[0]
             nancy_seg = {k: float(lh[k]) for k in ["nancy_a","nancy_t","nancy_d","nancy_s","nancy_r"]
                          if k in lh.index and pd.notnull(lh[k])}
             gt["nancy_values"] = nancy_seg

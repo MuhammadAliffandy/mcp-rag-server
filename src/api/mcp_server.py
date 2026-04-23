@@ -712,7 +712,7 @@ def query_core_rag(patient_id: str, query_intent: str) -> str:
             import datetime as _dt
             _EVAL_DATE   = _dt.datetime(2026, 2, 11)
             _EXCEL_FILE  = os.path.join(INTERNAL_KNOWLEDGE_PATH,
-                "4DEADFE0FD06EA10E459256A2E85237AB43BD9EB_UC_20260304(follow_up_20260211)_long.xlsx")
+                "AI_UC_20260304(follow_up_20260211)_long.xlsx")
             _SHEET_HDR   = {"UC_baseline": 1, "UC_cpy": 0, "UC_lab": 0, "UC_histo": 0, "UC_med": 1}
 
             def _pid_match(df, pid):

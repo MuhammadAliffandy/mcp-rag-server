@@ -28,7 +28,7 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 load_dotenv()
 
 # ── constants ─────────────────────────────────────────────────────────────────
-EXCEL_FILE = "internal_docs/4DEADFE0FD06EA10E459256A2E85237AB43BD9EB_UC_20260304(follow_up_20260211)_long.xlsx"
+EXCEL_FILE = "internal_docs/AI_UC_20260304(follow_up_20260211)_long.xlsx"
 EVAL_DATE  = datetime.datetime(2026, 2, 11)
 
 SHEET_HEADER = {
