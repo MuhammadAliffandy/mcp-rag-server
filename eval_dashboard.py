@@ -726,7 +726,7 @@ with st.sidebar:
     category = st.selectbox("Category", ["all"] + ALL_CATEGORIES, format_func=lambda x: "All 18 Categories" if x == "all" else x)
 
     st.markdown('<div style="font-size:.7rem;color:#5555aa;letter-spacing:.08em;text-transform:uppercase;margin:12px 0 6px;">Evaluation Mode</div>', unsafe_allow_html=True)
-    eval_mode = st.radio("Mode", ["🤖 Auto (LLM Judge)", "✍️ Manual Rater Entry", "📊 View Reports"], label_visibility="collapsed")
+    eval_mode = st.radio("Mode", ["🤖 Auto (LLM Judge)", "✍️ Manual Rater Entry", "📊 View Reports", "📄 Export Report"], label_visibility="collapsed")
 
     st.divider()
 
@@ -750,6 +750,37 @@ with st.sidebar:
         </div>
         """, unsafe_allow_html=True)
 
+# Question mapping for report display
+QUESTION_MAP = {
+    "Q1.1": "What is the disease severity for this patient?",
+    "Q1.2": "What is the remission status for this patient?",
+    "Q1.3": "What are the prognostic factors for this patient?",
+    "Q2.1": "What treat-to-target status has this patient achieved?",
+    "Q2.2": "Should the medication be adjusted for this patient?",
+    "Q2.3": "What is the recommended next treatment option?",
+    "Q3.1": "What is the colorectal cancer screening plan?",
+    "Q3.2": "What other cancer screenings should this patient receive?",
+    "Q4.1": "What non-invasive monitoring exams are needed?",
+    "Q4.2": "Is therapeutic drug monitoring recommended?",
+    "Q4.3": "What medication-specific monitoring is required?",
+    "Q4.4": "What opportunistic infection screenings and vaccinations are required?",
+    "Q5.1": "What dietary recommendations are needed?",
+    "Q5.2": "What nutritional supplements or deficiency screenings are needed?",
+    "Q5.3": "What lifestyle modifications are recommended?",
+    "Q6.1": "Which medications are safe during pregnancy?",
+    "Q6.2": "What maternal risks does the patient face?",
+    "Q6.3": "What fetal/neonatal risks does the patient face?",
+}
+
+DOMAIN_MAP = {
+    "Q1": ("Domain 1", "Disease Assessment", "#2563eb"),
+    "Q2": ("Domain 2", "Treatment Management", "#7c3aed"),
+    "Q3": ("Domain 3", "Cancer Surveillance", "#059669"),
+    "Q4": ("Domain 4", "Monitoring & Safety", "#d97706"),
+    "Q5": ("Domain 5", "Lifestyle & Nutrition", "#dc2626"),
+    "Q6": ("Domain 6", "Pregnancy & Reproduction", "#db2777"),
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MAIN CONTENT
 # ─────────────────────────────────────────────────────────────────────────────
@@ -757,6 +788,148 @@ st.markdown("# 🩺 ColonoSense Clinical Evaluation")
 st.markdown('<div style="color:#5555aa;margin-top:-8px;margin-bottom:24px;">End-to-end QA matching the 5-dimension evaluation rubric</div>', unsafe_allow_html=True)
 
 store = load_store()
+
+# ════════════════════════════════════════════════════════════════════════
+# MODE: EXPORT REPORT (white background, screenshot-ready)
+# ════════════════════════════════════════════════════════════════════════
+if "📄" in eval_mode:
+    if not store:
+        st.info("No evaluation data yet. Run an evaluation first, then come back here.")
+    else:
+        pid_filter = pid.strip() if pid.strip() else None
+        sessions_filtered = {
+            k: v for k, v in store.items()
+            if pid_filter is None or str(v.get("patient_id", "")) == str(pid_filter)
+        }
+        if not sessions_filtered:
+            st.warning(f"No sessions found for Patient ID: {pid_filter}.")
+        else:
+            st.markdown("""<style>
+            [data-testid="stAppViewContainer"],.stApp,[data-testid="stAppViewBlockContainer"]{background:#fff!important;color:#111!important;}
+            .rpt-header{background:#1e3a5f;color:white;padding:28px 36px;border-radius:14px;margin-bottom:28px;}
+            .rpt-scard{background:#f8faff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;text-align:center;margin-bottom:6px;}
+            .rpt-sval{font-size:2.2rem;font-weight:800;line-height:1;}
+            .rpt-slabel{font-size:.68rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-top:4px;}
+            .rpt-domain{color:white;padding:10px 18px;border-radius:8px;margin:24px 0 12px;font-weight:700;}
+            .rpt-qa{background:#fff;border:1px solid #e2e8f0;border-left:5px solid #2563eb;border-radius:10px;padding:18px 22px;margin-bottom:14px;}
+            .rpt-badge{background:#1e3a5f;color:white;font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:5px;margin-right:6px;}
+            .rpt-q{font-size:.95rem;font-weight:600;color:#1e293b;margin:10px 0 12px;}
+            .rpt-resp{background:#f8faff;border:1px solid #e2e8f0;border-radius:7px;padding:12px 16px;font-size:.82rem;color:#374151;line-height:1.7;white-space:pre-wrap;margin-bottom:12px;max-height:380px;overflow-y:auto;}
+            .rpt-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+            .rpt-chip{border-radius:20px;padding:4px 13px;font-size:.72rem;font-weight:600;border:1px solid;}
+            .rpt-g{background:#dcfce7;border-color:#86efac;color:#166534;}
+            .rpt-y{background:#fef9c3;border-color:#fde047;color:#713f12;}
+            .rpt-r{background:#fee2e2;border-color:#fca5a5;color:#991b1b;}
+            </style>""", unsafe_allow_html=True)
+
+            all_s = list(sessions_filtered.values())
+            def _avg(key): return np.mean([s.get(key) or 0 for s in all_s]) * 100
+            avg_acc  = _avg("data_retrieval_accuracy")
+            avg_corr = _avg("output_correctness_rate")
+            avg_conc = _avg("concordance_rate")
+            avg_comp = _avg("completeness_rate")
+            avg_help = _avg("helpfulness_rate")
+            overall  = np.mean([avg_acc, avg_corr, avg_conc, avg_comp, avg_help])
+
+            def _ccolor(v): return "#16a34a" if v>=75 else "#d97706" if v>=50 else "#dc2626"
+            def _cclass(v): return "rpt-g" if v>=75 else "rpt-y" if v>=50 else "rpt-r"
+
+            st.markdown(f"""<div class="rpt-header">
+                <div style="font-size:.75rem;opacity:.7;letter-spacing:.1em;text-transform:uppercase;">ColonoSense — Clinical AI QA Report</div>
+                <div style="font-size:1.9rem;font-weight:800;margin:6px 0 4px;">Patient ID: {pid_filter or "All Patients"}</div>
+                <div style="opacity:.8;font-size:.88rem;">Evaluation Date: 2026-02-11 &nbsp;|&nbsp; Model: Llama 3.1 70B (Ollama) &nbsp;|&nbsp; {len(all_s)} categories &nbsp;|&nbsp; Overall: <strong>{overall:.1f}%</strong></div>
+            </div>""", unsafe_allow_html=True)
+
+            st.markdown("#### 📊 Overall Accuracy Summary")
+            cols = st.columns(5)
+            for col, label, val in zip(cols,
+                ["Data Retrieval","Correctness","Concordance","Completeness","Helpfulness"],
+                [avg_acc, avg_corr, avg_conc, avg_comp, avg_help]):
+                col.markdown(f"""<div class="rpt-scard">
+                    <div class="rpt-sval" style="color:{_ccolor(val)};">{val:.1f}%</div>
+                    <div class="rpt-slabel">{label}</div></div>""", unsafe_allow_html=True)
+
+            st.markdown("<hr style='margin:24px 0;border-color:#e2e8f0;'>", unsafe_allow_html=True)
+            st.markdown("#### 📋 Question-by-Question Responses & Scores")
+
+            html_body = [f"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<title>ColonoSense QA Report — Patient {pid_filter}</title>
+<style>body{{font-family:'Segoe UI',Arial,sans-serif;background:#fff;color:#111;margin:40px;max-width:960px;}}
+h1{{color:#1e3a5f;}} .meta{{color:#64748b;font-size:.85rem;margin-bottom:24px;}}
+.sum{{display:flex;gap:12px;margin-bottom:28px;flex-wrap:wrap;}}
+.sc{{background:#f8faff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 18px;text-align:center;min-width:140px;}}
+.sv{{font-size:1.9rem;font-weight:800;}} .sl{{font-size:.68rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em;}}
+.dom{{background:#1e3a5f;color:white;padding:10px 18px;border-radius:8px;margin:24px 0 12px;font-weight:700;}}
+.qa{{border:1px solid #e2e8f0;border-left:5px solid #2563eb;border-radius:10px;padding:16px 20px;margin-bottom:14px;}}
+.badge{{background:#1e3a5f;color:white;font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:5px;}}
+.q{{font-size:.9rem;font-weight:600;color:#1e293b;margin:10px 0 12px;}}
+.resp{{background:#f8faff;border:1px solid #e2e8f0;border-radius:6px;padding:12px 16px;font-size:.8rem;color:#374151;line-height:1.7;white-space:pre-wrap;margin-bottom:12px;}}
+.chips{{display:flex;gap:6px;flex-wrap:wrap;}}
+.chip{{border-radius:20px;padding:3px 12px;font-size:.7rem;font-weight:600;border:1px solid;}}
+.g{{background:#dcfce7;border-color:#86efac;color:#166534;}} .y{{background:#fef9c3;border-color:#fde047;color:#713f12;}} .r{{background:#fee2e2;border-color:#fca5a5;color:#991b1b;}}
+</style></head><body>
+<h1>🧺 ColonoSense — Clinical AI QA Report</h1>
+<div class="meta">Patient ID: {pid_filter or "All"} | Model: Llama 3.1 70B | {len(all_s)} sessions | Overall: {overall:.1f}%</div>
+<div class="sum">"""]
+
+            for label, val in [("Data Retrieval",avg_acc),("Correctness",avg_corr),("Concordance",avg_conc),("Completeness",avg_comp),("Helpfulness",avg_help)]:
+                c = "#16a34a" if val>=75 else "#d97706" if val>=50 else "#dc2626"
+                html_body.append(f'<div class="sc"><div class="sv" style="color:{c};">{val:.1f}%</div><div class="sl">{label}</div></div>')
+            html_body.append("</div>")
+
+            current_domain = None
+            for cat in ALL_CATEGORIES:
+                cat_sessions = {k: v for k, v in sessions_filtered.items() if v.get("category") == cat}
+                if not cat_sessions:
+                    continue
+                s = cat_sessions[sorted(cat_sessions.keys())[-1]]
+                domain_key = cat[:2]
+                if domain_key != current_domain:
+                    current_domain = domain_key
+                    _, dom_name, dom_color = DOMAIN_MAP.get(domain_key, ("", cat, "#2563eb"))
+                    st.markdown(f'<div class="rpt-domain" style="background:linear-gradient(90deg,{dom_color},{dom_color}88);">📁 {domain_key} — {dom_name}</div>', unsafe_allow_html=True)
+                    html_body.append(f'<div class="dom">{domain_key} — {dom_name}</div>')
+
+                question = QUESTION_MAP.get(cat, f"Question {cat}")
+                response = s.get("agent_response", "—")
+                acc   = (s.get("data_retrieval_accuracy") or 0)*100
+                corr  = (s.get("output_correctness_rate") or 0)*100
+                conc  = (s.get("concordance_rate") or 0)*100
+                comp  = (s.get("completeness_rate") or 0)*100
+                help_ = (s.get("helpfulness_rate") or 0)*100
+
+                def _chip(lbl, v):
+                    return f'<span class="rpt-chip {_cclass(v)}">{lbl}: {v:.0f}%</span>'
+                def _hchip(lbl, v):
+                    c2 = "g" if v>=75 else "y" if v>=50 else "r"
+                    return f'<span class="chip {c2}">{lbl}: {v:.0f}%</span>'
+
+                ts = s.get("timestamp","")[:16]
+                resp_display = response[:2500] + ("..." if len(response)>2500 else "")
+                st.markdown(f"""<div class="rpt-qa">
+                    <div><span class="rpt-badge">{cat}</span><span style="font-size:.75rem;color:#94a3b8;">{ts}</span></div>
+                    <div class="rpt-q">❓ {question}</div>
+                    <div class="rpt-resp">{resp_display}</div>
+                    <div class="rpt-chips">{_chip("Retrieval",acc)}{_chip("Correctness",corr)}{_chip("Concordance",conc)}{_chip("Completeness",comp)}{_chip("Helpfulness",help_)}</div>
+                </div>""", unsafe_allow_html=True)
+
+                html_body.append(f'''<div class="qa">
+<div><span class="badge">{cat}</span> <small style="color:#94a3b8">{ts}</small></div>
+<div class="q">❓ {question}</div>
+<div class="resp">{response}</div>
+<div class="chips">{_hchip("Retrieval",acc)}{_hchip("Correctness",corr)}{_hchip("Concordance",conc)}{_hchip("Completeness",comp)}{_hchip("Helpfulness",help_)}</div>
+</div>''')
+
+            html_body.append("</body></html>")
+            st.markdown("<br>", unsafe_allow_html=True)
+            fname = f"colonosense_report_patient{pid_filter}_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.html"
+            st.download_button(
+                "⬇ Download Full Report (HTML)",
+                data="\n".join(html_body),
+                file_name=fname,
+                mime="text/html",
+                use_container_width=True,
+            )
 
 # ════════════════════════════════════════════════════════════════════════
 # MODE: VIEW REPORTS
