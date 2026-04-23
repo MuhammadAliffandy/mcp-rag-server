@@ -498,6 +498,7 @@ def _val_found_in_text(raw_val, text: str) -> bool:
     return False
 
 
+
 def _run_judge_deterministic_retrieval(gt: dict, response: str) -> dict:
     """
     Dim 1 — Data Retrieval Accuracy: 100% deterministic Python, no LLM needed.
@@ -806,17 +807,18 @@ if "📄" in eval_mode:
         else:
             st.markdown("""<style>
             [data-testid="stAppViewContainer"],.stApp,[data-testid="stAppViewBlockContainer"]{background:#fff!important;color:#111!important;}
-            .rpt-header{background:#1e3a5f;color:white;padding:28px 36px;border-radius:14px;margin-bottom:28px;}
-            .rpt-scard{background:#f8faff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;text-align:center;margin-bottom:6px;}
+            .rpt-header{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);color:white;padding:32px 40px;border-radius:16px;margin-bottom:32px;box-shadow:0 4px 24px rgba(37,99,235,.15);}
+            .rpt-scard{background:#f8faff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;text-align:center;margin-bottom:6px;}
             .rpt-sval{font-size:2.2rem;font-weight:800;line-height:1;}
-            .rpt-slabel{font-size:.68rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-top:4px;}
-            .rpt-domain{color:white;padding:10px 18px;border-radius:8px;margin:24px 0 12px;font-weight:700;}
-            .rpt-qa{background:#fff;border:1px solid #e2e8f0;border-left:5px solid #2563eb;border-radius:10px;padding:18px 22px;margin-bottom:14px;}
-            .rpt-badge{background:#1e3a5f;color:white;font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:5px;margin-right:6px;}
-            .rpt-q{font-size:.95rem;font-weight:600;color:#1e293b;margin:10px 0 12px;}
-            .rpt-resp{background:#f8faff;border:1px solid #e2e8f0;border-radius:7px;padding:12px 16px;font-size:.82rem;color:#374151;line-height:1.7;white-space:pre-wrap;margin-bottom:12px;max-height:380px;overflow-y:auto;}
-            .rpt-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
-            .rpt-chip{border-radius:20px;padding:4px 13px;font-size:.72rem;font-weight:600;border:1px solid;}
+            .rpt-slabel{font-size:.68rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-top:6px;}
+            .rpt-domain{color:white;padding:11px 20px;border-radius:9px;margin:28px 0 14px;font-weight:700;font-size:.95rem;letter-spacing:.01em;}
+            .rpt-qa{background:#fff;border:1px solid #e2e8f0;border-left:5px solid #2563eb;border-radius:12px;padding:22px 26px;margin-bottom:18px;box-shadow:0 1px 6px rgba(0,0,0,.04);}
+            .rpt-badge{background:#1e3a5f;color:white;font-size:.72rem;font-weight:700;padding:4px 12px;border-radius:20px;margin-right:8px;letter-spacing:.02em;}
+            .rpt-q{font-size:1rem;font-weight:700;color:#1e293b;margin:12px 0 4px;border-bottom:1px solid #f1f5f9;padding-bottom:10px;}
+            .rpt-q-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:4px;}
+            .rpt-resp-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin:14px 0 6px;font-weight:600;}
+            .rpt-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9;}
+            .rpt-chip{border-radius:20px;padding:5px 14px;font-size:.72rem;font-weight:700;border:1px solid;}
             .rpt-g{background:#dcfce7;border-color:#86efac;color:#166534;}
             .rpt-y{background:#fef9c3;border-color:#fde047;color:#713f12;}
             .rpt-r{background:#fee2e2;border-color:#fca5a5;color:#991b1b;}
@@ -905,18 +907,39 @@ h1{{color:#1e3a5f;}} .meta{{color:#64748b;font-size:.85rem;margin-bottom:24px;}}
                     return f'<span class="chip {c2}">{lbl}: {v:.0f}%</span>'
 
                 ts = s.get("timestamp","")[:16]
-                resp_display = response[:2500] + ("..." if len(response)>2500 else "")
-                st.markdown(f"""<div class="rpt-qa">
-                    <div><span class="rpt-badge">{cat}</span><span style="font-size:.75rem;color:#94a3b8;">{ts}</span></div>
-                    <div class="rpt-q">❓ {question}</div>
-                    <div class="rpt-resp">{resp_display}</div>
-                    <div class="rpt-chips">{_chip("Retrieval",acc)}{_chip("Correctness",corr)}{_chip("Concordance",conc)}{_chip("Completeness",comp)}{_chip("Helpfulness",help_)}</div>
-                </div>""", unsafe_allow_html=True)
+                resp_clean = _clean_response_for_client(response)
+
+                # Render card header + metadata
+                st.markdown(f"""
+                <div class="rpt-qa">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span class="rpt-badge">{cat}</span>
+                        <span style="font-size:.72rem;color:#94a3b8;">Patient {s.get('patient_id','—')} &nbsp;|&nbsp; {ts}</span>
+                    </div>
+                    <div class="rpt-q-label" style="margin-top:12px;">Clinical Question</div>
+                    <div class="rpt-q">{question}</div>
+                    <div class="rpt-resp-label">🤖 AI Clinical Response</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Render the actual response as markdown (proper formatting)
+                with st.container():
+                    st.markdown(
+                        f'<div style="background:#f8faff;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;margin:0 0 4px;font-size:.88rem;color:#1e293b;line-height:1.8;">{resp_clean[:3000] + ("..." if len(resp_clean)>3000 else "")}</div>',
+                        unsafe_allow_html=True
+                    )
+
+                # Score chips footer
+                st.markdown(
+                    f'<div class="rpt-chips" style="margin:6px 0 20px;">{_chip("Data Retrieval",acc)}{_chip("Correctness",corr)}{_chip("Concordance",conc)}{_chip("Completeness",comp)}{_chip("Helpfulness",help_)}</div>',
+                    unsafe_allow_html=True
+                )
+                st.markdown("---")
 
                 html_body.append(f'''<div class="qa">
 <div><span class="badge">{cat}</span> <small style="color:#94a3b8">{ts}</small></div>
 <div class="q">❓ {question}</div>
-<div class="resp">{response}</div>
+<div class="resp">{_clean_response_for_client(response)}</div>
 <div class="chips">{_hchip("Retrieval",acc)}{_hchip("Correctness",corr)}{_hchip("Concordance",conc)}{_hchip("Completeness",comp)}{_hchip("Helpfulness",help_)}</div>
 </div>''')
 

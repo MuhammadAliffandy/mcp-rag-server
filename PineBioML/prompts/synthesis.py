@@ -47,7 +47,8 @@ Step 1 - UC_baseline (bl_mayo_total = Partial Mayo):
   (sub-scores: stool frequency=[ANCHOR: bl_mayo_s], rectal bleeding=[ANCHOR: bl_mayo_b], physician assessment=[ANCHOR: bl_mayo_p])
 Step 2 - UC_cpy (max MES) — READ FROM ANCHOR:
   UC_cpy -> Patient [ID] -> latest colonoscopy ([ANCHOR: last_cpy_date])
-  MES per segment: [ANCHOR: mes_values]
+  MES per segment: 
+    Ascending (A): [ANCHOR: mes_a] | Transverse (T): [ANCHOR: mes_t] | Descending (D): [ANCHOR: mes_d] | Sigmoid (S): [ANCHOR: mes_s] | Rectum (R): [ANCHOR: mes_r]
   MES max = [ANCHOR: max_mes]
 Step 3 - Total Mayo Score:
   Partial Mayo ([ANCHOR: bl_mayo_total]) + MES max ([ANCHOR: max_mes]) = [ANCHOR: Total Mayo Score]
@@ -86,11 +87,13 @@ Start with '## Patient [ID] - Remission Status Assessment'.
 - FC  (date: [DATE]) : [ANCHOR: fc_value] ug/g
 
 **5. MES Score:**
-- Per segment: [ANCHOR: mes_values]
+- Per segment: 
+    Ascending (A): [ANCHOR: mes_a] | Transverse (T): [ANCHOR: mes_t] | Descending (D): [ANCHOR: mes_d] | Sigmoid (S): [ANCHOR: mes_s] | Rectum (R): [ANCHOR: mes_r]
 - MES max: [ANCHOR: max_mes]
 
 **6. Nancy Score:**
-- Per segment: [ANCHOR: nancy_values]
+- Per segment: 
+    Ascending (A): [ANCHOR: nancy_a] | Transverse (T): [ANCHOR: nancy_t] | Descending (D): [ANCHOR: nancy_d] | Sigmoid (S): [ANCHOR: nancy_s] | Rectum (R): [ANCHOR: nancy_r]
 - Nancy max: [ANCHOR: max_nancy]
 
 **7. Remission Status:**
@@ -131,7 +134,8 @@ Use ✅ YES for poor factors found, ❌ NO for factors not found.
   -> Extensive colitis (extent=3): [✅ YES / ❌ NO based on ANCHOR]
 
 **5. MES (Endoscopic Activity):**
-  -> MES per segment: [ANCHOR: mes_values]
+  -> MES per segment: 
+    Ascending (A): [ANCHOR: mes_a] | Transverse (T): [ANCHOR: mes_t] | Descending (D): [ANCHOR: mes_d] | Sigmoid (S): [ANCHOR: mes_s] | Rectum (R): [ANCHOR: mes_r]
   -> MES max: [ANCHOR: max_mes]
   -> MES=3 (poor prognostic): [✅ YES / ❌ NO based on ANCHOR]
 
@@ -192,11 +196,13 @@ You MUST output the structured 8-point assessment, then end with the exact trial
   - FC  (date: [DATE]) : [ANCHOR: fc_value] ug/g
 
 **5. MES Score:**
-  - Per segment : [ANCHOR: mes_values]
+  - Per segment : 
+    Ascending (A): [ANCHOR: mes_a] | Transverse (T): [ANCHOR: mes_t] | Descending (D): [ANCHOR: mes_d] | Sigmoid (S): [ANCHOR: mes_s] | Rectum (R): [ANCHOR: mes_r]
   - MES max     : [ANCHOR: max_mes]
 
 **6. Nancy Score:**
-  - Per segment : [ANCHOR: nancy_values]
+  - Per segment : 
+    Ascending (A): [ANCHOR: nancy_a] | Transverse (T): [ANCHOR: nancy_t] | Descending (D): [ANCHOR: nancy_d] | Sigmoid (S): [ANCHOR: nancy_s] | Rectum (R): [ANCHOR: nancy_r]
   - Nancy max   : [ANCHOR: max_nancy]
 
 **7. Remission Status:**
@@ -266,11 +272,13 @@ STRIDE-II Expected Times (UC, in weeks):
   - FC  (date: [DATE]) : [ANCHOR: fc_value] ug/g
 
 **5. MES Score:**
-  - Per segment: [ANCHOR: mes_values]
+  - Per segment: 
+    Ascending (A): [ANCHOR: mes_a] | Transverse (T): [ANCHOR: mes_t] | Descending (D): [ANCHOR: mes_d] | Sigmoid (S): [ANCHOR: mes_s] | Rectum (R): [ANCHOR: mes_r]
   - MES max     : [ANCHOR: max_mes]
 
 **6. Nancy Score:**
-  - Per segment : [ANCHOR: nancy_values]
+  - Per segment : 
+    Ascending (A): [ANCHOR: nancy_a] | Transverse (T): [ANCHOR: nancy_t] | Descending (D): [ANCHOR: nancy_d] | Sigmoid (S): [ANCHOR: nancy_s] | Rectum (R): [ANCHOR: nancy_r]
   - Nancy max   : [ANCHOR: max_nancy]
 
 **7. Remission Status:**
@@ -797,7 +805,8 @@ CURRENT SYSTEM DATE: 2026-02-11. Use this for ALL duration calculations.
   Copy the ANCHOR values directly into the template slots. This is mandatory.
 - ALWAYS use double-newlines between numbered points for Markdown compatibility.
 - DO NOT add category labels like "Q1.1", "Q2.2" in the response header. Use natural headers.
-- Show per-segment data as dict format: {{'mes_a': X, 'mes_t': X, 'mes_d': X, 'mes_s': X, 'mes_r': X}}
+- Show per-segment scores in HUMAN-READABLE format — use anatomical names (Ascending, Transverse, Descending, Sigmoid, Rectum), NOT python keys like mes_a/mes_t.
+- Write whole numbers without decimals (write 3 not 3.0). Values must come directly from ANCHOR.
 - {f"CRITICAL: {category_force}" if category_force else "Provide a comprehensive clinical synthesis."}
 
 # USER REQUEST:
