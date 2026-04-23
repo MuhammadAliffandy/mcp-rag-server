@@ -14,7 +14,7 @@ def get_img_base64(file_path):
     return base64.b64encode(data).decode()
 
 load_dotenv()
-st.set_page_config(page_title="Medical MCP RAG & PineBioML", page_icon="🌲", layout="wide")
+st.set_page_config(page_title="ColonoSense", page_icon="🩺", layout="wide")
 
 # Project Path Discovery
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -386,10 +386,10 @@ with st.sidebar:
     with col1:
         st.markdown("""
         <div class="brand-header">
-            <div class="brand-icon">P</div>
+            <div class="brand-icon">C</div>
             <div>
-                <div style="font-weight:600; font-size:1rem; color:#FFFFFF;">PineBioML-4</div>
-                <div style="font-size:0.75rem; color:#666;">Medical Intelligence Core</div>
+                <div style="font-weight:600; font-size:1rem; color:#FFFFFF;">ColonoSense</div>
+                <div style="font-size:0.75rem; color:#666;">IBD Clinical Decision Support</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -459,9 +459,9 @@ if not st.session_state.messages:
     with col_c2:
         st.markdown(f"""
         <div style="text-align: center;">
-            <div style="font-size: 3rem; margin-bottom: 20px; color:{text_color};">⠿</div>
-            <h1 style="font-size: 3.5rem !important; margin-bottom: 0px; font-weight:700;">Intelligence Core</h1>
-            <p style="color: {subtext_color}; font-size: 1.1rem; margin-top: 10px; font-weight:300; max-width: 600px; margin-left: auto; margin-right: auto;">Advanced RAG orchestration for clinical multi-omics and precision medical data analysis</p>
+            <div style="font-size: 3rem; margin-bottom: 20px; color:{text_color};">🩺</div>
+            <h1 style="font-size: 3.5rem !important; margin-bottom: 0px; font-weight:700;">ColonoSense</h1>
+            <p style="color: {subtext_color}; font-size: 1.1rem; margin-top: 10px; font-weight:300; max-width: 600px; margin-left: auto; margin-right: auto;">AI Clinical Decision Support for Ulcerative Colitis — Powered by RAG & STRIDE-II Guidelines</p>
         </div>
         """, unsafe_allow_html=True)
         
