@@ -22,7 +22,7 @@ class EXPRAGPipeline:
     def __init__(
         self, 
         pinecone_index: str = "medical-records", 
-        excel_path: str = "./internal_docs/Test_AI for MES classification_clinical data_20251002.xlsx",
+        excel_path: str = "./internal_docs/AI_UC_20260304(follow_up_20260211)_long.xlsx",
         db_path: str = "./internal_docs/mimic_iv_records.db",
         rag_mode: str = "combine",
         use_diversity: bool = True

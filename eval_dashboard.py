@@ -83,7 +83,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 load_dotenv()
 
-EXCEL_FILE = "internal_docs/4DEADFE0FD06EA10E459256A2E85237AB43BD9EB_UC_20260304(follow_up_20260211)_long.xlsx"
+EXCEL_FILE = "internal_docs/AI_UC_20260304(follow_up_20260211)_long.xlsx"
 EVAL_DATE  = datetime.datetime(2026, 2, 11)
 EVAL_STORE = "eval_ratings_store.json"   # persisted rater sessions
 
@@ -243,28 +243,54 @@ def extract_gt(pid):
                     (pd.to_datetime(gt["date_onset"]) - pd.to_datetime(gt["birthday"])).days / 365.25, 1)
             except: gt["age_at_dx"] = None
 
-        # CPY (MES)
+        # CPY (MES) — prefer the colonoscopy linked to the baseline visit (stable state).
+        # Only fall back to latest-before-EVAL_DATE if no baseline match is found.
         df_c = _read("UC_cpy"); c_rows = _match(df_c, pid)
         gt.update({"max_mes": 0.0, "last_cpy": None, "mes_values": {}})
         if not c_rows.empty:
-            sc = "date_cpy" if "date_cpy" in df_c.columns else df_c.columns[2]
-            lc = c_rows.sort_values(sc).iloc[-1]
-            gt["last_cpy"] = str(lc.get(sc, ""))[:10]
+            sc = "date_cpy" if "date_cpy" in df_c.columns else df_c.columns[1]
+            c_rows = c_rows.copy()
+            c_rows[sc] = pd.to_datetime(c_rows[sc], errors="coerce")
+            c_rows_sorted = c_rows.sort_values(sc)
+            # Prefer CPY matching the UC_baseline.date_cpy (the baseline/stable visit)
+            bl_date = pd.to_datetime(b.get("date_cpy"), errors="coerce") if "date_cpy" in b.index else None
+            lc = None
+            if bl_date is not None and pd.notnull(bl_date):
+                bl_match = c_rows_sorted[c_rows_sorted[sc] == bl_date]
+                if not bl_match.empty:
+                    lc = bl_match.iloc[-1]
+            # Fallback: latest before EVAL_DATE
+            if lc is None:
+                c_before = c_rows_sorted[c_rows_sorted[sc] <= EVAL_DATE]
+                lc = c_before.iloc[-1] if not c_before.empty else c_rows_sorted.iloc[0]
+            gt["last_cpy"] = str(lc[sc].date()) if pd.notnull(lc[sc]) else None
             vals = {k: float(lc[k]) for k in ["mes_a","mes_t","mes_d","mes_s","mes_r"]
                     if k in lc.index and pd.notnull(lc[k])}
             gt["mes_values"] = vals
             gt["max_mes"]    = max(vals.values()) if vals else 0.0
 
-        # HISTO (Nancy)
+        # HISTO (Nancy) — same: prefer baseline-linked colonoscopy, fallback to latest before EVAL_DATE
         df_h = _read("UC_histo"); h_rows = _match(df_h, pid)
         gt.update({"max_nancy": 0.0, "nancy_values": {}})
         if not h_rows.empty:
-            sc = "date_cpy" if "date_cpy" in df_h.columns else df_h.columns[2]
-            lh = h_rows.sort_values(sc).iloc[-1]
+            sc = "date_cpy" if "date_cpy" in df_h.columns else df_h.columns[1]
+            h_rows = h_rows.copy()
+            h_rows[sc] = pd.to_datetime(h_rows[sc], errors="coerce")
+            h_rows_sorted = h_rows.sort_values(sc)
+            bl_date = pd.to_datetime(b.get("date_cpy"), errors="coerce") if "date_cpy" in b.index else None
+            lh = None
+            if bl_date is not None and pd.notnull(bl_date):
+                bl_match_h = h_rows_sorted[h_rows_sorted[sc] == bl_date]
+                if not bl_match_h.empty:
+                    lh = bl_match_h.iloc[-1]
+            if lh is None:
+                h_before = h_rows_sorted[h_rows_sorted[sc] <= EVAL_DATE]
+                lh = h_before.iloc[-1] if not h_before.empty else h_rows_sorted.iloc[0]
             nvals = {k: float(lh[k]) for k in ["nancy_a","nancy_t","nancy_d","nancy_s","nancy_r"]
                      if k in lh.index and pd.notnull(lh[k])}
             gt["nancy_values"] = nvals
             gt["max_nancy"]    = max(nvals.values()) if nvals else 0.0
+
 
         # LAB
         df_l = _read("UC_lab"); l_rows = _match(df_l, pid)
@@ -781,7 +807,7 @@ with st.sidebar:
     st.divider()
 
     st.markdown('<div style="font-size:.7rem;color:#5555aa;letter-spacing:.08em;text-transform:uppercase;margin:12px 0 6px;">Patient Config</div>', unsafe_allow_html=True)
-    pid = st.text_input("Patient ID", value="1", placeholder="e.g. 1 or 2999892")
+    pid = st.text_input("Patient ID", value="4", placeholder="e.g. 4 or 2999892")
 
     st.markdown('<div style="font-size:.7rem;color:#5555aa;letter-spacing:.08em;text-transform:uppercase;margin:12px 0 6px;">Question Category</div>', unsafe_allow_html=True)
     category = st.selectbox("Category", ["all"] + ALL_CATEGORIES, format_func=lambda x: "All 18 Categories" if x == "all" else x)
