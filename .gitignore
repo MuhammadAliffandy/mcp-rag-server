@@ -163,3 +163,6 @@ eval_report_*.json
 .env*
 *.log
 fix_templates.py
+_*.py
+*.html
+
