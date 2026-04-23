@@ -23,6 +23,21 @@ def _clean_response_for_client(text: str) -> str:
     """Convert raw LLM output to client-readable clinical format."""
     if not text:
         return text
+    import re as _r
+
+    # 1. Strip retrieval_trace / guideline_trace / tables_accessed JSON blocks
+    for key in ["retrieval_trace", "guideline_trace", "tables_accessed"]:
+        pattern = r'\{[^{}]*["\']' + key + r'["\'][\s\S]*?\}'
+        text = _r.sub(pattern, "", text, flags=_r.DOTALL)
+
+    # 2. Strip markdown code fences (```json ... ``` and bare ```)
+    text = _r.sub(r"```(?:json|python|bash)?[\s\S]*?```", "", text)
+    text = _r.sub(r"```[a-z]*\s*", "", text)
+
+    # 3. Strip stray HTML artifacts
+    text = _r.sub(r"</?(div|span|br|p|code|pre)[^>]*>", "", text)
+
+    # 4. Convert Python dict segment notation {mes_a: X} to readable table
     SEG = {
         "mes_a": "Ascending (A)", "mes_t": "Transverse (T)",
         "mes_d": "Descending (D)", "mes_s": "Sigmoid (S)", "mes_r": "Rectum (R)",
@@ -32,7 +47,6 @@ def _clean_response_for_client(text: str) -> str:
         "bl_mayo_b": "Rectal Bleeding", "bl_mayo_p": "Physician Assessment",
         "max_mes": "MES Max", "max_nancy": "Nancy Max",
     }
-    import re as _r
     def _dict_to_table(m):
         pairs = _r.findall(r"[\x27\x22]?(\w+)[\x27\x22]?\s*:\s*([\d.]+)", m.group(1))
         if not pairs:
@@ -47,10 +61,21 @@ def _clean_response_for_client(text: str) -> str:
             parts.append(f"{label}: {val}")
         return " | ".join(parts)
     text = _r.sub(r"\{([^{}]+)\}", _dict_to_table, text)
+
+    # 5. Replace remaining raw field names
     for k, v in SEG.items():
         text = text.replace(k, v)
+
+    # 6. Remove trailing .0 from whole numbers (3.0 -> 3)
     text = _r.sub(r"\b(\d+)\.0\b", r"\1", text)
+
+    # 7. Python booleans to human readable
     text = text.replace(": True", ": Yes").replace(": False", ": No")
+    text = text.replace("=True", "= Yes").replace("=False", "= No")
+
+    # 8. Clean excessive blank lines
+    text = _r.sub(r"\n{3,}", "\n\n", text).strip()
+
     return text
 
 from dotenv import load_dotenv
