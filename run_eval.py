@@ -286,8 +286,19 @@ def call_agent(pid: str, category: str, gt: dict = None) -> str:
         if gt:
             try:
                 from qa_pipeline import _build_anchor_block
-                anchor_block = _build_anchor_block(pid, gt)
-                anchor_block_data = gt
+                # Map run_eval.py gt keys to qa_pipeline.py gt keys
+                mapped_gt = gt.copy()
+                mapped_gt["total_mayo_score"]      = gt.get("total_mayo")
+                mapped_gt["expected_severity"]     = gt.get("severity")
+                mapped_gt["last_cpy_date"]         = gt.get("last_cpy")
+                mapped_gt["clinical_remission"]    = gt.get("clinical_rem")
+                mapped_gt["biochemical_remission"] = gt.get("bio_rem")
+                mapped_gt["endoscopic_remission"]  = gt.get("endo_rem")
+                mapped_gt["histologic_remission"]  = gt.get("histo_rem")
+                mapped_gt["expected_poor_prognosis"] = gt.get("poor_prognosis")
+                
+                anchor_block = _build_anchor_block(pid, mapped_gt)
+                anchor_block_data = mapped_gt
             except ImportError:
                 pass
 
