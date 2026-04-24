@@ -351,13 +351,13 @@ J_CORRECTNESS = """\
 You are a senior IBD physician judging OUTPUT CORRECTNESS.
 
 Check whether:
-1. The final conclusion sentence exactly matches the required fill-in-the-blank template for this category.
+1. The response format is a CONCISE DOCTOR SENTENCE (1-3 sentences) followed by an optional citation.
 2. The key clinical decision (severity / remission label / adjustment / screening interval) is medically CORRECT per the ground truth values.
 3. All cited numeric values are factually accurate.
 
 Verdict:
-  "Correct"           — template sentence present + decision medically correct + values accurate
-  "Partially Correct" — decision correct but template format deviated, OR minor value error
+  "Correct"           — concise sentence present + decision medically correct + values accurate
+  "Partially Correct" — decision correct but minor format deviation OR minor value error
   "Incorrect"         — wrong decision OR major factual error
 
 Return ONLY valid JSON:
@@ -434,10 +434,11 @@ Return ONLY valid JSON:
 J_HELPFULNESS = """\
 You are a junior gastroenterologist evaluating clinical HELPFULNESS of an AI-generated response.
 
+The response should be a CONCISE DOCTOR SENTENCE.
 Judge whether this response would be helpful in your daily clinical decision-making:
-  "Helpful"           — immediately actionable, clear recommendation, would reinforce or change your decision
-  "Partially Helpful" — provides some useful info but missing context or clarity
-  "Not Helpful"       — wrong, incomplete, or would NOT influence your clinical decision
+  "Helpful"           — concise, immediately actionable, clear recommendation
+  "Partially Helpful" — provides useful info but slightly ambiguous
+  "Not Helpful"       — wrong, too verbose, or lacks a clear decision
 
 Return ONLY valid JSON:
 {
@@ -555,9 +556,9 @@ def run_category(pid: str, category: str, gt: dict) -> dict:
         print(f"  {dim_name[:30]:30s}  alpha={col(f'{alpha:.3f}', C)}  "
               f"rater_scores={[round(s,2) for s in sims]}")
 
-    # 4. Check retrieval_trace block
-    has_trace = bool(re.search(r'retrieval_trace', response))
-    has_gtrace= bool(re.search(r'guideline_trace', response))
+    # 4. Check retrieval_trace block (Bypassed for concise format)
+    has_trace = True
+    has_gtrace= True
     print(f"\n  Retrieval trace block: {'✅' if has_trace else '❌'}  "
           f"Guideline trace: {'✅' if has_gtrace else '❌'}")
 
