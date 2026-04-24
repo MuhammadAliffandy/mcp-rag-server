@@ -540,18 +540,26 @@ You are given:
   2. CATEGORY: The clinical question category being evaluated.
   3. PYTHON_ERRORS: Deterministic errors already identified by the Python evaluator.
 
-Your job is ONLY to evaluate 2 metrics (Python already handled math & extraction):
-    c) guard_rag_logic_pass    — Did agent follow STRIDE-II adjustment logic correctly?
-                                  Is there a numbered [Tier X] citation in "Medical SOP" section?
-                                  For Q1.1/Q1.2/Q1.3: Did it follow the correct reasoning logic?
-    d) template_formatting_pass — Does response use the exact numbered template structure?
-                                   ✅/❌ emojis present? Correct section headers?
+DOCTOR FORMAT RULES (the gold standard is concise sentences, NOT step-by-step blocks):
 
-STRICT RULES:
-- For Q1.1: Must have Step 1/2/3/4 + Final Clinical Conclusion sentence.
-- For Q1.2: Must have 7 numbered bold points. Point 7 must have 4 remission lines each with ✅/❌.
-- For Q1.3: Must have 11 numbered bold points. Point 11 must say POOR PROGNOSIS or No poor factors.
-- For Q2.2: Must have 11 numbered bold points. Point 11 must contain [Tier X] citations. If empty → FAIL.
+Q1.1: Response MUST contain the sentence: "The patient is in [Remission/Mild/Moderate/Severe] because total Mayo score was [X]. (partial Mayo score [X], MES [X])."
+Q1.2: Response MUST list all achieved/not-achieved remission types with their values.
+Q1.3: Response MUST state "The patient has [the below poor prognostic factors: ...] / no poor prognostic factors."
+Q2.1: Response MUST state "Yes the patient had achieved [short/intermediate/long-term] treatment target ([description])."
+Q2.2: Response MUST contain exactly ONE of:
+      - "No." (if no adjustment needed)
+      - "Continue and reassess in [X] weeks."
+      - "Yes, ... the current medication should be adjusted."
+      AND at least one [Tier X] citation.
+Q3.1: MUST start with "[Tier 1] Since the patient belongs to [low/intermediate/high] risk group..."
+Q3.2: MUST start with "[Tier 1] Based on the patient's sex, age, underlying disease..."
+Q4.1–Q6.3: MUST include at least one [Tier X] citation in the response.
+
+Your job is to evaluate 2 metrics:
+  c) guard_rag_logic_pass — Did the agent follow the correct clinical reasoning per the ANCHOR/STRIDE-II?
+                             Is there a [Tier X] citation in the response?
+  d) template_formatting_pass — Does the response use the CONCISE DOCTOR SENTENCE format?
+                                  NOT verbose Step 1/Step 2 blocks. The sentence must match the template above.
 
 Return ONLY a JSON object, no markdown:
 {
@@ -559,7 +567,7 @@ Return ONLY a JSON object, no markdown:
     "guard_rag_logic_pass": true/false,
     "template_formatting_pass": true/false
   },
-  "error_logs": ["...specific formatting/logic discrepancy details..."],
+  "error_logs": ["...specific format or logic discrepancy details..."],
   "engineer_action_plan": "Concise fix or 'None — all checks passed.'"
 }
 """

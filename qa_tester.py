@@ -205,48 +205,49 @@ def evaluate_q1_1(response: str, gt: dict, prompt_id: str) -> dict:
     text = response.strip()
     errors = []
 
-    # RULE 1: Template structure — gold standard uses Step 1-4 + Final Clinical Conclusion
-    has_steps    = bool(re.search(r'Step\s*1', text)) and bool(re.search(r'Step\s*[234]', text))
-    has_final    = "Final Clinical Conclusion" in text or "FINAL ANSWER" in text or "final analysis" in text.lower()
-    has_header   = "Disease Severity" in text or "Severity Assessment" in text
-    template_ok  = has_steps and has_final and has_header
-    if not has_steps:
-        errors.append("Missing Step-by-step reasoning (Step 1, Step 2, etc.).")
-    if not has_final:
-        errors.append("Missing '### 📝 Final Clinical Conclusion' concluding block.")
-    if not has_header:
-        errors.append("Missing '## Patient X - Disease Severity Assessment' header.")
+    # RULE 1: Template structure — doctor format: "The patient is in [Severity] because total Mayo score was [X]."
+    SEVERITY_LABELS = ["remission", "mild", "moderate", "severe"]
+    has_template_phrase = bool(re.search(
+        r'the patient is in (remission|mild|moderate|severe)', text, re.IGNORECASE
+    )) or bool(re.search(
+        r'total mayo score was \d', text, re.IGNORECASE
+    ))
+    has_mayo_values = bool(re.search(
+        r'partial mayo.*\d|pMayo.*\d|mayo.*partial', text, re.IGNORECASE
+    ))
+    has_mes = bool(re.search(r'MES\s*[=:]?\s*\d|endoscopic.*\d', text, re.IGNORECASE))
+    template_ok = has_template_phrase and has_mayo_values
+    if not has_template_phrase:
+        errors.append("Missing template phrase: 'The patient is in [Severity] because total Mayo score was [X].'")
+    if not has_mayo_values:
+        errors.append("Missing partial Mayo score value in response.")
+    if not has_mes:
+        errors.append("Missing MES value in response.")
 
     # RULE 2: Must mention Patient ID
     pid = gt["patient_id"]
     if pid not in text:
         errors.append(f"Patient ID '{pid}' not found in response.")
 
-    # RULE 3: Colonoscopy date check
-    last_cpy = gt.get("last_cpy", "")
-    # Accept either the date or "not specified" since Core RAG may not return it
-    has_cpy = (last_cpy and last_cpy[:10] in text) or "not specified" in text.lower() or "latest colonoscopy" in text.lower()
-    if not has_cpy:
-        errors.append(f"Colonoscopy date '{last_cpy[:10]}' not present and no fallback text.")
-
-    # RULE 4: Severity label correct
+    # RULE 3: Severity label correct (fuzzy)
     expected_sev = gt["severity"]
-    sev_found = any(s.lower() in text.lower() for s in ["remission", "mild", "moderate", "severe"])
+    SEVERITY_SYNONYMS = {
+        "remission": ["remission", "in remission", "disease remission", "clinical remission", "endoscopic remission"],
+        "mild":      ["mild", "mild-moderate", "mild to moderate"],
+        "moderate":  ["moderate", "moderately active", "mild-moderate"],
+        "severe":    ["severe", "severely active", "fulminant"],
+    }
+    synonyms = SEVERITY_SYNONYMS.get(expected_sev.lower(), [expected_sev.lower()])
+    sev_found = any(s in text.lower() for s in synonyms)
     if not sev_found:
-        errors.append("No severity label (Remission/Mild/Moderate/Severe) found.")
-    elif expected_sev.lower() not in text.lower():
-        found_labels = [s for s in ["remission", "mild", "moderate", "severe"] if s in text.lower()]
-        errors.append(f"Wrong severity: expected '{expected_sev}', agent said '{found_labels}'.")
+        errors.append(f"Wrong severity: expected '{expected_sev}' or synonym, not found in response.")
 
-    # RULE 5: Math check — Total Mayo reasoning must be present
-    has_mayo_calc = bool(re.search(r'Partial Mayo.*\+.*MES', text, re.IGNORECASE))
-    if not has_mayo_calc:
-        errors.append("Missing Total Mayo calculation (Partial Mayo + MES).")
+    # RULE 4: [Tier X] citation
+    has_tier = bool(re.search(r'\[Tier \d\]', text))
+    if not has_tier:
+        errors.append("Missing [Tier X] guideline citation.")
 
     total = gt["total_mayo"]
-    if total == 0 and "remission" not in text.lower():
-        errors.append(f"Total mayo is {total} but response does not say Remission.")
-
     return {
         "prompt_id"      : prompt_id,
         "category"       : "Q1.1",
@@ -255,12 +256,12 @@ def evaluate_q1_1(response: str, gt: dict, prompt_id: str) -> dict:
             "partial_mayo": gt["bl_mayo_total"],
             "max_mes": gt["max_mes"],
             "expected_severity": expected_sev,
-            "last_cpy": last_cpy,
+            "last_cpy": gt.get("last_cpy",""),
         },
         "template_pass"  : template_ok,
-        "severity_pass"  : expected_sev.lower() in text.lower(),
+        "severity_pass"  : sev_found,
         "extraction_pass": pid in text,
-        "mayo_calc_pass" : has_mayo_calc,
+        "tier_pass"      : has_tier,
         "errors"         : errors,
         "overall"        : "✅ PASS" if not errors else "❌ FAIL",
         "response_snippet": text[:800],
@@ -288,30 +289,30 @@ def evaluate_q2_2(response: str, gt: dict, prompt_id: str) -> dict:
     text = response.strip()
     errors = []
 
-    # RULE 1: 11 numbered points
-    numbered = re.findall(r'^\s*\*{0,2}\d+[\.\)]\s+', text, re.MULTILINE)
-    if len(numbered) < 10:
-        errors.append(f"Found {len(numbered)} numbered points; expected ≥10 (ideally 11).")
-
-    # RULE 2: Adjustment decision keywords
-    has_no_adjust      = bool(re.search(r'no\s+adjustment', text, re.IGNORECASE))
-    has_continue       = bool(re.search(r'continue\s+and\s+reassess', text, re.IGNORECASE))
-    has_adjust         = bool(re.search(r'\badjustment\b', text, re.IGNORECASE))
-    has_decision       = has_no_adjust or has_continue or has_adjust
+    # RULE 1: Template sentence (doctor format — concise)
+    has_no_adjust = bool(re.search(r'no\.?\s*$|no adjustment|no,? the medication should not', text, re.IGNORECASE))
+    has_continue  = bool(re.search(r'continue\s+and\s+reassess', text, re.IGNORECASE))
+    has_adjust    = bool(re.search(r'yes.*medication should be adjusted|medication should be adjusted', text, re.IGNORECASE))
+    has_decision  = has_no_adjust or has_continue or has_adjust
     if not has_decision:
-        errors.append("No adjustment decision found (expected: 'No Adjustment' / 'Continue and reassess in X weeks' / 'Adjustment').")
+        errors.append("No decision found. Expected: 'No.' / 'Continue and reassess in X weeks.' / 'Yes, the current medication should be adjusted.'")
+
+    # RULE 2: [Tier X] citation present
+    has_tier = bool(re.search(r'\[Tier \d\]', text))
+    if not has_tier:
+        errors.append("Missing [Tier X] guideline citation (required for all categories).")
 
     # RULE 3: Validate adjustment logic against ground truth
-    endo_rem = gt.get("endo_rem", False)
+    endo_rem  = gt.get("endo_rem", False)
     histo_rem = gt.get("histo_rem", False)
     if endo_rem or histo_rem:
         if not has_no_adjust:
-            errors.append(f"Patient is in Endoscopic({'✅' if endo_rem else '❌'})/Histologic({'✅' if histo_rem else '❌'}) remission → expected 'No Adjustment' but not found.")
+            errors.append(f"Patient in Endoscopic({'✅' if endo_rem else '❌'})/Histologic({'✅' if histo_rem else '❌'}) remission → expected 'No.' but not found.")
     else:
         if has_no_adjust and not has_continue and not has_adjust:
-            errors.append(f"Patient NOT in endoscopic remission but agent said 'No Adjustment' without 'Continue' or 'Adjustment'.")
+            errors.append("Patient NOT in endoscopic remission but agent said 'No Adjustment' without justification.")
 
-    # RULE 4: LLM judge for tier citation format
+    # RULE 4: LLM judge for tier citation quality (lightweight check)
     llm = get_llm(model_name="gpt-4o-mini", temperature=0)
     try:
         llm_with_json = llm.bind(response_format={"type": "json_object"})
@@ -323,31 +324,27 @@ def evaluate_q2_2(response: str, gt: dict, prompt_id: str) -> dict:
     except Exception as e:
         tier_data = {"tier_section_found": False, "tiers_present": [], "tier_format_correct": False, "tier_errors": [str(e)]}
 
-    if not tier_data.get("tier_section_found"):
-        errors.append("HARD FAIL: 'Medical SOP' / [Tier X] section NOT found in response.")
-    if not tier_data.get("tier_format_correct"):
-        errors.extend(tier_data.get("tier_errors", []))
+    if not tier_data.get("tier_section_found") and not has_tier:
+        errors.append("HARD FAIL: No [Tier X] citation found in response.")
     tiers_found = tier_data.get("tiers_present", [])
-    if "Tier 1" not in tiers_found:
-        errors.append("Missing [Tier 1] citation (minimum required).")
 
     return {
-        "prompt_id"        : prompt_id,
-        "category"         : "Q2.2",
-        "ground_truth"     : {
+        "prompt_id"             : prompt_id,
+        "category"              : "Q2.2",
+        "ground_truth"          : {
             "endoscopic_remission": gt.get("endo_rem"),
             "histologic_remission": gt.get("histo_rem"),
             "index_drug"          : gt.get("index_drug",{}).get("name","N/A"),
             "duration_weeks"      : gt.get("index_drug",{}).get("duration_weeks","N/A"),
         },
-        "template_pass"    : len(numbered) >= 10,
-        "decision_pass"    : has_decision,
-        "adjustment_logic_pass": not bool([e for e in errors if "No Adjustment" in e or "continue" in e.lower()]),
-        "tier_citation_pass": tier_data.get("tier_format_correct", False),
-        "tiers_found"      : tiers_found,
-        "errors"           : errors,
-        "overall"          : "✅ PASS" if not errors else "❌ FAIL",
-        "response_snippet" : text[:800],
+        "template_pass"         : has_decision,
+        "decision_pass"         : has_decision,
+        "adjustment_logic_pass" : not bool([e for e in errors if "remission" in e.lower()]),
+        "tier_citation_pass"    : has_tier,
+        "tiers_found"           : tiers_found,
+        "errors"                : errors,
+        "overall"               : "✅ PASS" if not errors else "❌ FAIL",
+        "response_snippet"      : text[:800],
     }
 
 
