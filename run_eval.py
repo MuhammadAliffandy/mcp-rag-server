@@ -268,7 +268,7 @@ def extract_gt(pid) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 # AGENT CALLER
 # ─────────────────────────────────────────────────────────────────────────────
-def call_agent(pid: str, category: str) -> str:
+def call_agent(pid: str, category: str, gt: dict = None) -> str:
     question = CATEGORY_PROMPTS.get(category, f"Answer {category} for patient {pid}").format(pid=pid)
     try:
         from src.api.mcp_server import query_core_rag, query_guard_rag
@@ -281,12 +281,22 @@ def call_agent(pid: str, category: str) -> str:
         print(f"  {DIM}[Guard RAG] fetching guidelines...{RST}")
         sop  = query_guard_rag(question)
 
-        tools = f"Core RAG:\n{raw}\n\nGuard RAG:\n{sop}"
-        prompt = get_synthesis_prompt("English", question, raw, tools, category_id=category)
+        anchor_block = ""
+        anchor_block_data = None
+        if gt:
+            try:
+                from qa_pipeline import _build_anchor_block
+                anchor_block = _build_anchor_block(pid, gt)
+                anchor_block_data = gt
+            except ImportError:
+                pass
+
+        tools = f"{anchor_block}\nCore RAG:\n{raw}\n\nGuard RAG:\n{sop}"
+        prompt = get_synthesis_prompt("English", question, raw, tools, category_id=category, anchor_block=anchor_block, anchor_block_data=anchor_block_data)
 
         print(f"  {DIM}[Synthesis] running LLM...{RST}")
         llm = get_llm(model_name="gpt-4o-mini", temperature=0)
-        return llm.invoke([("system", prompt)]).content
+        return llm.invoke([("system", prompt), ("human", "Please generate the clinical answer based on the instructions above. Use ONLY the values from the STRUCTURED PATIENT ANCHOR.")]).content
 
     except Exception as e:
         import traceback
@@ -520,7 +530,7 @@ def run_category(pid: str, category: str, gt: dict) -> dict:
 
     # 1. Generate agent response
     print(f"\n{C}[1/3] Generating ColonoSense response...{RST}")
-    response = call_agent(pid, category)
+    response = call_agent(pid, category, gt)
 
     if response.startswith("[Agent Error]"):
         print(col(f"  ✗ Agent failed: {response[:200]}", R))
