@@ -397,28 +397,19 @@ def generate_response(pid: str, category: str) -> str:
         from src.api.mcp_server import query_core_rag, query_guard_rag
         from PineBioML.prompts.synthesis import get_synthesis_prompt
         from PineBioML.model.llm_factory import get_llm
-        from qa_pipeline import extract_ground_truth, _build_anchor_block
 
-        # ── Pilar 1: Inject STRUCTURED PATIENT ANCHOR ──────────────────────
-        try:
-            gt = extract_ground_truth(pid)
-            anchor_block = _build_anchor_block(pid, gt)
-        except Exception:
-            anchor_block = ""  # fallback gracefully if extraction fails
-
+        # No ground truth injection — LLM reads from RAG context autonomously
         raw   = query_core_rag(str(pid), question)
         sop   = query_guard_rag(question)
-        tools = f"{anchor_block}\nCore RAG:\n{raw}\n\nGuard RAG:\n{sop}"
+        tools = f"Core RAG:\n{raw}\n\nGuard RAG:\n{sop}"
         prompt = get_synthesis_prompt(
             "English", question, raw, tools,
             category_id=category,
-            anchor_block=anchor_block,
-            anchor_block_data=gt,
         )
         llm = get_llm(model_name="gpt-4o-mini", temperature=0)
         return llm.invoke([
             ("system", prompt),
-            ("human", "Please answer the question based on the STRUCTURED PATIENT ANCHOR values above. Copy values directly from the ANCHOR — do not calculate from narrative.")
+            ("human", "Please answer the clinical question. Extract all numeric values from the STRUCTURED PATIENT ANCHOR in TECHNICAL FINDINGS. Do NOT guess values.")
         ]).content
     except Exception as e:
         return f"[Agent Error] {e}"

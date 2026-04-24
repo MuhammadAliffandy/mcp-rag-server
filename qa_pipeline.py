@@ -293,9 +293,6 @@ def generate_agent_response(pid, category: str, gt: dict = None) -> dict:
     categories_to_run = list(prompts.keys()) if category == "all" else [category.upper()]
     responses = {}
 
-    # Build the structured patient anchor (Pilar 1)
-    anchor_block = _build_anchor_block(pid, gt) if gt else ""
-
     # Import synthesis prompt for category-forced strict output
     try:
         from PineBioML.prompts.synthesis import get_synthesis_prompt
@@ -313,14 +310,14 @@ def generate_agent_response(pid, category: str, gt: dict = None) -> dict:
 
         print(f"\n[QA] Calling ColonoSense for {cat} — Patient {pid}...")
 
-        # Step 1: Core RAG — get patient data
+        # Step 1: Core RAG — get patient data (includes STRUCTURED PATIENT ANCHOR from Excel)
         raw_patient = query_core_rag(str(pid), q)
 
         # Step 2: Guard RAG — get clinical SOPs
         sop_context = query_guard_rag(q)
 
-        # Prepend anchor to tool_outputs so it is always visible to the LLM
-        tool_outputs = f"{anchor_block}\nCore RAG:\n{raw_patient}\n\nGuard RAG:\n{sop_context}"
+        # No ground truth injection — LLM extracts values from RAG context autonomously
+        tool_outputs = f"Core RAG:\n{raw_patient}\n\nGuard RAG:\n{sop_context}"
 
         # Step 3: Use strict category-aware synthesis prompt if available
         if use_strict_synth:
@@ -330,11 +327,10 @@ def generate_agent_response(pid, category: str, gt: dict = None) -> dict:
                 rag_context=raw_patient,
                 tool_outputs=tool_outputs,
                 category_id=cat,
-                anchor_block=anchor_block,
             )
             resp = synth_llm.invoke([
                 ("system", synth_prompt),
-                ("human", "Please generate the clinical answer based on the instructions above. Use ONLY the values from the STRUCTURED PATIENT ANCHOR.")
+                ("human", "Please answer the clinical question. Extract all numeric values from the STRUCTURED PATIENT ANCHOR in TECHNICAL FINDINGS. Do NOT guess values.")
             ])
             final_answer = resp.content
         else:

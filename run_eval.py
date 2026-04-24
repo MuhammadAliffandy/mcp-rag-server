@@ -281,33 +281,13 @@ def call_agent(pid: str, category: str, gt: dict = None) -> str:
         print(f"  {DIM}[Guard RAG] fetching guidelines...{RST}")
         sop  = query_guard_rag(question)
 
-        anchor_block = ""
-        anchor_block_data = None
-        if gt:
-            try:
-                from qa_pipeline import _build_anchor_block
-                # Map run_eval.py gt keys to qa_pipeline.py gt keys
-                mapped_gt = gt.copy()
-                mapped_gt["total_mayo_score"]      = gt.get("total_mayo")
-                mapped_gt["expected_severity"]     = gt.get("severity")
-                mapped_gt["last_cpy_date"]         = gt.get("last_cpy")
-                mapped_gt["clinical_remission"]    = gt.get("clinical_rem")
-                mapped_gt["biochemical_remission"] = gt.get("bio_rem")
-                mapped_gt["endoscopic_remission"]  = gt.get("endo_rem")
-                mapped_gt["histologic_remission"]  = gt.get("histo_rem")
-                mapped_gt["expected_poor_prognosis"] = gt.get("poor_prognosis")
-                
-                anchor_block = _build_anchor_block(pid, mapped_gt)
-                anchor_block_data = mapped_gt
-            except ImportError:
-                pass
-
-        tools = f"{anchor_block}\nCore RAG:\n{raw}\n\nGuard RAG:\n{sop}"
-        prompt = get_synthesis_prompt("English", question, raw, tools, category_id=category, anchor_block=anchor_block, anchor_block_data=anchor_block_data)
+        # No ground truth injection — LLM extracts values from RAG context autonomously
+        tools = f"Core RAG:\n{raw}\n\nGuard RAG:\n{sop}"
+        prompt = get_synthesis_prompt("English", question, raw, tools, category_id=category)
 
         print(f"  {DIM}[Synthesis] running LLM...{RST}")
         llm = get_llm(model_name="gpt-4o-mini", temperature=0)
-        return llm.invoke([("system", prompt), ("human", "Please generate the clinical answer based on the instructions above. Use ONLY the values from the STRUCTURED PATIENT ANCHOR.")]).content
+        return llm.invoke([("system", prompt), ("human", "Please answer the clinical question. Extract all numeric values from the STRUCTURED PATIENT ANCHOR in TECHNICAL FINDINGS. Do NOT guess values.")]).content
 
     except Exception as e:
         import traceback
