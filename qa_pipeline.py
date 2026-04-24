@@ -398,9 +398,19 @@ def evaluate_deterministic_python(ground_truth: dict, agent_response: str, categ
             errors.append(f"[MATH] Total Mayo: expected {gt_total}, found {agent_total} in response.")
             math_ok = False
 
-        # Check severity label
-        if gt_sev and gt_sev not in text.lower():
-            errors.append(f"[MATH] Severity label '{gt_sev}' not found in response.")
+        # ── FUZZY severity check: allow synonyms (e.g. 'endoscopic remission' counts as 'remission') ──
+        SEVERITY_SYNONYMS = {
+            "remission": ["remission", "in remission", "disease remission", "clinical remission",
+                          "endoscopic remission", "mucosal healing"],
+            "mild":      ["mild", "mild-moderate", "mild to moderate"],
+            "moderate":  ["moderate", "moderately active", "mild-moderate", "moderate to severe"],
+            "severe":    ["severe", "severely active", "fulminant"],
+        }
+        text_lower = text.lower()
+        synonyms = SEVERITY_SYNONYMS.get(gt_sev, [gt_sev])
+        sev_found = any(s in text_lower for s in synonyms)
+        if gt_sev and not sev_found:
+            errors.append(f"[MATH] Severity label '{gt_sev}' (or synonyms) not found in response.")
             math_ok = False
 
         # Check MES max
@@ -446,6 +456,71 @@ def evaluate_deterministic_python(ground_truth: dict, agent_response: str, categ
             math_ok = False
         elif not gt_poor and "POOR PROGNOSIS" in text.upper():
             errors.append("[MATH] No poor prognosis expected but POOR PROGNOSIS keyword found.")
+            math_ok = False
+
+    elif category == "Q2.3":
+        # If patient is in remission, response must recommend "optimize" not escalation
+        in_remission = ground_truth.get("endoscopic_remission") and ground_truth.get("clinical_remission")
+        text_lower = text.lower()
+        if in_remission:
+            OPTIMIZE_KEYS = ["optimize", "continue current", "no escalation", "no adjustment", "maintain"]
+            ESCALATE_KEYS = ["escalate", "switch", "add-on immunomodulators"]
+            optimize_found = any(k in text_lower for k in OPTIMIZE_KEYS)
+            escalate_found = any(k in text_lower for k in ESCALATE_KEYS)
+            if not optimize_found:
+                errors.append("[MATH] Q2.3: Patient in remission — expected 'optimize/continue' recommendation not found.")
+                math_ok = False
+            if escalate_found and not optimize_found:
+                errors.append("[MATH] Q2.3: Escalation recommended despite patient being in remission.")
+                math_ok = False
+
+    elif category == "Q5.1":
+        # Dietary: check that response references patient's actual disease status
+        in_remission = ground_truth.get("clinical_remission")
+        text_lower = text.lower()
+        REMISSION_DIET_KEYS = ["mediterranean", "whole grain", "omega-3", "fresh vegetable",
+                                "remission diet", "balanced diet", "fiber-rich"]
+        ACTIVE_DIET_KEYS    = ["low-residue", "cooked vegetable", "white rice", "low-fiber"]
+        if in_remission:
+            found = any(k in text_lower for k in REMISSION_DIET_KEYS)
+            if not found:
+                errors.append("[MATH] Q5.1: Patient in remission — Mediterranean/balanced diet recommendation not found.")
+                math_ok = False
+        else:
+            found = any(k in text_lower for k in ACTIVE_DIET_KEYS)
+            if not found:
+                errors.append("[MATH] Q5.1: Active disease — low-residue diet recommendation not found.")
+                math_ok = False
+
+    elif category == "Q5.3":
+        # Lifestyle: must mention at least 3 of the core UC lifestyle keywords
+        text_lower = text.lower()
+        LIFESTYLE_KEYS = ["smoking", "physical activity", "exercise", "stress",
+                          "alcohol", "weight", "bmi", "mindfulness", "cessation"]
+        found_keys = [k for k in LIFESTYLE_KEYS if k in text_lower]
+        if len(found_keys) < 3:
+            errors.append(f"[MATH] Q5.3: Only {len(found_keys)} lifestyle keywords found (need ≥3). Found: {found_keys}")
+            math_ok = False
+
+    elif category == "Q6.2":
+        # Maternal risk: must reference at least 2 known maternal risk terms
+        text_lower = text.lower()
+        MATERNAL_RISK_KEYS = ["preeclampsia", "flare", "gestational", "vte",
+                               "thromboembolism", "infection", "preterm", "comparable", "increased"]
+        found_keys = [k for k in MATERNAL_RISK_KEYS if k in text_lower]
+        if len(found_keys) < 2:
+            errors.append(f"[MATH] Q6.2: Only {len(found_keys)} maternal risk keywords found (need ≥2). Found: {found_keys}")
+            math_ok = False
+
+    elif category == "Q6.3":
+        # Fetal/neonatal risk: must reference at least 2 known neonatal risk terms
+        text_lower = text.lower()
+        NEONATAL_RISK_KEYS = ["preterm", "birth weight", "sga", "small for gestational",
+                               "neonatal", "live vaccine", "congenital", "comparable", "increased",
+                               "immunosuppression", "placental"]
+        found_keys = [k for k in NEONATAL_RISK_KEYS if k in text_lower]
+        if len(found_keys) < 2:
+            errors.append(f"[MATH] Q6.3: Only {len(found_keys)} neonatal risk keywords found (need ≥2). Found: {found_keys}")
             math_ok = False
 
     return {

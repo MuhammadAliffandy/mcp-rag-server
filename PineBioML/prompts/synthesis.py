@@ -328,37 +328,50 @@ Point 11 MUST list Guard RAG citations in [Tier X] format with ALL available tie
 Yes, according to treat-to-target strategy, the current medication should be adjusted. OR No."""
 
     elif category_id == "Q2.3":
-        category_force = """FORCE ACTION: Q2.3 Ã¢ÂÂ NEXT TREATMENT OPTIONS.
+        _endo_rem  = anchor_block_data.get("endoscopic_remission", False) if anchor_block_data else False
+        _clin_rem  = anchor_block_data.get("clinical_remission", False) if anchor_block_data else False
+        _in_rem_str = "YES — Patient is in ENDOSCOPIC + CLINICAL REMISSION." if (_endo_rem and _clin_rem) else "NO — Patient has active disease."
+        _next_step_hint = (
+            "Optimize current medication (patient is in remission — NO escalation warranted)."
+            if (_endo_rem and _clin_rem)
+            else "Evaluate escalation pathway per STRIDE-II logic."
+        )
+        category_force = f"""FORCE ACTION: Q2.3 — NEXT TREATMENT OPTIONS.
+
+⚠️ REMISSION STATUS (from ANCHOR): {_in_rem_str}
+⚠️ NEXT STEP DIRECTIVE: If patient is in Remission → the ONLY correct output for Step 3 is:
+   "Optimize current medication"
+   DO NOT recommend escalation or switch if patient is already in remission.
 
 You MUST output the FULL structured block below, then end with the exact Final Clinical Conclusion sentence.
 
 ## Patient [ID] - Next Treatment Options Assessment
 
-Step 1 Ã¢ÂÂ DATA RETRIEVAL:
-- Patient ID (from PATIENT ANCHOR Ã¢ÂÂ UC_baseline): [ID]
-- Disease Extent (from PATIENT ANCHOR Ã¢ÂÂ UC_baseline extent): [1=proctitis / 2=left-sided / 3=extensive]
-- Disease Severity (Total Mayo from Q1.1): [VALUE] Ã¢ÂÂ [Remission / Mild / Moderate / Severe]
-- Active Medication (from PATIENT ANCHOR Ã¢ÂÂ UC_med):
+Step 1 — DATA RETRIEVAL:
+- Patient ID (from PATIENT ANCHOR → UC_baseline): [ID]
+- Disease Extent (from PATIENT ANCHOR → UC_baseline extent): [1=proctitis / 2=left-sided / 3=extensive]
+- Disease Severity (Total Mayo from Q1.1): [VALUE] — [Remission / Mild / Moderate / Severe]
+- Active Medication (from PATIENT ANCHOR → UC_med):
   [med_name]  class=[X]  dose=[dose]  route=[route]  interval=[interval]
   start=[YYYY-MM-DD]  duration=[X] weeks
 - Q2.2 Adjustment Decision: [Adjustment / No Adjustment / Continue and reassess]
 
-Step 2 Ã¢ÂÂ STEROID DEPENDENCY CHECK:
+Step 2 — STEROID DEPENDENCY CHECK:
 - Steroid meds (med_class=2, exclude Cortiment MMX): [LIST or None]
-- Steroid-dependent: [Yes (>12w cumulative or Ã¢ÂÂ¥2 episodes/12mo) / No]
+- Steroid-dependent: [Yes (>12w cumulative or ≥2 episodes/12mo) / No]
 
-Step 3 Ã¢ÂÂ GUARD RAG NEXT-STEP LOGIC:
+Step 3 — GUARD RAG NEXT-STEP LOGIC:
 - Index drug class: [0=5-ASA / 1=IM / 2=Steroid / 3=Biologic / 4=Small-molecule]
-- Remission status: [Yes / No]
+- Remission status: {_in_rem_str}
 - Decision pathway:
   Apply rules in order:
-  Ã¢ÂÂ¢ If in remission on advanced therapy Ã¢ÂÂ Optimize current medication
-  Ã¢ÂÂ¢ If first biologic (class=3/4) AND Q2.2=Adjustment Ã¢ÂÂ Switch to or combine other advanced therapy
-  Ã¢ÂÂ¢ If steroid-dependent Ã¢ÂÂ Add-on immunomodulators OR Escalate to advanced therapy
-  Ã¢ÂÂ¢ If 5-ASA (class=0) AND not in remission Ã¢ÂÂ Escalate to advanced therapy OR Add-on immunomodulators
-  Ã¢ÂÂ¢ If IM alone (class=1) AND failing Ã¢ÂÂ Escalate to advanced therapy
+  • If in remission on advanced therapy → Optimize current medication
+  • If first biologic (class=3/4) AND Q2.2=Adjustment → Switch to or combine other advanced therapy
+  • If steroid-dependent → Add-on immunomodulators OR Escalate to advanced therapy
+  • If 5-ASA (class=0) AND not in remission → Escalate to advanced therapy OR Add-on immunomodulators
+  • If IM alone (class=1) AND failing → Escalate to advanced therapy
 
-- Recommended next option: [EXACT PHRASE FROM LIST BELOW]
+- Recommended next option: {_next_step_hint}
 
 Allowed output options (use EXACTLY one):
   Optimize current medication
@@ -366,7 +379,10 @@ Allowed output options (use EXACTLY one):
   Escalate to advanced therapy
   Switch to or combine other advanced therapy
 
-### Ã°ÂÂÂ Final Clinical Conclusion
+### 🎯 Next Clinical Step
+Schedule a follow-up review in [X] weeks to reassess disease status and medication efficacy.
+
+### 📍 Final Clinical Conclusion
 The recommended next option is to [optimize current medication / add-on immunomodulators / escalate to advanced therapy / switch to or combine other advanced therapy]."""
 
     # ─────────────────────────────────────────────────────────────
@@ -547,35 +563,46 @@ NOTE: Stopped immunosuppressants < 3 months ago still confer immunosuppression r
     # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
     elif category_id == "Q5.1":
-        category_force = """FORCE ACTION: Q5.1 Ã¢ÂÂ DIETARY RECOMMENDATION.
+        _clin_rem = anchor_block_data.get("clinical_remission", False) if anchor_block_data else False
+        _disease_state = "REMISSION" if _clin_rem else "ACTIVE DISEASE"
+        _diet_directive = (
+            "Mediterranean-style diet: encourage whole grains, omega-3 rich fish, fresh vegetables, fiber-rich foods, balanced intake."
+            if _clin_rem else
+            "Low-residue diet: encourage cooked vegetables, white rice, lean protein, low-fiber fruit. Avoid raw vegetables, high-fiber foods, spicy food, alcohol."
+        )
+        category_force = f"""FORCE ACTION: Q5.1 — DIETARY RECOMMENDATION.
 You MUST output the full structured block below FIRST, then end with the Final Clinical Conclusion sentence.
+
+⚠️ DISEASE STATUS (from ANCHOR): {_disease_state}
+⚠️ DIETARY DIRECTIVE: {_diet_directive}
 
 ## Patient [ID] - Dietary Recommendation
 
-Step 1 Ã¢ÂÂ DATA RETRIEVAL:
-- bl_mayo_total (Partial Mayo, from PATIENT ANCHOR Ã¢ÂÂ UC_baseline): [VALUE]
-- MAX(MES) (from PATIENT ANCHOR Ã¢ÂÂ UC_cpy Ã¢ÂÂ MUST READ mes_a, mes_t, mes_d, mes_s, mes_r and take the max): [VALUE]
+Step 1 — DATA RETRIEVAL:
+- bl_mayo_total (Partial Mayo, from PATIENT ANCHOR → UC_baseline): [VALUE]
+- MAX(MES) (from PATIENT ANCHOR → UC_cpy → MUST READ mes_a, mes_t, mes_d, mes_s, mes_r and take the max): [VALUE]
 - Total Mayo Score = bl_mayo_total (Partial Mayo) + MAX(MES) = [PM] + [MES] = [TOTAL]
-  Ã¢ÂÂ Ã¯Â¸Â bl_mayo_total alone is NOT the Total Mayo. Total = Partial Mayo + MES max.
+  ⚠️ bl_mayo_total alone is NOT the Total Mayo. Total = Partial Mayo + MES max.
 - Disease Activity Classification:
-  Total Ã¢ÂÂ¤ 2 Ã¢ÂÂ Remission
-  Total 3Ã¢ÂÂ5 Ã¢ÂÂ Mild-Moderate
-  Total 6Ã¢ÂÂ10 Ã¢ÂÂ Active UC (Moderate)
-  Total > 10 Ã¢ÂÂ Severe UC
-  Ã¢ÂÂ This patient: [ACTIVITY LABEL]
-- Disease Extent (from PATIENT ANCHOR Ã¢ÂÂ UC_baseline extent): [1=proctitis / 2=left-sided / 3=extensive]
+  Total ≤ 2 → Remission
+  Total 3–5 → Mild-Moderate
+  Total 6–10 → Active UC (Moderate)
+  Total > 10 → Severe UC
+  → This patient: [{_disease_state}]
+- Disease Extent (from PATIENT ANCHOR → UC_baseline extent): [1=proctitis / 2=left-sided / 3=extensive]
 
-Step 2 Ã¢ÂÂ DIETARY RECOMMENDATION:
-- Foods to ENCOURAGE: [list per activity status]
-  (Active/Moderate: low-residue, cooked vegetables, white rice, lean protein, low-fiber fruit)
-  (Remission: Mediterranean-style, whole grains, omega-3 rich fish, fresh vegetables)
+Step 2 — DIETARY RECOMMENDATION:
+- Foods to ENCOURAGE: {_diet_directive.split('. ')[0]}
 - Foods to AVOID: [list per activity status]
   (Active: raw vegetables, high-fiber foods, spicy food, alcohol, dairy if intolerant)
   (Remission: processed foods, high sugar, excess red meat)
 - Special note: [low-residue diet if active flare / Mediterranean diet if in remission]
 - Guideline basis: [ECCO Diet 2023 / ACG 2021]
 
-### Ã°ÂÂÂ Final Clinical Conclusion
+### 🎯 Next Clinical Step
+Reinforce dietary counseling at next clinic visit in [X] weeks and reassess nutritional status with albumin and BMI check.
+
+### 📍 Final Clinical Conclusion
 [Tier X] This patient is encouraged to have more [___] intake and less [___]. [Society, Year]"""
 
     elif category_id == "Q5.2":
@@ -603,33 +630,32 @@ Step 2 Ã¢ÂÂ SUPPLEMENTATION & SCREENING REQUIRED:
 [Tier X] Yes, the patient is recommended to be screened for [___] deficiency. [Society, Year] OR No."""
 
     elif category_id == "Q5.3":
-        category_force = """FORCE ACTION: Q5.3 Ã¢ÂÂ LIFESTYLE MODIFICATIONS.
+        category_force = """FORCE ACTION: Q5.3 — LIFESTYLE MODIFICATIONS.
 You MUST output the full structured block below FIRST, then end with the Final Clinical Conclusion sentence.
 
 ## Patient [ID] - Lifestyle Modification Plan
 
-Step 1 Ã¢ÂÂ DATA RETRIEVAL:
-- Smoking status (from PATIENT ANCHOR Ã¢ÂÂ UC_baseline): [smoking value or null]
-- Age (from PATIENT ANCHOR Ã¢ÂÂ UC_baseline): [VALUE] years
-- Sex (from PATIENT ANCHOR Ã¢ÂÂ UC_baseline): [M/F]
-- Active Medication (from PATIENT ANCHOR Ã¢ÂÂ UC_med): [med_name]  class=[X]
-  Ã¢ÂÂ Biologic on board: [Yes (class=3/4) / No]
+Step 1 — DATA RETRIEVAL:
+- Smoking / Cessation status (from PATIENT ANCHOR → UC_baseline): [smoking value or null]
+- Age (from PATIENT ANCHOR → UC_baseline): [VALUE] years
+- Sex (from PATIENT ANCHOR → UC_baseline): [M/F]
+- Active Medication (from PATIENT ANCHOR → UC_med): [med_name]  class=[X]
+  → Biologic on board: [Yes (class=3/4) / No]
 
-Step 2 Ã¢ÂÂ LIFESTYLE RECOMMENDATIONS:
+Step 2 — LIFESTYLE RECOMMENDATIONS (MUST include ALL rows):
 | Lifestyle Factor | Recommendation | Reason |
 |---|---|---|
-| Smoking | Advise cessation | Overall health + drug efficacy |
-| Physical Activity | 150 min/week moderate exercise | Reduces inflammation markers |
-| Stress Management | CBT, mindfulness | IBD-psychosocial link |
-| BMI / Weight | Healthy weight maintenance | Biologic efficacy |
-| Alcohol | Limit or avoid | Worsens IBD inflammation |
+| Smoking / Cessation | Advise smoking cessation if current smoker | Smoking cessation improves drug efficacy and reduces flare risk |
+| Physical Activity / Exercise | 150 min/week moderate exercise | Reduces inflammation markers and improves quality of life |
+| Stress Management / Mindfulness | CBT, mindfulness, psychological support | IBD-psychosocial link; stress worsens flares |
+| BMI / Weight | Healthy weight maintenance | Overweight reduces biologic efficacy |
+| Alcohol intake | Limit or avoid alcohol | Alcohol worsens IBD inflammation |
 
-### Ã°ÂÂÂ Final Clinical Conclusion
-[Tier X] The patient should quit [___] and enhance [___]. [Society, Year]"""
+### 🎯 Next Clinical Step
+Provide lifestyle modification counseling at next visit. Refer to a dietitian and psychologist if indicated.
 
-    # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
-    # CATEGORY 6: Family Planning
-    # Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+### 📍 Final Clinical Conclusion
+[Tier X] The patient should maintain smoking cessation, engage in regular physical activity (exercise), and practice stress management and mindfulness. Alcohol intake should be limited. [Society, Year]"""
 
     elif category_id == "Q6.1":
         category_force = """FORCE ACTION: Q6.1 Ã¢ÂÂ MEDICATION SAFETY IN PREGNANCY/LACTATION.
@@ -671,23 +697,31 @@ For this patient's ACTUAL active medications:
 [Tier X] These [Medication 1] medications were safe to be continued. These [Medication 2] medication should be stopped [___] months before conception. [Society, Year]"""
 
     elif category_id == "Q6.2":
-        category_force = """FORCE ACTION: Q6.2 Ã¢ÂÂ MATERNAL RISKS FROM DISEASE ACTIVITY AND MEDICATIONS.
+        _clin_rem = anchor_block_data.get("clinical_remission", False) if anchor_block_data else False
+        _rem_context = (
+            "Patient is in clinical remission → Most maternal outcomes are COMPARABLE to non-IBD patients."
+            if _clin_rem else
+            "Patient has active disease → maternal risks (preeclampsia, VTE, flare, gestational complications) are INCREASED."
+        )
+        category_force = f"""FORCE ACTION: Q6.2 — MATERNAL RISKS FROM DISEASE ACTIVITY AND MEDICATIONS.
+
+⚠️ DISEASE STATUS (from ANCHOR): {_rem_context}
 
 You MUST output the FULL structured block below, then end with the exact Final Clinical Conclusion sentence.
 
 ## Patient [ID] - Maternal Risk Assessment
 
-Step 1 Ã¢ÂÂ DATA RETRIEVAL:
-- Patient sex (from PATIENT ANCHOR Ã¢ÂÂ UC_baseline): [M / F]
-- Age (from PATIENT ANCHOR Ã¢ÂÂ UC_baseline): [VALUE] years
-- Disease severity (Total Mayo): [VALUE] Ã¢ÂÂ [Remission / Mild / Moderate / Severe]
-- Clinical remission: [Yes / No] Ã¢ÂÂ CRP=[X], FC=[X], MES max=[X]
-- Active Medications (from PATIENT ANCHOR Ã¢ÂÂ UC_med):
+Step 1 — DATA RETRIEVAL:
+- Patient sex (from PATIENT ANCHOR → UC_baseline): [M / F]
+- Age (from PATIENT ANCHOR → UC_baseline): [VALUE] years
+- Disease severity (Total Mayo): [VALUE] — [Remission / Mild / Moderate / Severe]
+- Clinical remission: [Yes / No] — CRP=[X], FC=[X], MES max=[X]
+- Active Medications (from PATIENT ANCHOR → UC_med):
   [med_name]  class=[X]  (list ALL active)
 - Steroid use: [Yes / No] (med_class=2 present?)
 - Biologic/Anti-TNF use: [Yes / No] (med_class=3 or 4 present?)
 
-Step 2 Ã¢ÂÂ MATERNAL RISK ASSESSMENT:
+Step 2 — MATERNAL RISK ASSESSMENT:
 Apply rules based on actual disease status and active medications:
 
 | Risk | Present? | Reason | Severity vs Non-IBD |
@@ -703,7 +737,10 @@ For this patient (based on actual medication and disease status):
 - Risks that are INCREASED: [list applicable risks]
 - Risks COMPARABLE to non-IBD: [list if in remission / no biologics]
 
-### Ã°ÂÂÂ Final Clinical Conclusion
+### 🎯 Next Clinical Step
+Discuss family planning with a maternal-fetal medicine specialist. Ensure disease is in remission ≥3 months before conception.
+
+### 📍 Final Clinical Conclusion
 [Tier X] Maternally, the risk of [Condition] is [increased / comparable] to the non-IBD patients. [Society, Year]"""
 
     elif category_id == "Q6.3":
