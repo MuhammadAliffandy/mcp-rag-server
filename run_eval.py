@@ -376,6 +376,9 @@ Check whether:
 2. The key clinical decision (severity / remission label / adjustment / screening interval) is medically CORRECT per the ground truth values.
 3. All cited numeric values are factually accurate.
 
+Example of a 100% Correct Response:
+"The patient is in Remission because total Mayo score was 1.0. (partial Mayo score 0.0, MES 1.0). [Tier 1] Clinical remission is defined as Total Mayo <= 2. [ECCO, 2023]"
+
 Verdict:
   "Correct"           — concise sentence present + decision medically correct + values accurate
   "Partially Correct" — decision correct but minor format deviation OR minor value error
@@ -460,6 +463,9 @@ Judge whether this response would be helpful in your daily clinical decision-mak
   "Helpful"           — concise, immediately actionable, clear recommendation
   "Partially Helpful" — provides useful info but slightly ambiguous
   "Not Helpful"       — wrong, too verbose, or lacks a clear decision
+
+Example of a 100% Helpful Response:
+"The patient is in Remission because total Mayo score was 1.0. (partial Mayo score 0.0, MES 1.0). [Tier 1] Clinical remission is defined as Total Mayo <= 2. [ECCO, 2023]"
 
 Return ONLY valid JSON:
 {
