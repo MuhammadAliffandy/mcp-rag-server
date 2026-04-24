@@ -413,6 +413,7 @@ def generate_response(pid: str, category: str) -> str:
             "English", question, raw, tools,
             category_id=category,
             anchor_block=anchor_block,
+            anchor_block_data=gt,
         )
         llm = get_llm(model_name="gpt-4o-mini", temperature=0)
         return llm.invoke([
@@ -453,23 +454,26 @@ Return ONLY JSON (no markdown):
 
 JUDGE_CORRECTNESS = """You are a senior IBD physician. Judge OUTPUT CORRECTNESS for this clinical AI response.
 
-Assess whether:
-1. The final clinical conclusion sentence exactly matches the gold-standard template format
-2. The key clinical decision (severity / remission / adjustment / screening) is medically CORRECT
-3. All critical data values cited are factually accurate
+Check whether:
+1. The response format is a CONCISE DOCTOR SENTENCE (1-3 sentences) followed by an optional citation.
+2. The key clinical decision (severity / remission label / adjustment / screening interval) is medically CORRECT per the ground truth values.
+3. All cited numeric values are factually accurate.
 
-Return one final verdict:
-- "Correct"         — conclusion sentence matches template AND decision is clinically correct
-- "Partially Correct" — sentence is close / decision is correct but format deviated
-- "Incorrect"       — wrong decision or major factual error
+Example of a 100% Correct Response:
+"The patient is in Remission because total Mayo score was 1.0. (partial Mayo score 0.0, MES 1.0). [Tier 1] Clinical remission is defined as Total Mayo <= 2. [ECCO, 2023]"
+
+Verdict:
+  "Correct"           — concise sentence present + decision medically correct + values accurate
+  "Partially Correct" — decision correct but minor format deviation OR minor value error
+  "Incorrect"         — wrong decision OR major factual error
 
 Return ONLY JSON:
 {
-  "conclusion_sentence_found": true/false,
-  "decision_clinically_correct": true/false,
-  "critical_errors": ["..."],
-  "verdict": "Correct" | "Partially Correct" | "Incorrect",
-  "accuracy_rate": 0.0-1.0
+  "conclusion_sentence_found": true,
+  "decision_clinically_correct": true,
+  "critical_errors": [],
+  "verdict": "Correct",
+  "accuracy_rate": 1.0
 }
 """
 
@@ -479,44 +483,58 @@ Check if the agent's recommendations align with current IBD guideline standards 
 
 Return ONLY JSON:
 {
-  "guideline_citations_present": true/false,
-  "recommendations_per_guideline": true/false,
-  "major_concordance_errors": ["..."],
-  "verdict": "Correct" | "Partially Correct" | "Incorrect",
-  "concordance_rate": 0.0-1.0
+  "guideline_citations_present": true,
+  "recommendations_per_guideline": true,
+  "major_concordance_errors": [],
+  "verdict": "Correct",
+  "concordance_rate": 1.0
 }
 """
 
-JUDGE_COMPLETENESS = """You are a clinical evaluator checking OUTPUT COMPLETENESS.
+JUDGE_COMPLETENESS = """You are a clinical completeness auditor.
 
-Verify that the response contains ALL required template sections/numbered points for this category.
+The gold standard format for this system is a CONCISE DOCTOR SENTENCE (1-3 sentences) followed by a [Tier X] citation.
+
+Check whether the response provides the complete clinical conclusion expected for its category.
+Do NOT penalize the absence of "Step 1", "DATA RETRIEVAL", or "retrieval_trace" blocks. A concise, accurate final answer sentence is considered 100% Complete.
+
+Example of a 100% Complete Response:
+"The patient is in Remission because total Mayo score was 1.0. (partial Mayo score 0.0, MES 1.0). [Tier 1] Clinical remission is defined as Total Mayo <= 2. [ECCO, 2023]"
+
+Verdict:
+  "Complete"           — concise clinical conclusion sentence is present.
+  "Partially Complete" — conclusion is present but missing minor details.
+  "Incomplete"         — no conclusion sentence found.
 
 Return ONLY JSON:
 {
-  "sections_present": ["Step 1", "Step 2", "Final Clinical Conclusion", "..."],
-  "sections_missing": ["..."],
-  "retrieval_trace_present": true/false,
-  "total_required": 5,
-  "total_found": 4,
-  "verdict": "Complete" | "Partially Complete" | "Incomplete",
-  "complete_rate": 0.0-1.0
+  "sections_found": ["Final Clinical Conclusion"],
+  "sections_missing": [],
+  "retrieval_trace_present": true,
+  "guideline_trace_present": true,
+  "verdict": "Complete",
+  "complete_rate": 1.0
 }
 """
 
 JUDGE_HELPFULNESS = """You are a junior gastroenterologist. Rate clinical HELPFULNESS of this AI response for your daily practice.
 
-Criteria:
-- Helpful: immediately actionable, cited correctly, would change/confirm your decision
-- Partially Helpful: provides some useful info but missing key points or unclear
-- Not Helpful: incorrect, incomplete, or would NOT help in clinical decision making
+The response should be a CONCISE DOCTOR SENTENCE.
+Judge whether this response would be helpful in your daily clinical decision-making:
+  "Helpful"           — concise, immediately actionable, clear recommendation
+  "Partially Helpful" — provides useful info but slightly ambiguous
+  "Not Helpful"       — wrong, too verbose, or lacks a clear decision
+
+Example of a 100% Helpful Response:
+"The patient is in Remission because total Mayo score was 1.0. (partial Mayo score 0.0, MES 1.0). [Tier 1] Clinical remission is defined as Total Mayo <= 2. [ECCO, 2023]"
 
 Return ONLY JSON:
 {
-  "actionable": true/false,
-  "correctly_cited": true/false,
-  "clinical_decision_impact": "high" | "medium" | "low",
-  "verdict": "Helpful" | "Partially Helpful" | "Not Helpful",
-  "helpfulness_rate": 0.0-1.0
+  "actionable": true,
+  "clear_recommendation": true,
+  "missing_elements": [],
+  "verdict": "Helpful",
+  "helpfulness_rate": 1.0
 }
 """
 
