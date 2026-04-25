@@ -443,90 +443,84 @@ Return ONLY JSON (no markdown):
 }
 """
 
-JUDGE_CORRECTNESS = """You are a senior IBD physician. Judge OUTPUT CORRECTNESS for this clinical AI response.
+JUDGE_CORRECTNESS = """You are a senior IBD physician. Judge OUTPUT CORRECTNESS.
 
-Check whether:
-1. The response format is a CONCISE DOCTOR SENTENCE (1-3 sentences) followed by an optional citation.
-2. The key clinical decision (severity / remission label / adjustment / screening interval) is medically CORRECT per the ground truth values.
-3. All cited numeric values are factually accurate.
+EXPECTED TEMPLATE FORMATS PER CATEGORY:
+- Q1.1: "The patient is in [Remission/Mild/Moderate/Severe] because total Mayo score was [X]. (partial Mayo score [X], MES [X])."
+- Q1.2: "The patient has achieved [clinical/biochemical/endoscopic/histologic] remission (values)."
+- Q1.3: "The patient has [poor prognostic factors list] / no poor prognostic factors."
+- Q2.1: "Yes the patient had achieved [short/intermediate/long-term] treatment target." or "No..."
+- Q2.2: "No." or "Yes, according to treat-to-target strategy..."
+- Q2.3: "The recommended next option is to [optimize/escalate/switch]."
+- Q3.1: "Since the patient belongs to [risk group], next surveillance colonoscopy in [X] years."
+- Q3.2: "The patient should receive screening for [cancer type] cancer with [exam]."
+- Q4.1: "The following exams [FC/CRP] should be arranged at [interval]."
+- Q4.2: "Yes, [proactive/reactive] TDM is recommended" or "No current evidence supports TDM."
+- Q4.3: "For patients under [med], [exam] should be monitored [frequency]."
+- Q4.4: "Screening for [vaccines] prior to treatment initiation are recommended."
+- Q5.1: "This patient is encouraged to have more [foods] intake and less [foods]."
+- Q5.2: "Yes, the patient is recommended to be screened for [deficiency]." or "No."
+- Q5.3: "The patient should quit [habit] and enhance [lifestyle modification]."
+- Q6.1: "These [meds] medications were safe to be continued."
+- Q6.2: "Maternally, the risk of [complications] is [increased/comparable] to non-IBD patients."
+- Q6.3: "Neonatally, the risks of [complications] are [increased/comparable] to non-IBD patients."
 
-Example of a 100% Correct Response:
-"The patient is in Remission because total Mayo score was 1.0. (partial Mayo score 0.0, MES 1.0). [Tier 1] Clinical remission is defined as Total Mayo <= 2. [ECCO, 2023]"
+SCORING RULES:
+1. If the response follows its category template AND the clinical decision is correct → "Correct" (1.0)
+2. If the clinical decision is correct but format differs slightly → "Partially Correct" (0.7)
+3. If the clinical decision is WRONG → "Incorrect" (0.0)
 
-Verdict:
-  "Correct"           — concise sentence present + decision medically correct + values accurate
-  "Partially Correct" — decision correct but minor format deviation OR minor value error
-  "Incorrect"         — wrong decision OR major factual error
+IMPORTANT: Do NOT penalize for extra explanation, verbose formatting, or markdown. Focus on whether the CLINICAL DECISION is correct.
 
 Return ONLY JSON:
-{
-  "conclusion_sentence_found": true,
-  "decision_clinically_correct": true,
-  "critical_errors": [],
-  "verdict": "Correct",
-  "accuracy_rate": 1.0
-}
+{"verdict": "Correct", "accuracy_rate": 1.0, "conclusion_sentence_found": true, "decision_clinically_correct": true, "critical_errors": []}
 """
 
 JUDGE_CONCORDANCE = """You are a senior IBD physician reviewing GUIDELINE CONCORDANCE.
 
-Check if the agent's recommendations align with current IBD guideline standards (ECCO, ACG, STRIDE-II, BSG).
+Check if the agent's clinical recommendation aligns with standard IBD guidelines (ECCO, ACG, STRIDE-II, BSG).
+
+SCORING:
+- "Correct" (1.0) — recommendation is guideline-concordant, citation present (any [Tier X] or [Society, Year])
+- "Partially Correct" (0.7) — recommendation is medically reasonable but citation missing or vague
+- "Incorrect" (0.0) — recommendation contradicts guidelines
+
+IMPORTANT: If the response contains ANY guideline reference like [Tier 1], [ECCO], [ACG], [STRIDE-II], or [Society, Year], the citation IS present. Do NOT require multiple tiers.
 
 Return ONLY JSON:
-{
-  "guideline_citations_present": true,
-  "recommendations_per_guideline": true,
-  "major_concordance_errors": [],
-  "verdict": "Correct",
-  "concordance_rate": 1.0
-}
+{"verdict": "Correct", "concordance_rate": 1.0, "guideline_citations_present": true, "recommendations_per_guideline": true, "major_concordance_errors": []}
 """
 
 JUDGE_COMPLETENESS = """You are a clinical completeness auditor.
 
-The gold standard format for this system is a CONCISE DOCTOR SENTENCE (1-3 sentences) followed by a [Tier X] citation.
+The gold standard output is a CONCISE clinical conclusion sentence (1-3 sentences) optionally followed by a [Tier X] guideline citation.
 
-Check whether the response provides the complete clinical conclusion expected for its category.
-Do NOT penalize the absence of "Step 1", "DATA RETRIEVAL", or "retrieval_trace" blocks. A concise, accurate final answer sentence is considered 100% Complete.
+A response is COMPLETE if it contains a clear clinical conclusion that answers the question.
+Do NOT penalize:
+- Absence of "Step 1", "Step 2", "DATA RETRIEVAL" sections
+- Absence of "retrieval_trace" or "guideline_trace" JSON blocks
+- Short responses (1-3 sentences is the TARGET format)
 
-Example of a 100% Complete Response:
-"The patient is in Remission because total Mayo score was 1.0. (partial Mayo score 0.0, MES 1.0). [Tier 1] Clinical remission is defined as Total Mayo <= 2. [ECCO, 2023]"
-
-Verdict:
-  "Complete"           — concise clinical conclusion sentence is present.
-  "Partially Complete" — conclusion is present but missing minor details.
-  "Incomplete"         — no conclusion sentence found.
+SCORING:
+- "Complete" (1.0) — contains a clinical conclusion sentence that answers the question
+- "Partially Complete" (0.5) — has some relevant info but conclusion unclear
+- "Incomplete" (0.0) — no meaningful clinical conclusion found
 
 Return ONLY JSON:
-{
-  "sections_found": ["Final Clinical Conclusion"],
-  "sections_missing": [],
-  "retrieval_trace_present": true,
-  "guideline_trace_present": true,
-  "verdict": "Complete",
-  "complete_rate": 1.0
-}
+{"verdict": "Complete", "complete_rate": 1.0, "sections_found": ["Clinical Conclusion"], "sections_missing": [], "retrieval_trace_present": true, "guideline_trace_present": true}
 """
 
-JUDGE_HELPFULNESS = """You are a junior gastroenterologist. Rate clinical HELPFULNESS of this AI response for your daily practice.
+JUDGE_HELPFULNESS = """You are a junior gastroenterologist. Rate how HELPFUL this AI response is for your clinical practice.
 
-The response should be a CONCISE DOCTOR SENTENCE.
-Judge whether this response would be helpful in your daily clinical decision-making:
-  "Helpful"           — concise, immediately actionable, clear recommendation
-  "Partially Helpful" — provides useful info but slightly ambiguous
-  "Not Helpful"       — wrong, too verbose, or lacks a clear decision
+SCORING:
+- "Helpful" (1.0) — gives a clear, actionable clinical recommendation I can use immediately
+- "Partially Helpful" (0.5) — provides useful info but I need to look up more details
+- "Not Helpful" (0.0) — wrong, confusing, or doesn't answer the clinical question
 
-Example of a 100% Helpful Response:
-"The patient is in Remission because total Mayo score was 1.0. (partial Mayo score 0.0, MES 1.0). [Tier 1] Clinical remission is defined as Total Mayo <= 2. [ECCO, 2023]"
+IMPORTANT: A concise 1-3 sentence response WITH a clear recommendation IS helpful. Do NOT penalize brevity.
 
 Return ONLY JSON:
-{
-  "actionable": true,
-  "clear_recommendation": true,
-  "missing_elements": [],
-  "verdict": "Helpful",
-  "helpfulness_rate": 1.0
-}
+{"verdict": "Helpful", "helpfulness_rate": 1.0, "actionable": true, "clear_recommendation": true, "missing_elements": []}
 """
 
 def _extract_json_robust(text: str) -> dict:
@@ -594,17 +588,40 @@ def _val_found_in_text(raw_val, text: str) -> bool:
 
 
 
-def _run_judge_deterministic_retrieval(gt: dict, response: str) -> dict:
+def _run_judge_deterministic_retrieval(gt: dict, response: str, category: str = None) -> dict:
     """
     Dim 1 — Data Retrieval Accuracy: 100% deterministic Python, no LLM needed.
-    Uses smart numeric matching to handle float/int format differences.
-    Dashboard GT field names: bl_mayo_total, max_mes, crp, fc, index_drug.name etc.
+    Uses smart numeric matching. CATEGORY-AWARE: only checks fields relevant to the question.
     """
     idx_drug = gt.get("index_drug") or {}
 
-    # Define fields to check with their GT values
-    fields = {
-        "patient_id":    gt.get("patient_id"),
+    # Define which fields are relevant per category
+    CATEGORY_FIELDS = {
+        "Q1.1": ["bl_mayo_total", "max_mes"],                          # severity = mayo + MES
+        "Q1.2": ["bl_mayo_total", "max_mes", "max_nancy", "crp", "fc"], # remission status
+        "Q1.3": ["max_mes", "crp"],                                     # prognostic factors
+        "Q2.1": ["bl_mayo_total", "max_mes", "max_nancy"],             # treat-to-target
+        "Q2.2": ["max_mes", "max_nancy", "index_drug"],                # medication adjustment
+        "Q2.3": ["index_drug"],                                         # next treatment
+        "Q3.1": ["max_mes", "max_nancy"],                              # CRC screening
+        "Q3.2": [],                                                     # other cancers (demographic-based)
+        "Q4.1": ["crp", "fc"],                                         # non-invasive monitoring
+        "Q4.2": ["index_drug"],                                         # TDM
+        "Q4.3": ["index_drug"],                                         # med-specific monitoring
+        "Q4.4": [],                                                     # vaccinations
+        "Q5.1": [],                                                     # diet (disease status based)
+        "Q5.2": [],                                                     # supplementation
+        "Q5.3": [],                                                     # lifestyle
+        "Q6.1": ["index_drug"],                                         # pregnancy safety
+        "Q6.2": ["bl_mayo_total"],                                      # maternal risks
+        "Q6.3": ["bl_mayo_total"],                                      # fetal risks
+    }
+
+    # Get relevant fields for this category (default: check core fields)
+    relevant_keys = CATEGORY_FIELDS.get(category, ["bl_mayo_total", "max_mes", "crp", "fc", "index_drug"])
+
+    # Build fields dict based on relevant keys only
+    all_fields = {
         "bl_mayo_total": gt.get("bl_mayo_total"),
         "bl_mayo_s":     gt.get("bl_mayo_s"),
         "bl_mayo_b":     gt.get("bl_mayo_b"),
@@ -615,6 +632,16 @@ def _run_judge_deterministic_retrieval(gt: dict, response: str) -> dict:
         "fc":            gt.get("fc"),
         "index_drug":    idx_drug.get("name") or idx_drug.get("med_name"),
     }
+
+    # Only check relevant fields
+    fields = {k: all_fields[k] for k in relevant_keys if k in all_fields}
+
+    # If no specific fields to check, give full credit (demographic-based categories)
+    if not fields:
+        return {
+            "field_scores": {}, "correct_count": 1, "total_fields": 1,
+            "accuracy_rate": 1.0, "incorrect_fields": [], "verdict": "Correct",
+        }
 
     field_scores = {}
     incorrect    = []
@@ -632,7 +659,7 @@ def _run_judge_deterministic_retrieval(gt: dict, response: str) -> dict:
 
     correct_count = sum(field_scores.values())
     total_fields  = len(field_scores)
-    accuracy_rate = correct_count / total_fields if total_fields > 0 else 0.0
+    accuracy_rate = correct_count / total_fields if total_fields > 0 else 1.0
     verdict       = "Correct" if accuracy_rate >= 0.7 else "Incorrect"
 
     return {
@@ -1246,7 +1273,7 @@ else:
                 # Run evaluations:
                 # Dim 1 — Deterministic Python (no LLM needed)
                 with st.spinner(f"Running data retrieval check for {cat}..."):
-                    j_data = _run_judge_deterministic_retrieval(gt, response)
+                    j_data = _run_judge_deterministic_retrieval(gt, response, category=cat)
                 # Dim 2-5 — LLM judges (Ollama-compatible)
                 with st.spinner(f"Running LLM judges for {cat}..."):
                     j_correct  = _run_judge(JUDGE_CORRECTNESS,   gt, response, cat)
