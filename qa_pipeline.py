@@ -330,7 +330,7 @@ def generate_agent_response(pid, category: str, gt: dict = None) -> dict:
             )
             resp = synth_llm.invoke([
                 ("system", synth_prompt),
-                ("human", "Please answer the clinical question. Extract all numeric values from the STRUCTURED PATIENT ANCHOR in TECHNICAL FINDINGS. Do NOT guess values.")
+                ("human", "Please answer the clinical question by strictly following the REQUIRED OUTPUT template format from the system prompt. Do NOT guess values. Use exact values from the STRUCTURED PATIENT ANCHOR.")
             ])
             final_answer = resp.content
         else:

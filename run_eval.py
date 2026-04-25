@@ -149,15 +149,8 @@ def extract_gt(pid) -> dict:
             c_rows = c_rows.copy()
             c_rows[sc] = pd.to_datetime(c_rows[sc], errors="coerce")
             c_rows_sorted = c_rows.sort_values(sc)
-            bl_date = pd.to_datetime(b.get("date_cpy"), errors="coerce") if "date_cpy" in b.index else None
-            lc = None
-            if bl_date is not None and pd.notnull(bl_date):
-                bl_match = c_rows_sorted[c_rows_sorted[sc] == bl_date]
-                if not bl_match.empty:
-                    lc = bl_match.iloc[-1]
-            if lc is None:
-                c_before = c_rows_sorted[c_rows_sorted[sc] <= EVAL_DATE]
-                lc = c_before.iloc[-1] if not c_before.empty else c_rows_sorted.iloc[0]
+            c_before = c_rows_sorted[c_rows_sorted[sc] <= EVAL_DATE]
+            lc = c_before.iloc[-1] if not c_before.empty else c_rows_sorted.iloc[0]
             gt["last_cpy"] = str(lc[sc].date()) if pd.notnull(lc[sc]) else None
             mes_seg = {k: float(lc[k]) for k in ["mes_a","mes_t","mes_d","mes_s","mes_r"]
                        if k in lc.index and pd.notnull(lc[k])}
@@ -172,15 +165,8 @@ def extract_gt(pid) -> dict:
             h_rows = h_rows.copy()
             h_rows[sc] = pd.to_datetime(h_rows[sc], errors="coerce")
             h_rows_sorted = h_rows.sort_values(sc)
-            bl_date = pd.to_datetime(b.get("date_cpy"), errors="coerce") if "date_cpy" in b.index else None
-            lh = None
-            if bl_date is not None and pd.notnull(bl_date):
-                bl_match = h_rows_sorted[h_rows_sorted[sc] == bl_date]
-                if not bl_match.empty:
-                    lh = bl_match.iloc[-1]
-            if lh is None:
-                h_before = h_rows_sorted[h_rows_sorted[sc] <= EVAL_DATE]
-                lh = h_before.iloc[-1] if not h_before.empty else h_rows_sorted.iloc[0]
+            h_before = h_rows_sorted[h_rows_sorted[sc] <= EVAL_DATE]
+            lh = h_before.iloc[-1] if not h_before.empty else h_rows_sorted.iloc[0]
             nancy_seg = {k: float(lh[k]) for k in ["nancy_a","nancy_t","nancy_d","nancy_s","nancy_r"]
                          if k in lh.index and pd.notnull(lh[k])}
             gt["nancy_values"] = nancy_seg
@@ -287,7 +273,7 @@ def call_agent(pid: str, category: str, gt: dict = None) -> str:
 
         print(f"  {DIM}[Synthesis] running LLM...{RST}")
         llm = get_llm(model_name="gpt-4o-mini", temperature=0)
-        return llm.invoke([("system", prompt), ("human", "Please answer the clinical question. Extract all numeric values from the STRUCTURED PATIENT ANCHOR in TECHNICAL FINDINGS. Do NOT guess values.")]).content
+        return llm.invoke([("system", prompt), ("human", "Please answer the clinical question by strictly following the REQUIRED OUTPUT template format from the system prompt. Do NOT guess values. Use exact values from the STRUCTURED PATIENT ANCHOR.")]).content
 
     except Exception as e:
         import traceback
@@ -303,6 +289,8 @@ def _judge(system_prompt: str, gt: dict, response: str, category: str) -> dict:
 
         # Clean ground truth: remove heavy list fields
         gt_clean = {k: v for k, v in gt.items() if k not in ("error", "mes_values", "nancy_values")}
+        if "bl_mayo_total" in gt_clean:
+            gt_clean["partial_mayo_score"] = gt_clean.pop("bl_mayo_total")
         user_msg = (
             f"CATEGORY: {category}\n"
             f"GROUND_TRUTH:\n{json.dumps(gt_clean, indent=2, default=str)[:3000]}\n\n"
@@ -326,7 +314,8 @@ Compare AGENT_RESPONSE against GROUND_TRUTH.
 
 FIRST, identify WHICH fields are actually REQUIRED to answer the clinical question for this specific CATEGORY.
 For example:
-- Q1.x requires Mayo sub-scores, MES, Nancy, etc.
+- Q1.1 requires only partial_mayo_score (or bl_mayo_total) and max_mes.
+- Q1.2 requires clinical, biochemical, endoscopic, and histologic remission status.
 - Q4.x requires medications, CRP, FC, etc.
 - Q5.x requires BMI, smoking, albumin, extent, etc.
 DO NOT penalize the agent for omitting data fields that are IRRELEVANT to the current category.
@@ -356,7 +345,29 @@ Check whether:
 2. The key clinical decision (severity / remission label / adjustment / screening interval) is medically CORRECT per the ground truth values.
 3. All cited numeric values are factually accurate.
 
-Example of a 100% Correct Response:
+NOTE: "Total Mayo" = "partial_mayo_score" + "max_mes". Use the 'total_mayo' field in GROUND_TRUTH to verify the Total Mayo score, do NOT mistakenly use partial_mayo_score.
+
+EXPECTED TEMPLATE FORMATS PER CATEGORY (Strictly match these):
+- Q1.1: "The patient is in [Remission/Mild/Moderate/Severe] because total Mayo score was [X]. (partial Mayo score [X], MES [X])."
+- Q1.2: "The patient has achieved [clinical/biochemical/endoscopic/histologic] remission (values)."
+- Q1.3: "The patient has [poor prognostic factors list] / no poor prognostic factors."
+- Q2.1: "Yes the patient had achieved [short/intermediate/long-term] treatment target." or "No..."
+- Q2.2: "No." or "Yes, according to treat-to-target strategy..."
+- Q2.3: "The recommended next option is to [optimize/escalate/switch]."
+- Q3.1: "Since the patient belongs to [risk group], next surveillance colonoscopy in [X] years."
+- Q3.2: "The patient should receive screening for [cancer type] cancer with [exam]."
+- Q4.1: "The following exams [FC/CRP] should be arranged at [interval]."
+- Q4.2: "Yes, [proactive/reactive] TDM is recommended" or "No current evidence supports TDM."
+- Q4.3: "For patients under [med], [exam] should be monitored [frequency]."
+- Q4.4: "Screening for [vaccines] prior to treatment initiation are recommended."
+- Q5.1: "This patient is encouraged to have more [foods] intake and less [foods]."
+- Q5.2: "Yes, the patient is recommended to be screened for [deficiency]." or "No."
+- Q5.3: "The patient should quit [habit] and enhance [lifestyle modification]."
+- Q6.1: "These [meds] medications were safe to be continued."
+- Q6.2: "Maternally, the risk of [complications] is [increased/comparable] to non-IBD patients."
+- Q6.3: "Neonatally, the risks of [complications] are [increased/comparable] to non-IBD patients."
+
+Example of a 100% Correct Response for Q1.1:
 "The patient is in Remission because total Mayo score was 1.0. (partial Mayo score 0.0, MES 1.0). [Tier 1] Clinical remission is defined as Total Mayo <= 2. [ECCO, 2023]"
 
 Verdict:

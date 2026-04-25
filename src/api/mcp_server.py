@@ -876,8 +876,11 @@ def query_core_rag(patient_id: str, query_intent: str) -> str:
             ]).content
             
             pine_log(f"✅ Core RAG: Clinical enrichment complete ({len(enriched)} chars)")
-            return enriched
             
+            # Append the raw structured dictionary so synthesis prompts can reliably extract exact keys
+            final_output = f"{enriched}\n\n=== ✅ STRUCTURED PATIENT ANCHOR (TRUST ALL VALUES) ===\n{raw_data}\n=== END PATIENT ANCHOR ==="
+            return final_output
+
         except Exception as enrich_err:
             pine_log(f"⚠️ Core RAG: Enrichment failed ({enrich_err}), returning raw data")
             return raw_data

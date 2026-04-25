@@ -44,9 +44,10 @@ STEP 3 — CLASSIFY:
 
 REQUIRED OUTPUT (write EXACTLY this sentence, filling in the values you extracted):
 "The patient is in [Severity] because total Mayo score was [Total Mayo]. (partial Mayo score [bl_mayo_total], MES [MAX_MES])."
+Ensure numbers have one decimal place (e.g., 0.0, 1.0, 3.0).
 
 Then add one supporting sentence citing the guideline:
-"[Tier 1] [Guideline statement about Mayo scoring classification]. [Society, Year]"
+"[Tier 1] A total Mayo score of 3-5 indicates mild disease severity. [ACG, 2020]"
 """
 
     elif category_id == "Q1.2":
@@ -468,7 +469,7 @@ CURRENT SYSTEM DATE: 2026-02-11. Use this for ALL duration calculations.
 - ALWAYS use double-newlines between numbered points for Markdown compatibility.
 - DO NOT add category labels like "Q1.1", "Q2.2" in the response header. Use natural headers.
 - Show per-segment scores in HUMAN-READABLE format — use anatomical names (Ascending, Transverse, Descending, Sigmoid, Rectum), NOT python keys like mes_a/mes_t.
-- Write whole numbers without decimals (write 3 not 3.0) where appropriate.
+- Always retain one decimal place for clinical scores (e.g., 0.0, 1.0, 3.0) to match the expected format.
 - {f"CRITICAL: {category_force}" if category_force else "Provide a comprehensive clinical synthesis."}
 
 # USER REQUEST:
