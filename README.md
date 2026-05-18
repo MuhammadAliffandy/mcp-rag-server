@@ -1,4 +1,67 @@
-# Overview
+# ColonoSense RAG Server
+
+ColonoSense is an AI Clinical Decision Support system for Ulcerative Colitis, powered by Retrieval-Augmented Generation (RAG) and STRIDE-II Guidelines.
+
+## Server Setup & Installation Guide
+
+Follow these steps to deploy and run the ColonoSense RAG Server in your environment.
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/MuhammadAliffandy/mcp-rag-server.git
+cd mcp-rag-server
+```
+
+### 2. Setup Virtual Environment (Recommended)
+It is highly recommended to use a virtual environment to manage dependencies:
+```bash
+# Create the virtual environment
+python3 -m venv venv
+
+# Activate it (Linux/MacOS)
+source venv/bin/activate
+# For Windows (Command Prompt): venv\Scripts\activate
+```
+
+### 3. Install Dependencies
+Install all required libraries using the provided requirements file:
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 4. Environment Variables (.env)
+You need to configure your API keys and LLM settings. Copy the example configuration file:
+```bash
+cp .env.example .env
+```
+Open the `.env` file and configure your settings:
+- **For OpenAI:** Set your `OPENAI_API_KEY="sk-..."`
+- **For Local LLM (Llama):** If you prefer to run the system locally using Llama, ensure you have [Ollama](https://ollama.com/) installed and running. Set the following variables in your `.env`:
+  ```env
+  LLM_PROVIDER="ollama"
+  OLLAMA_MODEL="llama3.1:8b" # Or whichever model you have pulled
+  OLLAMA_BASE_URL="http://127.0.0.1:11434/v1"
+  ```
+
+### 5. Running the Application
+Once the setup is complete, you can start the web dashboards:
+
+**Main Clinical Chatbot UI:**
+```bash
+streamlit run app.py
+```
+*(If deploying on a remote server, you may need to run: `streamlit run app.py --server.port 8501 --server.address 0.0.0.0`)*
+
+**Evaluation Dashboard:**
+To view the evaluation metrics, run:
+```bash
+streamlit run eval_dashboard.py
+```
+
+---
+
+# PineBioML Overview
 In today’s data-driven world, making informed decisions requires more than just raw data—it demands intelligent insights. PineBioML is designed to provide a comprehensive workflow that guides users through every step of data analysis, from preprocessing to visualization. Whether you are a data scientist, researcher, or biomedical data analyst, this software tool empowers you with state-of-the-art machine learning algorithms, advanced feature selection techniques, and dynamic data visualization tools to extract valuable insights effortlessly.
 
 ![image](./documents/images/workflow/PineBioML_workflow_v7.png) 
