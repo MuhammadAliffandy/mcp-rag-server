@@ -313,7 +313,7 @@ CLINICAL_GUIDELINES: List[Dict] = [
         "recommendation": (
             "**IBD Family Planning Recommendations:**\n"
             "- **Maintain remission** before conception — active disease decreases fertility\n"
-            "- **Safe medications during pregnancy**: 5-ASA, thiopurines, anti-TNF (stop in 3rd trimester), vedolizumab\n"
+            "These 5-ASA, thiopurines, anti-TNF (stop in 3rd trimester), vedolizumab medications were safe to be continued.\n"
             "- **CONTRAINDICATED**: Methotrexate (MUST discontinue ≥3 months before conception — both males & females), "
             "Tofacitinib (stop ≥4 weeks before conception)\n"
             "- **Corticosteroids**: Use lowest effective dose; budesonide preferred\n"
