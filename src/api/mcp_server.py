@@ -818,6 +818,18 @@ def query_core_rag(patient_id: str, query_intent: str) -> str:
                             and round((_EVAL_DATE - r["start_date"]).days / 7.0, 1) > 12]
                     anchor_lines.append(f"  STEROID_DEPENDENT: {'Yes' if strd else 'No'}")
 
+            # Force explicit LLM extraction mapping
+            anchor_lines.append("\n=== CRITICAL DETERMINISTIC SUMMARY (USE THESE EXACT VALUES) ===")
+            bl_t = b.get('bl_mayo_total', 0) if 'b' in locals() and pd.notnull(b.get('bl_mayo_total')) else 0
+            n_max = max(nancy_dict.values()) if 'nancy_dict' in locals() and nancy_dict else 0
+            anchor_lines.append(f"TOTAL_MAYO_SCORE_CALCULATED: {bl_t}")
+            anchor_lines.append(f"MAX_NANCY_SCORE_CALCULATED: {n_max}")
+            if 'active' in locals() and active:
+                anchor_lines.append("ACTIVE_MEDICATIONS_SUMMARY:")
+                for act in active: anchor_lines.append(act)
+            else:
+                anchor_lines.append("ACTIVE_MEDICATIONS_SUMMARY: None")
+            
             anchor_lines.append("=== END PATIENT ANCHOR ===")
             anchor_block = "\n".join(anchor_lines)
 
@@ -953,18 +965,41 @@ def query_guard_rag(query_intent: str) -> str:
 @mcp.tool()
 def execute_pinebio_ml(data_payload: str, task_type: str) -> str:
     """
-    Executes conventional machine learning algorithms for risk calculation and statistical trends.
+    Executes conventional machine learning algorithms (EXPRAG Matrix) for risk calculation and statistical trends.
     """
     pine_log(f"⚙️ PineBioML: executing task '{task_type}' on data payload '{data_payload}'")
-    # For Colonosense Orchestrator, we return a synthesized ML insight based on common intents.
-    # In a full production system, this would orchestrate to lower-level PineBioML tools.
-    task_type_lower = task_type.lower()
-    if "risk" in task_type_lower or "complication" in task_type_lower:
-         return "PineBio ML Output: Calculated statistical risk score is High (68%) based on historical longitudinal events and prior steroid failure."
-    elif "trend" in task_type_lower:
-         return "PineBio ML Output: Trend analysis indicates a deteriorating trajectory across recent visits, with escalating Mayo Endoscopic Subscores."
-    
-    return f"PineBio ML Output: Successfully executed analytical task '{task_type}' on the specified payload."
+    try:
+        # 1. Parse incoming payload (which is usually a JSON string from the orchestrator)
+        if isinstance(data_payload, str):
+            try:
+                data_dict = json.loads(data_payload)
+            except json.JSONDecodeError:
+                data_dict = {"raw_context": data_payload}
+        else:
+            data_dict = data_payload if data_payload else {}
+            
+        if "case_id" not in data_dict:
+            data_dict["case_id"] = "current_patient"
+            
+        # 2. Route to the real PineBioML EXPRAG Pipeline
+        pine_log(f"🧠 Routing to EXPRAG Pipeline for full ML Cohort Analysis...")
+        result = exprag.execute_clinical_qa(data_dict, task_type)
+        
+        cohort_str = ", ".join(result.get("cohort_ids", []))
+        
+        formatted_output = (
+            f"PineBio ML Output (EXPRAG Similarity Matrix Analysis):\n"
+            f"Berdasarkan analisis statistik cohort historis (Matched IDs: {cohort_str}):\n\n"
+            f"**REASONING:** {result.get('reason', 'N/A')}\n\n"
+            f"**CLINICAL PREDICTION / TREND:** {result.get('answer', 'N/A')}"
+        )
+        return formatted_output
+        
+    except Exception as e:
+        pine_log(f"❌ PineBioML Execution Error: {str(e)}")
+        import traceback
+        pine_log(traceback.format_exc())
+        return f"PineBio ML Error: Could not execute analysis. {str(e)}"
 
 @mcp.tool()
 def exact_identifier_search(query: str, patient_id_filter: Optional[str] = None) -> str:
@@ -1505,6 +1540,7 @@ def run_umap_analysis(target_column: Optional[str] = None, patient_ids: Optional
                 pass
 
         # Get numeric columns
+        num_cols = df.select_dtypes(include=['number'])
         if num_cols.empty: return "No numeric data."
         
         exclude_terms = ['id', 'date', 'time', 'index', 'code']
@@ -1936,34 +1972,31 @@ def discover_markers(
         if not os.path.exists(TABULAR_DATA_PATH):
             return "Error: No data loaded."
         
-        with open(TABULAR_DATA_PATH, "r") as f:
-            df = pd.read_json(io.StringIO(f.read()))
-        
-        # Find target column
-        target_col = None
-        for c in df.columns:
-            if aggressive_clean(target_column).lower() == aggressive_clean(c).lower():
-                target_col = c
-                break
+        # Use shared helper to load and clean data
+        try:
+            df, features, target_col = _load_and_clean_data(target_column)
+        except Exception as e:
+            return f"Error: {e}"
         
         if not target_col:
             return f"Error: Target column '{target_column}' not found. Available: {', '.join(df.columns[:10])}"
         
-        # Get numeric features
-        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
-        exclude_terms = ['id', 'patient', 'subject', 'code', 'accession', 'date', 'time']
-        features = [c for c in numeric_cols if c != target_col and not any(term in c.lower() for term in exclude_terms)]
-        
         if len(features) < 2:
-            return "Error: Need at least 2 numeric features for biomarker discovery."
+            return f"Error: Need at least 2 numeric features for biomarker discovery. Only found {len(features)}: {features}"
         
         X = df[features]
         y = df[target_col]
         
         # Check if binary classification
         unique_values = y.nunique()
-        if unique_values != 2:
-            return f"Error: Target must have exactly 2 groups for Volcano plot. Found {unique_values} groups."
+        if unique_values < 2:
+            return f"Error: Target must have at least 2 groups for Volcano plot. Found {unique_values} groups."
+        elif unique_values > 2:
+            pine_log(f"⚠️ Target '{target_column}' has {unique_values} groups. Volcano Plot requires exactly 2 groups. Auto-selecting the top 2 most frequent groups.")
+            top_2_groups = y.value_counts().index[:2].tolist()
+            mask = y.isin(top_2_groups)
+            X = X[mask]
+            y = y[mask]
         
         pine_log(f"🔬 Running Volcano analysis on {len(features)} features")
         
@@ -2058,6 +2091,10 @@ def train_medical_model(
         X = df[features]
         # Fix: Force target to string to avoid "Encoders require uniformly strings or numbers" error
         y = df[target_col].astype(str)
+        
+        unique_classes = y.nunique()
+        if unique_classes > 10:
+            return f"Error: Target column '{target_column}' has {unique_classes} unique values. This looks like an ID, Text, or Continuous column. Classification models require categorical targets (usually 2-5 classes)."
         
         # Check for extreme class imbalance (e.g. 1 sample) which breaks CV
         # Naive Oversampling: Duplicate minority samples to at least n_cv (5)
@@ -2248,7 +2285,7 @@ def explain_model_predictions(
 @mcp.tool()
 def evaluate_model_performance(
     target_column: str,
-    predictions_column: str,
+    predictions_column: Optional[str] = None,
     model_type: str = "Classifier",
     styling: Union[str, dict] = "{}"
 ) -> str:
@@ -2257,10 +2294,9 @@ def evaluate_model_performance(
     
     Args:
         target_column: Column with true labels
-        predictions_column: Column with predicted labels (or probabilities for ROC)
+        predictions_column: Column with predicted labels (optional, uses latest model if omitted)
         model_type: Name of the model (for display)
         styling: Optional JSON string or dictionary with chart styling
-                 Example: '{"title": "My Model ROC", "style": {"theme": "whitegrid"}}'
     
     Returns:
         String with format: "filepath|||description"
@@ -2269,22 +2305,41 @@ def evaluate_model_performance(
         # Robust handling: Convert dict to string if needed
         if isinstance(styling, dict):
             styling = json.dumps(styling)
-        if not os.path.exists(TABULAR_DATA_PATH):
-            return "Error: No data loaded."
-            
-        with open(TABULAR_DATA_PATH, "r") as f:
-            df = pd.read_json(io.StringIO(f.read()))
-            
-        # Clean column names
-        df.columns = [aggressive_clean(c) for c in df.columns]
-        target_col = find_semantic_column(df, target_column)
-        pred_col = find_semantic_column(df, predictions_column)
         
-        if not target_col or not pred_col:
-            return f"Error: Columns not found. Target: {target_column}, Pred: {predictions_column}"
+        try:
+            df, features, target_col = _load_and_clean_data(target_column)
+        except Exception as e:
+            return f"Error: {e}"
             
-        y_true = df[target_col]
-        y_pred = df[pred_col]
+        if not target_col:
+            return f"Error: Target column '{target_column}' not found."
+            
+        y_true = df[target_col].astype(str)
+        if y_true.nunique() > 10:
+            return f"Error: Target column '{target_column}' has {y_true.nunique()} unique values. Cannot plot Confusion Matrix for so many classes. Please select a categorical target."
+        
+        # If predictions_column is not provided, generate predictions using latest_model
+        if not predictions_column:
+            model_path = os.path.join(OUTPUT_DIR, "latest_model.pkl")
+            if not os.path.exists(model_path):
+                return "Error: predictions_column not provided and no latest_model.pkl found."
+            model = joblib.load(model_path)
+            
+            # Predict probabilities if possible for ROC
+            try:
+                # Fill missing values for the model if needed
+                X_infer = df[features].fillna(df[features].median())
+                y_pred = model.predict_proba(X_infer)[:, 1] # Take prob of positive class
+                pine_log("🤖 Generated predictions using predict_proba from latest model.")
+            except:
+                X_infer = df[features].fillna(df[features].median())
+                y_pred = model.predict(X_infer)
+                pine_log("🤖 Generated predictions using predict from latest model.")
+        else:
+            pred_col = find_semantic_column(df, predictions_column)
+            if not pred_col:
+                return f"Error: Prediction column '{predictions_column}' not found."
+            y_pred = df[pred_col]
         
         # Determine if we should plot Confusion Matrix or ROC
         # If predictions are probabilities (floats between 0-1), prefer ROC

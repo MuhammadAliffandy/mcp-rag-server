@@ -319,20 +319,42 @@ def generate_agent_response(pid, category: str, gt: dict = None) -> dict:
         # No ground truth injection — LLM extracts values from RAG context autonomously
         tool_outputs = f"Core RAG:\n{raw_patient}\n\nGuard RAG:\n{sop_context}"
 
-        # Step 3: Use strict category-aware synthesis prompt if available
+        # Step 3: Use Multi-Agent LLM flow for formatting
         if use_strict_synth:
+            # AGENT 1: Data Extractor
+            extractor_prompt = f"""You are a medical data extraction agent.
+Read the following raw patient anchor and extract all quantitative and qualitative variables into a clean JSON dictionary. Do not write any markdown prose, just output a JSON block.
+Extract values such as bl_mayo_total, MAX(MES), CRP, FC, Nancy, medication, and demographics.
+
+RAW DATA:
+{raw_patient}
+"""
+            try:
+                extraction_resp = synth_llm.invoke([
+                    ("system", extractor_prompt),
+                    ("human", "Extract the clinical variables into JSON format now.")
+                ])
+                extracted_json = extraction_resp.content
+            except Exception as e:
+                extracted_json = raw_patient # fallback
+            
+            # AGENT 2: Formatter
             synth_prompt = get_synthesis_prompt(
                 language="English",
                 question=q,
-                rag_context=raw_patient,
-                tool_outputs=tool_outputs,
+                rag_context=sop_context,
+                tool_outputs=f"STRUCTURED PATIENT ANCHOR:\n{extracted_json}",
                 category_id=cat,
             )
-            resp = synth_llm.invoke([
-                ("system", synth_prompt),
-                ("human", "Please answer the clinical question by strictly following the REQUIRED OUTPUT template format from the system prompt. Do NOT guess values. Use exact values from the STRUCTURED PATIENT ANCHOR.")
-            ])
-            final_answer = resp.content
+            
+            try:
+                resp = synth_llm.invoke([
+                    ("system", synth_prompt),
+                    ("human", "Please answer the clinical question by strictly following the REQUIRED OUTPUT template format from the system prompt. Use the exact values from the JSON.")
+                ])
+                final_answer = resp.content
+            except Exception as e:
+                final_answer = f"Error generating response: {e}"
         else:
             final_answer = synthesize_medical_results(q, tool_outputs, raw_patient)
 

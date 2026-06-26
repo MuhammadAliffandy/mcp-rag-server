@@ -15,7 +15,7 @@ def load_patient_data(file_path: str) -> List[PatientProfile]:
     ext = os.path.splitext(file_path)[1].lower()
     try:
         if ext == '.xlsx' or ext == '.xls':
-            df = pd.read_excel(file_path)
+            df = pd.read_excel(file_path, header=1)
         elif ext == '.csv':
             df = pd.read_csv(file_path)
         else:
@@ -31,7 +31,7 @@ def load_patient_data(file_path: str) -> List[PatientProfile]:
                         return row[k]
                 return default
 
-            case_id = str(get_val(['patient', 'hadm_id', 'case_id'], 'unknown'))
+            case_id = str(get_val(['id', 'patient', 'hadm_id', 'case_id'], 'unknown'))
             if case_id == 'unknown': continue
 
             # Extract fields with multi-key support (mapping standard EHR keys)

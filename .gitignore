@@ -166,3 +166,9 @@ fix_templates.py
 _*.py
 *.html
 
+# Cleaned up folders
+ppt_and_reports/
+eval_results/
+screenshots/
+thesis_and_helpers/
+

@@ -23,7 +23,7 @@ You have some EHR data from other most similar patients as that patient (histori
 {experience_context}
 
 Your solution should have only 2 parts: "REASON" and "ANSWER", and start from "REASON".
-The "REASON" part should be less than 50 words and be your reasoning process about why you make that choice instead of just copying it.
+The "REASON" part should be less than 50 words and be your reasoning process about why you make that choice instead of just copying it. IMPORTANT: You MUST explicitly mention the target patient's specific background metrics (e.g., age, Mayo score, disease type, etc.) in your reasoning to justify the clinical deduction.
 The "ANSWER" part should be the option letters only.
 
 "REASON": [Your clinical reasoning]
@@ -101,12 +101,13 @@ Summary:
 
     def extract_reason_answer(self, llm_response: str) -> Dict[str, str]:
         """
-        Parse the strict EXPRAG format:
+        Parse the strict EXPRAG format or relaxed Llama formats.
         "REASON": ...
         "ANSWER": ...
         """
-        reason_match = re.search(r'"REASON":\s*(.*?)(?="ANSWER"|$)', llm_response, re.DOTALL | re.IGNORECASE)
-        answer_match = re.search(r'"ANSWER":\s*(.*)', llm_response, re.IGNORECASE)
+        # Relaxed regex to capture "REASON": or **REASON** or Reasoning:
+        reason_match = re.search(r'(?:"?REASON"?|\*\*REASON\*\*|\*\*Reasoning\*\*|Reasoning|Reason):?\s*(.*?)(?="?ANSWER"?|\*\*ANSWER\*\*|Answer|$)', llm_response, re.DOTALL | re.IGNORECASE)
+        answer_match = re.search(r'(?:"?ANSWER"?|\*\*ANSWER\*\*|Answer):?\s*(.*)', llm_response, re.IGNORECASE | re.DOTALL)
         
         return {
             "reason": reason_match.group(1).strip() if reason_match else "No reason found.",
