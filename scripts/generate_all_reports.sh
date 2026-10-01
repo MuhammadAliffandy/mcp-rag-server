@@ -1,14 +1,15 @@
 #!/bin/bash
 
-# Total number of patients
-TOTAL_PATIENTS=63
+# Default values (can be overridden via arguments)
+START_PATIENT=${1:-1}
+TOTAL_PATIENTS=${2:-63}
 
 # Create a dedicated directory for the final DOCX reports
 mkdir -p final_docx_reports
 
-echo "Starting Batch Generation for $TOTAL_PATIENTS Patients..."
+echo "Starting Batch Generation from Patient $START_PATIENT to $TOTAL_PATIENTS..."
 
-for i in $(seq 1 $TOTAL_PATIENTS)
+for i in $(seq $START_PATIENT $TOTAL_PATIENTS)
 do
     echo ""
     echo "========================================"
