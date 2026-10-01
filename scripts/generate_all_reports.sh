@@ -22,7 +22,7 @@ do
     
     # 2. Find the newly generated JSON file
     # We use 'ls -t' to get the most recently created JSON for this specific patient
-    LATEST_JSON=$(ls -t eval_results/eval_report_${i}_*.json 2>/dev/null | head -n 1)
+    LATEST_JSON=$(ls -t eval_report_${i}_*.json 2>/dev/null | head -n 1)
     
     if [ -n "$LATEST_JSON" ] && [ -f "$LATEST_JSON" ]; then
         DOCX_FILE="final_docx_reports/ColonoSense_Report_Patient_${i}.docx"
