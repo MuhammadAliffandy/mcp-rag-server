@@ -19,6 +19,8 @@ fi
 echo "Starting Batch Generation from Patient $START_PATIENT to $TOTAL_PATIENTS..."
 echo "Using Python: $(which python)"
 
+export PYTHONUNBUFFERED=1
+
 for i in $(seq $START_PATIENT $TOTAL_PATIENTS)
 do
     echo ""
@@ -26,8 +28,8 @@ do
     echo "Processing Patient ID: $i"
     echo "========================================"
     
-    # 1. Run the RAG pipeline for all categories (Q1.1 - Q6.3)
-    python run_eval.py --patient_id $i --category all
+    # 1. Run the RAG pipeline for all categories (Q1.1 - Q6.3) with unbuffered output
+    python -u run_eval.py --patient_id $i --category all
     
     # 2. Find the newly generated JSON file
     LATEST_JSON=$(ls -t eval_report_${i}_*.json 2>/dev/null | head -n 1)
