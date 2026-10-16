@@ -2,7 +2,7 @@ import os
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from dotenv import load_dotenv
 
-def get_llm(model_name: str = "gpt-4o-mini", temperature: float = 0.0) -> ChatOpenAI:
+def get_llm(model_name: str = "gpt-4o-mini", temperature: float = 0.0, max_tokens: int = 1500) -> ChatOpenAI:
     """
     Centralized factory for instantiating the LLM. 
     Supports gracefully falling back to a local Ollama instance 
@@ -25,13 +25,15 @@ def get_llm(model_name: str = "gpt-4o-mini", temperature: float = 0.0) -> ChatOp
             api_key="ollama", # placeholder needed for the client
             base_url=base_url,
             timeout=180.0,
-            max_retries=2
+            max_retries=2,
+            max_tokens=max_tokens
         )
     else:
         # Default behavior: OpenAI standard models
         return ChatOpenAI(
             model_name=model_name,
-            temperature=temperature
+            temperature=temperature,
+            max_tokens=max_tokens
         )
 
 def get_embeddings():
