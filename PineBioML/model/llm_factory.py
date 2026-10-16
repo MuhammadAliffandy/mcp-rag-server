@@ -23,7 +23,9 @@ def get_llm(model_name: str = "gpt-4o-mini", temperature: float = 0.0) -> ChatOp
             model_name=local_model,
             temperature=temperature,
             api_key="ollama", # placeholder needed for the client
-            base_url=base_url
+            base_url=base_url,
+            timeout=180.0,
+            max_retries=2
         )
     else:
         # Default behavior: OpenAI standard models
