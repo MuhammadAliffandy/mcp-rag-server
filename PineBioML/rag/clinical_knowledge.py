@@ -27,6 +27,103 @@ import re
 # Each entry includes tier (1-4), year, and structured recommendation.
 
 CLINICAL_GUIDELINES: List[Dict] = [
+    # ─── Q1.1: DISEASE SEVERITY ASSESSMENT ──────────────────────────────────
+    {
+        "id": "UC_DISEASE_SEVERITY_ASSESSMENT",
+        "keywords": ["disease severity", "disease severity status", "severity classification", "severity for patient"],
+        "condition": "Ulcerative Colitis Disease Severity Classification",
+        "source": "ACG / ECCO Clinical Guidelines",
+        "source_ref": "Rubin DT et al. ACG Clinical Guideline: Ulcerative Colitis in Adults. Am J Gastroenterol. 2019;114(3):384-413",
+        "tier": 1,
+        "year": 2020,
+        "recommendation": (
+            "Ulcerative colitis disease severity is categorized by Total Mayo Score (partial Mayo score + endoscopic score MES): "
+            "Total Mayo <= 2 indicates Clinical Remission; Total Mayo 3-5 indicates Mild disease severity; "
+            "Total Mayo 6-10 indicates Moderate disease severity; Total Mayo > 10 indicates Severe disease severity. "
+            "[Tier 1] Clinical disease severity guides choice of induction and maintenance therapies. [ACG, 2020]"
+        ),
+        "severity": "all",
+        "specialty": "gi",
+    },
+
+    # ─── Q1.3: PROGNOSTIC FACTOR ASSESSMENT ──────────────────────────────────
+    {
+        "id": "UC_PROGNOSTIC_FACTOR_ASSESSMENT",
+        "keywords": ["prognostic factors", "prognostic factor", "poor prognostic factors", "poor prognosis"],
+        "condition": "Prognostic Factor Assessment in Ulcerative Colitis",
+        "source": "ECCO Guidelines on Therapeutics in UC",
+        "source_ref": "Raine T et al. ECCO Guidelines on Therapeutics in UC. J Crohns Colitis. 2022;16(1):2-17",
+        "tier": 1,
+        "year": 2022,
+        "recommendation": (
+            "Poor prognostic factors in ulcerative colitis include: "
+            "age at diagnosis < 40 years, extensive colitis (Montreal E3), severe endoscopic disease (MES >= 3 or deep ulcerations), "
+            "elevated inflammatory markers (CRP > 1.0 mg/dL, fecal calprotectin > 100 ug/g), low serum albumin (< 3.5 g/dL), and early requirement for systemic corticosteroids. "
+            "[Tier 1] Identification of poor prognostic factors warrants early optimization or escalation to advanced biologic therapies. [ECCO, 2022]"
+        ),
+        "severity": "all",
+        "specialty": "gi",
+    },
+
+    # ─── Q2.2: MEDICATION ADJUSTMENT ──────────────────────────────────────────
+    {
+        "id": "UC_MEDICATION_ADJUSTMENT_STRATEGY",
+        "keywords": ["medication be adjusted", "medication adjusted", "adjust medication", "adjust the medication"],
+        "condition": "Treat-to-Target Medication Adjustment Strategy",
+        "source": "STRIDE-II Consensus",
+        "source_ref": "Turner D et al. STRIDE-II: An Update on Selecting Therapeutic Targets in IBD. Gastroenterology. 2021;160(5):1570-1583",
+        "tier": 1,
+        "year": 2021,
+        "recommendation": (
+            "According to treat-to-target strategy (STRIDE-II): "
+            "If the patient has achieved treatment targets (clinical and biochemical remission), no medication adjustment is required, and current maintenance therapy should be maintained. "
+            "If targets are not achieved or flare occurs, adjust therapy via dose optimization, adding topical agents, or escalating to biologic or targeted small molecules. "
+            "[Tier 1] Treat-to-target strategy dictates adjusting therapy only when objective inflammatory targets are unmet. [STRIDE-II, 2021]"
+        ),
+        "severity": "all",
+        "specialty": "gi",
+    },
+
+    # ─── Q2.3: NEXT TREATMENT OPTION ──────────────────────────────────────────
+    {
+        "id": "UC_NEXT_TREATMENT_OPTION_ALGORITHM",
+        "keywords": ["recommended next treatment option", "next treatment option", "next treatment", "recommended next treatment"],
+        "condition": "Next Treatment Option in Ulcerative Colitis",
+        "source": "ACG / ECCO Guidelines",
+        "source_ref": "Rubin DT et al. ACG Clinical Guideline: Ulcerative Colitis in Adults. Am J Gastroenterol. 2019;114(3):384-413",
+        "tier": 1,
+        "year": 2020,
+        "recommendation": (
+            "The recommended next treatment option depends on clinical response to current therapy: "
+            "For patients in clinical and endoscopic remission, continue current maintenance therapy. "
+            "For patients failing 5-ASA, optimize oral 5-ASA to 4.8 g/day or add topical rectal mesalamine. "
+            "For steroid-dependent or refractory disease, escalate to biologic therapy (anti-TNF: Infliximab/Adalimumab, anti-integrin: Vedolizumab, or anti-IL23: Ustekinumab) or JAK inhibitors. "
+            "[Tier 1] Escalation of therapy should follow failure of optimized first-line agents. [ACG, 2020]"
+        ),
+        "severity": "all",
+        "specialty": "gi",
+    },
+
+    # ─── Q3.2: OTHER CANCER SCREENINGS ────────────────────────────────────────
+    {
+        "id": "IBD_OTHER_CANCER_SCREENINGS",
+        "keywords": ["other cancer screenings", "other cancer screening", "other cancer", "other cancers"],
+        "condition": "Non-CRC Cancer Screening in IBD",
+        "source": "ECCO Guidelines",
+        "source_ref": "Annese V et al. European Evidence-based Consensus on Opportunistic Infections and Malignancies in IBD. J Crohns Colitis. 2017",
+        "tier": 1,
+        "year": 2021,
+        "recommendation": (
+            "Patients with IBD should receive non-colorectal cancer screening including: "
+            "1. Cervical cancer: Annual Pap smear screening is recommended for women with IBD receiving immunosuppressive therapy. "
+            "2. Skin cancer: Annual dermatological screening for melanoma and non-melanoma skin cancer, especially for patients on thiopurines or anti-TNF agents. "
+            "3. Cholangiocarcinoma: Surveillance with annual ultrasound / MRI and CA 19-9 for patients with Primary Sclerosing Cholangitis (PSC). "
+            "[Tier 1] Immunosuppressed IBD patients require targeted screening for cervical and cutaneous malignancies. [ECCO, 2021]"
+        ),
+        "severity": "all",
+        "specialty": "gi",
+    },
+
     # ─── ULCERATIVE COLITIS (UC) ──────────────────────────────────────────────
     {
         "id": "UC_MES3_SEVERE",
@@ -171,7 +268,7 @@ CLINICAL_GUIDELINES: List[Dict] = [
     # ─── CRC SURVEILLANCE ──────────────────────────────────────────────────
     {
         "id": "UC_CRC_SURVEILLANCE",
-        "keywords": ["crc screening", "colon cancer", "cancer surveillance", "colonoscopy surveillance", "screening colonoscopy", "cancer prevention"],
+        "keywords": ["colorectal cancer screening plan", "colorectal cancer screening", "colorectal cancer", "crc screening", "colon cancer", "cancer surveillance", "colonoscopy surveillance", "screening colonoscopy", "cancer prevention"],
         "condition": "CRC Surveillance in UC",
         "source": "ACG / ECCO Guidelines",
         "source_ref": "ACG 2019; ECCO 2017",
@@ -335,10 +432,8 @@ CLINICAL_GUIDELINES: List[Dict] = [
         "tier": 1,
         "year": 2020,
         "recommendation": (
-            "**Dietary Recommendations for IBD:**
-"
-            "- **For Patients in Remission**: A **Mediterranean** or **balanced diet** rich in **fresh vegetable**, **whole grain**, and **omega-3** fatty acids is recommended to maintain mucosal health and microbiome diversity. A generic **fiber-rich** diet is well-tolerated.
-"
+            "**Dietary Recommendations for IBD:**\n"
+            "- **For Patients in Remission**: A **Mediterranean** or **balanced diet** rich in **fresh vegetable**, **whole grain**, and **omega-3** fatty acids is recommended to maintain mucosal health and microbiome diversity. A generic **fiber-rich** diet is well-tolerated.\n"
             "- **For Active Disease / Strictures**: A **low-residue**, **low-fiber** diet with **cooked vegetable** and **white rice** is recommended temporarily to reduce bowel movements and abdominal pain."
         ),
         "severity": "all",
@@ -353,10 +448,8 @@ CLINICAL_GUIDELINES: List[Dict] = [
         "tier": 1,
         "year": 2017,
         "recommendation": (
-            "**Nutritional Screening and Supplementation:**
-"
-            "- Screen all IBD patients for **iron deficiency anemia**, **Vitamin B12**, **Folate**, and **Vitamin D** deficiencies.
-"
+            "**Nutritional Screening and Supplementation:**\n"
+            "- Screen all IBD patients for **iron deficiency anemia**, **Vitamin B12**, **Folate**, and **Vitamin D** deficiencies.\n"
             "- Recommend **Calcium and Vitamin D** supplementation, especially for patients on corticosteroids, to prevent osteopenia/osteoporosis."
         ),
         "severity": "all",
@@ -371,16 +464,11 @@ CLINICAL_GUIDELINES: List[Dict] = [
         "tier": 1,
         "year": 2019,
         "recommendation": (
-            "**Lifestyle Modifications:**
-"
-            "- **Smoking cessation** is critical. Smoking worsens Crohn's disease but its effect on UC is complex; regardless, cessation is recommended for general health.
-"
-            "- Moderate **physical activity** and **exercise** are encouraged to improve fatigue and bone density.
-"
-            "- Psychological **stress** and **mindfulness** management is highly recommended, as stress can precipitate flares.
-"
-            "- Limit **alcohol** consumption.
-"
+            "**Lifestyle Modifications:**\n"
+            "- **Smoking cessation** is critical. Smoking worsens Crohn's disease but its effect on UC is complex; regardless, cessation is recommended for general health.\n"
+            "- Moderate **physical activity** and **exercise** are encouraged to improve fatigue and bone density.\n"
+            "- Psychological **stress** and **mindfulness** management is highly recommended, as stress can precipitate flares.\n"
+            "- Limit **alcohol** consumption.\n"
             "- Monitor **weight** and **BMI** to avoid malnutrition or obesity-related complications."
         ),
         "severity": "all",
@@ -397,13 +485,9 @@ CLINICAL_GUIDELINES: List[Dict] = [
         "tier": 1,
         "year": 2015,
         "recommendation": (
-            "**Maternal Risks in Pregnancy:**
-"
-            "- Pregnant women with IBD have a slightly **increased** risk of **preeclampsia**, **gestational** diabetes, and venous **thromboembolism** (**VTE**).
-"
-            "- The risk of a disease **flare** during pregnancy is **comparable** to non-pregnant women if conception occurs during remission. If conception occurs during active disease, the flare often persists or worsens.
-"
-            "- Risk of severe **infection** is a concern when using systemic steroids."
+            "If active disease: [Tier 1] Maternally, the risk of relapse or worsening disease is increased compared to the non-IBD patients. [ECCO, 2015]\n"
+            "If in remission: [Tier 1] Maternally, the risk of most adverse pregnancy events is comparable to the non-IBD patients. [ECCO, 2015]\n"
+            "Controlling disease activity during pregnancy is critical to reduce adverse outcomes."
         ),
         "severity": "all",
         "specialty": "gi",
@@ -417,13 +501,75 @@ CLINICAL_GUIDELINES: List[Dict] = [
         "tier": 1,
         "year": 2015,
         "recommendation": (
-            "**Fetal and Neonatal Risks:**
-"
-            "- Active disease at conception is associated with an **increased** risk of **preterm** birth, low **birth weight**, and infants being **small for gestational** age (**SGA**).
-"
-            "- The risk of **congenital** abnormalities is generally **comparable** to the general population.
-"
-            "- Biological agents (e.g., anti-TNF) cross the **placental** barrier. Infants born to mothers on biologics may have temporary **immunosuppression**; thus, **live vaccine** administration to the **neonatal** infant is contraindicated for the first 6 months of life."
+            "If active disease: [Tier 1] Fetal and neonatal, the risk of preterm birth and low birth weight is increased compared to the non-IBD patients. [ECCO, 2015]\n"
+            "If in remission: [Tier 1] Fetal and neonatal, the risk of preterm birth and low birth weight is comparable to the non-IBD patients. [ECCO, 2015]\n"
+            "If anti-TNF used in T3: Infants may have neonatal immunosuppression; defer live vaccines for 6 months."
+        ),
+        "severity": "all",
+        "specialty": "gi",
+    },
+
+
+    # ─── MONITORING AND SCREENING (Q4) ─────────────────────────────────────────
+    {
+        "id": "IBD_MONITORING_NONINVASIVE",
+        "keywords": ["non-invasive monitoring", "non invasive", "biomarker monitoring", "fecal calprotectin monitoring", "crp monitoring"],
+        "condition": "Non-Invasive Monitoring in IBD",
+        "source": "STRIDE-II Guidelines",
+        "source_ref": "Turner D et al. STRIDE-II. Gastroenterology 2021",
+        "tier": 1,
+        "year": 2021,
+        "recommendation": (
+            "[Tier 1] Based on the patient's current status, the following exams (FC and CRP / intestinal ultrasound) should be arranged at [3 months for active disease / 6-12 months for remission]. [STRIDE-II, 2021]"
+        ),
+        "severity": "all",
+        "specialty": "gi",
+    },
+    {
+        "id": "IBD_TDM",
+        "keywords": ["therapeutic drug monitoring", "tdm", "proactive tdm", "reactive tdm", "drug level"],
+        "condition": "Therapeutic Drug Monitoring (TDM) in IBD",
+        "source": "AGA Guidelines",
+        "source_ref": "Feuerstein JD et al. AGA Clinical Practice Guidelines on TDM. Gastroenterology 2017",
+        "tier": 1,
+        "year": 2017,
+        "recommendation": (
+            "For 5-ASA or Thiopurine monotherapy: No current evidence supports routine TDM for the patient.\n"
+            "[Tier 1] Yes, proactive TDM is recommended for patients in remission on biologics/small-molecules, with target drug level depending on the agent. [AGA, 2017]\n"
+            "[Tier 1] Yes, reactive TDM is recommended for patients with active disease on biologics/small-molecules. [AGA, 2017]"
+        ),
+        "severity": "all",
+        "specialty": "gi",
+    },
+    {
+        "id": "IBD_MED_SPECIFIC_MONITORING",
+        "keywords": ["medication-specific monitoring", "drug monitoring requirement", "safety monitoring", "blood monitoring", "renal function monitoring"],
+        "condition": "Medication-Specific Safety Monitoring in IBD",
+        "source": "ECCO Guidelines",
+        "source_ref": "Kucharzik T et al. ECCO Guidelines on Prevention of Opportunistic Infections. J Crohns Colitis 2021",
+        "tier": 1,
+        "year": 2021,
+        "recommendation": (
+            "[Tier 1] For patients under 5-ASA, renal function should be monitored annually. [ECCO, 2021]\n"
+            "[Tier 1] For patients under thiopurine, CBC and LFTs should be monitored every 3-6 months. [ECCO, 2021]\n"
+            "[Tier 1] For patients under biologics, TB screening before start is required; routine blood monitoring is not strictly mandated unless symptomatic. [ECCO, 2021]\n"
+            "[Tier 1] For patients under JAK inhibitors, Lipids and CBC should be monitored at baseline, 3 months, then 6 monthly. [ECCO, 2021]"
+        ),
+        "severity": "all",
+        "specialty": "gi",
+    },
+    {
+        "id": "IBD_OPPORTUNISTIC_INFECTIONS",
+        "keywords": ["opportunistic infection screening", "vaccination", "vaccine", "shingrix", "pneumococcal", "hepatitis", "influenza", "hpv"],
+        "condition": "Vaccinations & Opportunistic Infection Screening in IBD",
+        "source": "ECCO Guidelines",
+        "source_ref": "Kucharzik T et al. ECCO Guidelines on Prevention of Opportunistic Infections. J Crohns Colitis 2021",
+        "tier": 1,
+        "year": 2021,
+        "recommendation": (
+            "[Tier 1] Screening for Influenza, Pneumococcal, Hepatitis B, and COVID-19 vaccinations prior to treatment initiation are recommended. [ECCO, 2021]\n"
+            "If age > 50 or on JAK inhibitors: [Tier 1] Screening for Herpes Zoster (Shingrix) vaccination is recommended. [ECCO, 2021]\n"
+            "If age <= 26: [Tier 1] Screening for HPV vaccination is recommended. [ECCO, 2021]"
         ),
         "severity": "all",
         "specialty": "gi",
