@@ -737,7 +737,25 @@ def query_core_rag(patient_id: str, query_intent: str) -> str:
                              "date_onset","birthday","extent","psc","family_hx_crc",
                              "sex","age","smoking","duration"]:
                     if col in b.index and pd.notnull(b[col]):
-                        anchor_lines.append(f"  {col}: {b[col]}")
+                        val = b[col]
+                        if col == "age":
+                            try:
+                                val = round(float(val), 1)
+                            except Exception:
+                                pass
+                        elif col == "sex":
+                            val_s = str(val).strip().lower()
+                            if val_s in ("0", "0.0", "f", "female"):
+                                val = "Female"
+                            elif val_s in ("1", "1.0", "m", "male"):
+                                val = "Male"
+                        elif col == "smoking":
+                            val_s = str(val).strip().lower()
+                            if val_s in ("1", "1.0", "yes", "true"):
+                                val = "Yes (Smoker)"
+                            elif val_s in ("0", "0.0", "no", "false"):
+                                val = "No (Non-smoker)"
+                        anchor_lines.append(f"  {col}: {val}")
                 # Compute age at diagnosis
                 try:
                     onset = pd.to_datetime(b["date_onset"])
@@ -820,10 +838,13 @@ def query_core_rag(patient_id: str, query_intent: str) -> str:
 
             # Force explicit LLM extraction mapping
             anchor_lines.append("\n=== CRITICAL DETERMINISTIC SUMMARY (USE THESE EXACT VALUES) ===")
-            bl_t = b.get('bl_mayo_total', 0) if 'b' in locals() and pd.notnull(b.get('bl_mayo_total')) else 0
-            n_max = max(nancy_dict.values()) if 'nancy_dict' in locals() and nancy_dict else 0
-            anchor_lines.append(f"TOTAL_MAYO_SCORE_CALCULATED: {bl_t}")
-            anchor_lines.append(f"MAX_NANCY_SCORE_CALCULATED: {n_max}")
+            bl_t = b.get('bl_mayo_total', 0.0) if 'b' in locals() and pd.notnull(b.get('bl_mayo_total')) else 0.0
+            n_max = max(nancy_dict.values()) if 'nancy_dict' in locals() and nancy_dict else 0.0
+            m_max = max(mes_dict.values()) if 'mes_dict' in locals() and mes_dict else 0.0
+            anchor_lines.append(f"PARTIAL_MAYO_SCORE_CALCULATED: {float(bl_t):.1f}")
+            anchor_lines.append(f"MAX_MES_SCORE_CALCULATED: {float(m_max):.1f}")
+            anchor_lines.append(f"TOTAL_MAYO_SCORE_CALCULATED: {float(bl_t + m_max):.1f}")
+            anchor_lines.append(f"MAX_NANCY_SCORE_CALCULATED: {float(n_max):.1f}")
             if 'active' in locals() and active:
                 anchor_lines.append("ACTIVE_MEDICATIONS_SUMMARY:")
                 for act in active: anchor_lines.append(act)
@@ -928,7 +949,7 @@ def query_guard_rag(query_intent: str) -> str:
         guideline_query = f"clinical guideline SOP protocol: {query_intent}"
         semantic_answer, sources = rag_engine.query(guideline_query)
         
-        if semantic_answer and len(str(semantic_answer).strip()) > 20 and "Not ready" not in str(semantic_answer):
+        if semantic_answer and len(str(semantic_answer).strip()) > 20 and "Not ready" not in str(semantic_answer) and not str(semantic_answer).startswith("Error:"):
             pine_log("✅ Guard RAG: Internal Semantic PDF search returned an answer.")
             source_names = []
             if sources:

@@ -350,7 +350,7 @@ RAW DATA:
             try:
                 resp = synth_llm.invoke([
                     ("system", synth_prompt),
-                    ("human", "Please answer the clinical question by strictly following the REQUIRED OUTPUT template format from the system prompt. Use the exact values from the JSON.")
+                    ("human", "CRITICAL INSTRUCTION: You MUST strictly copy the REQUIRED OUTPUT template from the system prompt exactly as specified. Do not write any markdown tables or extra explanations. Just output the required sentences using the exact values from the JSON.")
                 ])
                 final_answer = resp.content
             except Exception as e:

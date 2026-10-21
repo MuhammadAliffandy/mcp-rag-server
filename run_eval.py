@@ -273,7 +273,7 @@ def call_agent(pid: str, category: str, gt: dict = None) -> str:
 
         print(f"  {DIM}[Synthesis] running LLM...{RST}")
         llm = get_llm(model_name="gpt-4o-mini", temperature=0)
-        return llm.invoke([("system", prompt), ("human", "Please answer the clinical question by strictly following the REQUIRED OUTPUT template format from the system prompt. Do NOT guess values. Use exact values from the STRUCTURED PATIENT ANCHOR.")]).content
+        return llm.invoke([("system", prompt), ("human", "Please answer the clinical question by strictly following the REQUIRED OUTPUT format from the system prompt. Output ONLY the concise doctor recommendation sentence(s). Do NOT guess values. Use exact values from the STRUCTURED PATIENT ANCHOR. Never output boilerplate or placeholder brackets like [exam], [X], or [Society, Year].")]).content
 
     except Exception as e:
         import traceback
@@ -650,7 +650,9 @@ def print_summary(all_results: list, gt: dict):
 
     # Aggregate
     valid = [r for r in all_results if "error" not in r]
-    def _avg(key): return np.nanmean([r.get(key,np.nan) for r in valid])
+    def _avg(key): 
+        vals = [r.get(key) for r in valid if r.get(key) is not None]
+        return np.nanmean(vals) if vals else np.nan
     pass_n = sum(1 for r in valid if r["overall"] == "PASS")
 
     print(f"\n  {BOLD}Aggregate (n={len(valid)} categories):{RST}")

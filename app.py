@@ -627,14 +627,29 @@ if st.session_state.get("processing_pending", False):
                 if t_name == "query_core_rag":
                     with st.spinner("Retrieving Patient Context..."):
                         m_res = asyncio.run(call_mcp_tool("query_core_rag", t_args))
-                        st.markdown(m_res)
-                        res += f"\n- {m_res}"
+                        
+                        # Display only the enriched clinical summary; hide raw anchor from UI
+                        if "=== ✅ STRUCTURED PATIENT ANCHOR" in m_res:
+                            parts = m_res.split("=== ✅ STRUCTURED PATIENT ANCHOR", 1)
+                            enriched_text = parts[0].strip()
+                            raw_anchor = "=== ✅ STRUCTURED PATIENT ANCHOR" + parts[1]
+                        else:
+                            enriched_text = m_res
+                            raw_anchor = ""
+
+                        st.markdown(enriched_text)
+                        if raw_anchor:
+                            with st.expander("📋 Raw Patient Data (Evidence)", expanded=False):
+                                st.code(raw_anchor, language="text")
+                            
+                        res += f"\n- {enriched_text}"
                         tool_outputs.append(f"Core RAG retrieved: {m_res}")
 
                 elif t_name == "query_guard_rag":
                     with st.spinner("Consulting Medical Guidelines (Offline SOPs)..."):
                         m_res = asyncio.run(call_mcp_tool("query_guard_rag", t_args))
-                        st.markdown("### 🌐 Medical Guidelines (Offline SOP)\n" + m_res)
+                        # Guidelines are internal context for synthesis — show only a status badge
+                        st.success("✅ Medical Guidelines Consulted")
                         res += f"\n\n{m_res}"
                         tool_outputs.append(f"Guard RAG retrieved: {m_res}")
 
@@ -659,15 +674,19 @@ if st.session_state.get("processing_pending", False):
                         "rag_context": st.session_state.get("current_rag_context", "")
                     }))
                     
+                    # Strip any leaked anchor markers from synthesis output before rendering
+                    if "=== ✅ STRUCTURED PATIENT ANCHOR" in synth_res:
+                        synth_res = synth_res.split("=== ✅ STRUCTURED PATIENT ANCHOR")[0].strip()
+                    if "=== CRITICAL DETERMINISTIC SUMMARY" in synth_res:
+                        synth_res = synth_res.split("=== CRITICAL DETERMINISTIC SUMMARY")[0].strip()
+
                     # Clean Rendering Logic:
-                    # If synth_res starts with our category header, we overwrite the display to be clean.
                     if synth_res.strip().startswith("#### Q"):
                         st.markdown(synth_res)
-                        # For Category 1 & 2, we ONLY store the synthesis in history, skipping logs
                         res = synth_res
                     else:
                         st.markdown("### 📝 Clinical Synthesis")
-                        st.info(synth_res)
+                        st.markdown(synth_res)
                         res += f"\n\n### Clinical Synthesis\n{synth_res}"
         else:
             st.markdown(answer)
